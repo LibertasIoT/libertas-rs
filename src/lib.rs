@@ -36,6 +36,7 @@ use core::{any::Any, cell::RefCell};
 use core::alloc::{GlobalAlloc, Layout};
 use core::panic::PanicInfo;
 use core::ffi::{c_void, c_char};
+use core::mem::{self, MaybeUninit};
 use alloc::{slice, boxed::Box, rc::Rc, vec::Vec};
 use hashbrown::HashMap;
 use hashbrown::DefaultHashBuilder;
@@ -76,6 +77,30 @@ pub const STACK_BUF_SIZE: usize = 1000;
 
 type LibertasTimerCallback = dyn FnMut(u32, u64, &mut Box<dyn Any>);
 type LibertasDeviceCallback = dyn FnMut(LibertasDevice, libertas_matter::im::OpCode, &[u8], &mut Box<dyn Any>, Option<LibertasTransId>);
+
+/// Currently a fixed size (1000 bytes) uninitialized stack buffer for message construction.
+/// Will switch to [MaybeUninit::array_assume_init](https://doc.rust-lang.org/beta/std/mem/union.MaybeUninit.html#method.array_assume_init) in the future.
+/// 
+pub struct LibertasUninitStackbuf {
+    data: [u8; STACK_BUF_SIZE],
+}
+
+impl LibertasUninitStackbuf {
+    /// Creates a new uninitialized stack buffer
+    pub fn new() -> Self {
+        Self {
+            data: {
+                let data: [MaybeUninit<u8>; STACK_BUF_SIZE] = [const { MaybeUninit::uninit() }; STACK_BUF_SIZE];
+                unsafe { mem::transmute::<_, [u8; STACK_BUF_SIZE]>(data) }
+            },
+        }
+    }
+
+    /// Returns a slice to the underlying byte data
+    pub fn as_slice(&self) -> &[u8] {
+        &self.data
+    }
+}
 
 #[repr(u8)]
 #[derive(FromPrimitive, ToPrimitive, PartialEq, Eq, Debug, Clone, Copy)]

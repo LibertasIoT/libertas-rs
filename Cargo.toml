@@ -1,11 +1,11 @@
 [package]
 name = "libertas"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 license = "MIT"
 description = "Libertas IoT App SDK"
 homepage = "https://smartonlabs.com"
-repository = "https://github.com/LibertasIoT"
+repository = "https://github.com/LibertasIoT/libertas-rs"
 
 [features]
 hub_only = []
