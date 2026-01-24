@@ -102,7 +102,7 @@ impl LibertasUninitStackbuf {
     }
 
     pub fn as_mut_slice(&mut self) -> &mut [u8] {
-        &self.data
+        &mut self.data
     }
 }
 
