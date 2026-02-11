@@ -32,10 +32,8 @@
 #![no_std]
 // Bring in the alloc crate
 extern crate alloc;
+use core::ffi::c_void;
 use core::{any::Any, cell::RefCell};
-use core::alloc::{GlobalAlloc, Layout};
-use core::panic::PanicInfo;
-use core::ffi::{c_void, c_char};
 use core::mem::{self, MaybeUninit};
 use alloc::{slice, boxed::Box, rc::Rc, vec::Vec};
 use hashbrown::HashMap;
@@ -74,6 +72,7 @@ pub type LibertasAction = u32;
 pub type LibertasTransId = u32;
 
 pub const STACK_BUF_SIZE: usize = 1000;
+const VERSION: u32 = 0x0002;     // Version 0.2, 1.0 shall be 0x10000
 
 type LibertasTimerCallback = dyn FnMut(u32, u64, &mut Box<dyn Any>);
 type LibertasDeviceCallback = dyn FnMut(LibertasDevice, libertas_matter::im::OpCode, &[u8], &mut Box<dyn Any>, Option<LibertasTransId>);
@@ -353,9 +352,7 @@ struct LibertasClusterReadReqRaw {
 
 #[repr(C)]
 struct LibertasCApi {
-    c_alloc: extern "C" fn (size: usize) -> *mut u8,
-    c_free: extern "C" fn (ptr: *mut u8),
-    c_panic: extern "C" fn (message: *const c_char, file: *const c_char, line: u32),
+    version: u32,
     get_task_id: extern "C" fn() -> u32,
     set_task_id: extern "C" fn(u32),    // Used in callback driver
     get_sys_ticks: extern "C" fn() -> u64,
@@ -374,6 +371,7 @@ struct LibertasCApi {
 // Use &pt as *const LibertasPackageCallback to pass back to C
 #[repr(C)]
 pub struct LibertasPackageCallback {
+    version: u32,
     init_task: extern "C" fn(u32),
     remove_task: extern "C" fn(u32),
     timer_driver: extern "C" fn(u64, u64)->TimerDriverResult,
@@ -640,6 +638,7 @@ impl LibertasPackageEnv{
             timers_active_deadline: PriorityQueue::with_default_hasher(), 
             contexts: HashMap::new(), 
             callback: LibertasPackageCallback {
+                version: VERSION,
                 init_task: libertas_impl_init_task,
                 remove_task: libertas_impl_remove_task,
                 timer_driver: libertas_impl_timer_driver,
@@ -1208,47 +1207,3 @@ pub fn libertas_virtual_device_status_rsp(device: LibertasDevice, seq: u32, stat
     }    
 }
 
-pub struct __LibertasAllocator;
-
-unsafe impl GlobalAlloc for __LibertasAllocator {
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        unsafe {
-            if let Some(c_api) = C_API.as_ref() {
-                (c_api.c_alloc)(layout.size())
-            } else {
-                unreachable!();
-            }
-        }
-    }
-
-    unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
-        unsafe {
-            if let Some(c_api) = C_API.as_ref() {
-                (c_api.c_free)(ptr)
-            } else {
-                unreachable!();
-            }
-        }
-    }
-}
-
-pub fn __libertas_panic(info: &PanicInfo) -> ! {
-    unsafe {
-        if let Some(c_api) = C_API.as_ref() {
-            let message = if let Some(s) = info.message().as_str() {
-                s
-            } else {
-                "Unknown"
-            };
-            let mut line = 0;
-            let loc = if let Some(location) = info.location() {
-                line = location.line();
-                location.file()
-            } else {
-                "Unknown"
-            };
-            (c_api.c_panic)(message.as_ptr() as *const c_char, loc.as_ptr() as *const c_char, line);
-        }
-        loop {}
-    }
-}
