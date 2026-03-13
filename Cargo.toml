@@ -1,0 +1,14 @@
+[workspace]
+members = [
+    "crates/libertas", "crates/libertas_macros",
+]
+resolver = "2" # Use the modern feature resolver
+
+[workspace.package]
+version = "0.2.4"
+edition = "2024"
+license = "MIT"
+authors = ["Qingjun Wei"]
+homepage = "https://smartonlabs.com"
+
+[workspace.dependencies]
