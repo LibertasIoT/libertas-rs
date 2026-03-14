@@ -305,12 +305,12 @@ pub fn libertas_send_message(recipients: &[u32], level: LibertasMessageLevel, so
         arg_internals.push(LibertasMessageArgumentInternal::from(arg));
     }
     unsafe {
-        if let Some(c_api) = C_API.as_ref() {
+        if let Some(runtime_api) = RUNTIME_API.as_ref() {
             let src = match source {
                 Some(s) => s,
                 None => LibertasObject { obj_type: LibertasObjectType::App, obj_id: 0 },
             };
-            (c_api.app_send_message)(recipients.as_ptr(), recipients.len(), level as u8, src, resource_name.as_ptr(), resource_name.len(), arg_internals.as_ptr(), arg_internals.len());
+            (runtime_api.app_send_message)(recipients.as_ptr(), recipients.len(), level as u8, src, resource_name.as_ptr(), resource_name.len(), arg_internals.as_ptr(), arg_internals.len());
         } else {
             unreachable!();
         }
@@ -363,7 +363,7 @@ struct TimerDriverResult {
 /// C API provided by Libertas OS runtime to the App package. This struct is passed to the App package during 
 /// initialization and contains function pointers for all interactions with the system.
 #[repr(C)]
-struct LibertasCApi {
+struct LibertasRuntimeApi {
     version: u32,                       // Version of runtime. For compatibility check. Currently not used
     get_random: extern "C" fn(u8) -> u64,
     get_task_id: extern "C" fn() -> u32,
@@ -431,7 +431,7 @@ extern "C" fn libertas_impl_device_callback(task: u32, device: u32, op_code: u8,
 
 extern "C" fn libertas_impl_timer_driver(monotonic: u64, utc: u64) -> TimerDriverResult {
     unsafe {
-        if let Some(c_api) = C_API.as_ref() {
+        if let Some(runtime_api) = RUNTIME_API.as_ref() {
             match ENV {
                 Some(ref mut env) => {
                     let mut next_mono = u64::MAX;
@@ -443,7 +443,7 @@ extern "C" fn libertas_impl_timer_driver(monotonic: u64, utc: u64) -> TimerDrive
                                 if let Some(t) = env.timers.get_mut(&timer) {
                                     t.state = TimerState::Idle;
                                     env.timers_active_interval.pop();
-                                    (c_api.set_task_id)(t.task);
+                                    (runtime_api.set_task_id)(t.task);
                                     (t.cb.borrow_mut())(timer, monotonic, &mut *t.context.borrow_mut());
                                 }
                             } else {
@@ -461,7 +461,7 @@ extern "C" fn libertas_impl_timer_driver(monotonic: u64, utc: u64) -> TimerDrive
                                 if let Some(t) = env.timers.get_mut(&timer) {
                                     t.state = TimerState::Idle;
                                     env.timers_active_deadline.pop();
-                                    (c_api.set_task_id)(t.task);
+                                    (runtime_api.set_task_id)(t.task);
                                     (t.cb.borrow_mut())(timer, utc, &mut *t.context.borrow_mut());
                                 }
                             } else {
@@ -561,7 +561,7 @@ impl LibertasPackageEnv{
     }
 }
 
-static mut C_API: *mut LibertasCApi = core::ptr::null_mut();
+static mut RUNTIME_API: *mut LibertasRuntimeApi = core::ptr::null_mut();
 static mut ENV: Option<LibertasPackageEnv> = None;
 
 /**
@@ -570,9 +570,9 @@ static mut ENV: Option<LibertasPackageEnv> = None;
  * Attempting to call it again is considered a security attack and the caller App will be banned.
  * This function will be re-exported with a new unique name assigned by Libertas builder for each App package.
  */
-pub fn __libertas_init_package(c_api:*mut c_void) -> *const LibertasPackageCallback {
+pub fn __libertas_init_package(runtime_api:*mut c_void) -> *const LibertasPackageCallback {
     unsafe {
-        C_API = c_api as *mut LibertasCApi;
+        RUNTIME_API = runtime_api as *mut LibertasRuntimeApi;
         ENV = Some(LibertasPackageEnv::new());
         let env_ptr = addr_of_mut!(ENV);
         // We use .as_ref() on the *pointer* dereference, or better yet:
@@ -612,8 +612,8 @@ pub fn __libertas_release_package() {
 /// 
 pub fn libertas_get_random(bytes: u8) -> u64 {
     unsafe {
-        if let Some(c_api) = C_API.as_ref() {
-            return (c_api.get_random)(bytes);
+        if let Some(runtime_api) = RUNTIME_API.as_ref() {
+            return (runtime_api.get_random)(bytes);
         } else {
             unreachable!();
         }
@@ -629,8 +629,8 @@ pub fn libertas_get_random(bytes: u8) -> u64 {
 /// The current system tick count in milliseconds as a 64-bit unsigned integer
 pub fn libertas_get_sys_ticks() -> u64 {
     unsafe {
-        if let Some(c_api) = C_API.as_ref() {
-            return (c_api.get_sys_ticks)();
+        if let Some(runtime_api) = RUNTIME_API.as_ref() {
+            return (runtime_api.get_sys_ticks)();
         } else {
             unreachable!();
         }
@@ -647,8 +647,8 @@ pub fn libertas_get_sys_ticks() -> u64 {
 /// 
 pub fn libertas_get_utc_time() -> Option<u64> {
     unsafe {
-        if let Some(c_api) = C_API.as_ref() {
-            let ret = (c_api.get_utc_time)();
+        if let Some(runtime_api) = RUNTIME_API.as_ref() {
+            let ret = (runtime_api.get_utc_time)();
             return if ret == 0 { None } else { Some(ret) };
         } else {
             unreachable!();
@@ -656,7 +656,7 @@ pub fn libertas_get_utc_time() -> Option<u64> {
     }
 }
 
-fn libertas_update_time_zone_info(utc: u64, env: & mut LibertasPackageEnv, c_api: & LibertasCApi) {
+fn libertas_update_time_zone_info(utc: u64, env: & mut LibertasPackageEnv, runtime_api: & LibertasRuntimeApi) {
     unsafe {
         let update_tz = match env.time_zone_info {
             Some(ref tz) => {
@@ -666,7 +666,7 @@ fn libertas_update_time_zone_info(utc: u64, env: & mut LibertasPackageEnv, c_api
         };
         if update_tz {
             let mut info = MaybeUninit::<LibertasTimeZoneInfo>::uninit();
-            if (c_api.get_time_zone_info)(info.as_mut_ptr()) {
+            if (runtime_api.get_time_zone_info)(info.as_mut_ptr()) {
                 env.time_zone_info = Some(info.assume_init());
             }
         }
@@ -686,14 +686,14 @@ fn libertas_update_time_zone_info(utc: u64, env: & mut LibertasPackageEnv, c_api
 /// 
 pub fn libertas_get_local_time() -> Option<u64> {
     unsafe {
-        if let Some(c_api) = C_API.as_ref() {
-            let utc = (c_api.get_utc_time)();
+        if let Some(runtime_api) = RUNTIME_API.as_ref() {
+            let utc = (runtime_api.get_utc_time)();
             if utc == 0 {
                 return None;
             }
             match ENV {
                 Some(ref mut env) => {
-                    libertas_update_time_zone_info(utc, env, c_api);
+                    libertas_update_time_zone_info(utc, env, runtime_api);
                     if let Some(ref tz) = env.time_zone_info {
                         let offset = if utc < tz.current_offset.end {
                             tz.current_offset.offset
@@ -720,14 +720,14 @@ pub fn libertas_get_local_time() -> Option<u64> {
 /// 
 pub fn libertas_local_time_to_utc(local: u64) -> Option<u64> {
     unsafe {
-        if let Some(c_api) = C_API.as_ref() {
-            let now = (c_api.get_utc_time)();
+        if let Some(runtime_api) = RUNTIME_API.as_ref() {
+            let now = (runtime_api.get_utc_time)();
             if now == 0 {
                 return None;
             }            
             match ENV {
                 Some(ref mut env) => {
-                    libertas_update_time_zone_info(now, env, c_api);
+                    libertas_update_time_zone_info(now, env, runtime_api);
                     if let Some(ref tz) = env.time_zone_info {
                         let mut try_utc = (local as i64 - (tz.current_offset.offset as i64) * 1000 * 1000) as u64;
                         if try_utc > tz.current_offset.end {
@@ -753,14 +753,14 @@ pub fn libertas_local_time_to_utc(local: u64) -> Option<u64> {
 /// 
 pub fn libertas_utc_time_to_local(utc: u64) -> Option<u64> {
     unsafe {
-        if let Some(c_api) = C_API.as_ref() {
-            let now = (c_api.get_utc_time)();
+        if let Some(runtime_api) = RUNTIME_API.as_ref() {
+            let now = (runtime_api.get_utc_time)();
             if now == 0 {
                 return None;
             }            
             match ENV {
                 Some(ref mut env) => {
-                    libertas_update_time_zone_info(now, env, c_api);
+                    libertas_update_time_zone_info(now, env, runtime_api);
                     if let Some(ref tz) = env.time_zone_info {
                         return if utc >= tz.current_offset.end {
                             Some((utc as i64 + (tz.next_offset.offset as i64) * 1000 * 1000) as u64)
@@ -781,8 +781,8 @@ pub fn libertas_utc_time_to_local(utc: u64) -> Option<u64> {
 
 fn libertas_get_task_id() -> u32 {
     unsafe {
-        if let Some(c_api) = C_API.as_ref() {
-            return (c_api.get_task_id)();
+        if let Some(runtime_api) = RUNTIME_API.as_ref() {
+            return (runtime_api.get_task_id)();
         } else {
             unreachable!();
         }
@@ -1061,7 +1061,9 @@ fn libertas_register_device_callback_impl(device: LibertasDevice, callback: Box<
                 let wrapped_cb = Rc::new(RefCell::new(callback));
                 let wrapped_tag = Rc::new(RefCell::new(tag));                
                 if let Some(context) = env.contexts.get_mut(&task_id) {
-                    context.device_callbacks.insert(device, DeviceCallback { cb: wrapped_cb, context: wrapped_tag });
+                    if let Some(v) = context.device_callbacks.insert(device, DeviceCallback { cb: wrapped_cb, context: wrapped_tag }) {
+                        panic!("Duplicate device callback registered");
+                    }
                 } else {
                     unreachable!();
                 }
@@ -1080,6 +1082,12 @@ fn libertas_register_device_callback_impl(device: LibertasDevice, callback: Box<
 /// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasDataExchange`.
 /// * `callback` - Closure called when device events occur. Receives device ID, operation code, event data, mutable context, and optional transaction ID.
 /// * `context` - Developer-defined data passed to the callback function
+/// 
+/// # Remarks
+/// Only one callback can be registered per device. Registering a new callback for the same device will cause panic. For devices that the task doesn't
+/// have "read access", only responses to its own requests will trigger the callback. App can not subscribe from "write-only" devices.
+/// 
+/// A task is advised to collect all devices from function arguments before registering any callback to eliminate potential duplicates.
 /// 
 #[inline(always)]
 pub fn libertas_register_device_callback<F>(device: LibertasDevice, callback: F, context: Box<dyn Any>) where F: FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, Option<LibertasTransId>) + Sized + 'static {
@@ -1101,8 +1109,8 @@ pub fn libertas_device_send_request(device: LibertasDevice, op: u8, data: &[u8])
         match ENV {
             Some(ref mut env) => {
                 let ret = env.new_trans_id();
-                if let Some(c_api) = C_API.as_ref() {
-                    (c_api.device_send)(device, ret, op, data.as_ptr(), data.len());
+                if let Some(runtime_api) = RUNTIME_API.as_ref() {
+                    (runtime_api.device_send)(device, ret, op, data.as_ptr(), data.len());
                 } else {
                     unreachable!();
                 }
@@ -1123,8 +1131,8 @@ pub fn libertas_device_send_request(device: LibertasDevice, op: u8, data: &[u8])
 /// 
 pub fn libertas_device_send_response(device: LibertasDevice, op: u8, data: &[u8], trans_id: u32) {
     unsafe {
-        if let Some(c_api) = C_API.as_ref() {
-            (c_api.device_send)(device, trans_id, op, data.as_ptr(), data.len());
+        if let Some(runtime_api) = RUNTIME_API.as_ref() {
+            (runtime_api.device_send)(device, trans_id, op, data.as_ptr(), data.len());
         } else {
             unreachable!();
         }
@@ -1140,8 +1148,8 @@ pub fn libertas_device_send_response(device: LibertasDevice, op: u8, data: &[u8]
 /// 
 pub fn libertas_device_send_report(device: LibertasDevice, op: u8, data: &[u8]) {
     unsafe {
-        if let Some(c_api) = C_API.as_ref() {
-            (c_api.device_send)(device, 0, op, data.as_ptr(), data.len());
+        if let Some(runtime_api) = RUNTIME_API.as_ref() {
+            (runtime_api.device_send)(device, 0, op, data.as_ptr(), data.len());
         } else {
             unreachable!();
         }
