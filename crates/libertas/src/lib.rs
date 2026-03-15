@@ -89,6 +89,9 @@ pub const STACK_BUF_SIZE: usize = 1000;
 const CURRENT_VERSION: u32 = 0x000204;     // Version 0.2.4, 1.0 shall be 0x10000, each sub version must be within [0,255]
 const PROTOCOL_LIBERTAS: u16 = 0;
 const DEVICE_SYSTEM: u32 = 0;
+const OP_DATA_EXCHANGE_REQ: u8 = 8;
+const OP_DATA_EXCHANGE_RSP: u8 = 9;
+const OP_DATA_EXCHANGE_DATA: u8 = 5;
 const OP_SYSTEM_MESSAGE: u8 = 0xfe;
 
 type LibertasTimerCallback = dyn FnMut(u32, u64, &mut Box<dyn Any>);
@@ -180,7 +183,7 @@ struct LibertasRuntimeApi {
     get_sys_ticks: extern "C" fn() -> u64,
     get_time_zone_info: extern "C" fn(*mut LibertasTimeZoneInfo) -> bool,
     get_utc_time: extern "C" fn() -> u64,
-    device_send: extern "C" fn(u32, u32, u8, *const u8, usize),
+    device_send: extern "C" fn(u16, u32, u32, u8, *const u8, usize),
 }
 
 // Use &pt as *const LibertasPackageCallback to pass back to C
@@ -903,6 +906,7 @@ pub fn libertas_register_device_callback<F>(device: LibertasDevice, callback: F,
 /// Sends a request to a LibertasDevice. A response is always expected as a transaction. Thus, a unique transaction ID is generated and returned.
 /// 
 /// # Arguments
+/// * `protocol` - The protocol ID for the request.
 /// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasDataExchange`.
 /// * `op` - Operation code for the request. This is an application defined.
 /// * `data` - Binary blob containing the request data. The content is application defined.
@@ -910,13 +914,13 @@ pub fn libertas_register_device_callback<F>(device: LibertasDevice, callback: F,
 /// # Returns
 /// Unique transaction ID for tracking the response
 /// 
-pub fn libertas_device_send_request(device: LibertasDevice, op: u8, data: &[u8]) -> u32 {
+pub fn libertas_device_send_request(protocol: u16, device: LibertasDevice, op: u8, data: &[u8]) -> u32 {
     unsafe {
         match ENV {
             Some(ref mut env) => {
                 let ret = env.new_trans_id();
                 if let Some(runtime_api) = RUNTIME_API.as_ref() {
-                    (runtime_api.device_send)(device, ret, op, data.as_ptr(), data.len());
+                    (runtime_api.device_send)(protocol, device, ret, op, data.as_ptr(), data.len());
                 } else {
                     unreachable!();
                 }
@@ -930,15 +934,16 @@ pub fn libertas_device_send_request(device: LibertasDevice, op: u8, data: &[u8])
 /// Sends a response to a device request. This API is used to respond to a request received from a device, using the transaction ID provided in the request callback.
 /// 
 /// # Arguments
+/// * `protocol` - The protocol ID for the request.
 /// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasDataExchange`.
 /// * `op` - Operation code for the response. This is an application defined and typically defined in relation to the request op code.
 /// * `data` - Binary blob containing the response data
 /// * `trans_id` - Transaction ID from the original request to correlate the response.
 /// 
-pub fn libertas_device_send_response(device: LibertasDevice, op: u8, data: &[u8], trans_id: u32) {
+pub fn libertas_device_send_response(protocol: u16, device: LibertasDevice, op: u8, data: &[u8], trans_id: u32) {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
-            (runtime_api.device_send)(device, trans_id, op, data.as_ptr(), data.len());
+            (runtime_api.device_send)(protocol, device, trans_id, op, data.as_ptr(), data.len());
         } else {
             unreachable!();
         }
@@ -948,14 +953,15 @@ pub fn libertas_device_send_response(device: LibertasDevice, op: u8, data: &[u8]
 /// Sends a report to a device without expecting a response. This API can be used for unsolicited updates to the device.
 /// 
 /// # Arguments
+/// * `protocol` - The protocol ID for the request.
 /// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasDataExchange`.
 /// * `op` - Operation code for the report. This is an application defined.
 /// * `data` - Binary blob containing the report data.
 /// 
-pub fn libertas_device_send_report(device: LibertasDevice, op: u8, data: &[u8]) {
+pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8, data: &[u8]) {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
-            (runtime_api.device_send)(device, 0, op, data.as_ptr(), data.len());
+            (runtime_api.device_send)(protocol, device, 0, op, data.as_ptr(), data.len());
         } else {
             unreachable!();
         }
@@ -980,7 +986,7 @@ pub fn libertas_device_send_report(device: LibertasDevice, op: u8, data: &[u8]) 
 /// even included default request in the standard like in HTTP.
 #[inline(always)]
 pub fn libertas_data_exchange_request(device: LibertasDataExchange, data: &[u8]) -> u32 {
-    libertas_device_send_request(device, 8u8, data)
+    libertas_device_send_request(PROTOCOL_LIBERTAS, device, OP_DATA_EXCHANGE_REQ, data)
 }
 
 /// Sends a data exchange response to a device
@@ -999,7 +1005,7 @@ pub fn libertas_data_exchange_request(device: LibertasDataExchange, data: &[u8])
 /// Unlike Matter protocol, the data can be any data structure defined and published by the server developer, encoded with Apache Avro format.
 #[inline(always)]
 pub fn libertas_data_exchange_rsp(device: LibertasDataExchange, data: &[u8], trans_id: u32) {
-    libertas_device_send_response(device, 9u8, data, trans_id);
+    libertas_device_send_response(PROTOCOL_LIBERTAS, device, OP_DATA_EXCHANGE_RSP, data, trans_id);
 }
 
 /// Sends a data exchange report to subscribers
@@ -1017,5 +1023,5 @@ pub fn libertas_data_exchange_rsp(device: LibertasDataExchange, data: &[u8], tra
 #[inline(always)]
 pub fn libertas_data_exchange_report(data: &[u8], device: Option<LibertasDataExchange>) {
     let device = device.unwrap_or(u32::MAX);
-    libertas_device_send_report(device, 9u8, data);
+    libertas_device_send_report(PROTOCOL_LIBERTAS, device, OP_DATA_EXCHANGE_DATA, data);
 }
