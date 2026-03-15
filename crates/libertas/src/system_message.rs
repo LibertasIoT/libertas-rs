@@ -6,8 +6,6 @@ use crate::DEVICE_SYSTEM;
 use crate::OP_SYSTEM_MESSAGE;
 use crate::PROTOCOL_LIBERTAS;
 
-use core::ptr::addr_of;
-
 /// Represents the type of a Libertas system object
 /// 
 #[repr(u8)]
@@ -205,7 +203,7 @@ pub fn libertas_send_message(recipients: &[u32], level: LibertasMessageLevel, so
                 arguments: arg_internals.as_ptr(),
                 arguments_len: arg_internals.len(),
             };
-            (runtime_api.device_send)(PROTOCOL_LIBERTAS, DEVICE_SYSTEM, 0, OP_SYSTEM_MESSAGE, addr_of!(message) as *const u8, core::mem::size_of::<LibertasUserMessage>());
+            (runtime_api.device_send)(PROTOCOL_LIBERTAS, DEVICE_SYSTEM, 0, OP_SYSTEM_MESSAGE, &raw const message as *const u8, core::mem::size_of::<LibertasUserMessage>());
         } else {
             unreachable!();
         }

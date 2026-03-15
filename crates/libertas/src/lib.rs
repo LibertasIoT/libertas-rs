@@ -41,7 +41,6 @@ use alloc::{slice, boxed::Box, rc::Rc, vec::Vec};
 use core::ffi::c_void;
 use core::{any::Any, cell::RefCell};
 use core::mem::{self, MaybeUninit};
-use core::ptr::{addr_of_mut, addr_of};
 use core::cmp::Reverse;
 
 use hashbrown::HashMap;
@@ -385,10 +384,10 @@ pub fn __libertas_init_package(runtime_api:*mut c_void) -> *const LibertasPackag
     unsafe {
         RUNTIME_API = runtime_api as *mut LibertasRuntimeApi;
         ENV = Some(LibertasPackageEnv::new());
-        let env_ptr = addr_of_mut!(ENV);
+        let env_ptr = &raw mut ENV;
         // We use .as_ref() on the *pointer* dereference, or better yet:
         if let Some(ref env) = *env_ptr {
-            let callback_ptr = addr_of!(env.callback);
+            let callback_ptr = &raw const (env.callback);
             callback_ptr
         } else {
             core::ptr::null()
