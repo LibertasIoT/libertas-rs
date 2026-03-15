@@ -32,6 +32,11 @@
 #![no_std]
 // Bring in the alloc crate
 extern crate alloc;
+
+mod system_message;
+
+pub use system_message::{LibertasObjectType, LibertasObject, LibertasMessageLevel, LibertasMessageArgument, libertas_send_message, libertas_send_message_literal};
+
 use alloc::{slice, boxed::Box, rc::Rc, vec::Vec};
 use core::ffi::c_void;
 use core::{any::Any, cell::RefCell};
@@ -41,7 +46,6 @@ use core::cmp::Reverse;
 
 use hashbrown::HashMap;
 use hashbrown::DefaultHashBuilder;
-use num_derive::{FromPrimitive};
 use priority_queue::PriorityQueue;
 
 /// A LibertasDevice is key component of this world. It represents anything that has information, 
@@ -81,7 +85,11 @@ pub type LibertasAction = u32;
 pub type LibertasTransId = u32;
 
 pub const STACK_BUF_SIZE: usize = 1000;
-const VERSION: u32 = 0x000204;     // Version 0.2.4, 1.0 shall be 0x10000
+
+const CURRENT_VERSION: u32 = 0x000204;     // Version 0.2.4, 1.0 shall be 0x10000, each sub version must be within [0,255]
+const PROTOCOL_LIBERTAS: u16 = 0;
+const DEVICE_SYSTEM: u32 = 0;
+const OP_SYSTEM_MESSAGE: u8 = 0xfe;
 
 type LibertasTimerCallback = dyn FnMut(u32, u64, &mut Box<dyn Any>);
 type LibertasDeviceCallback = dyn FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, Option<LibertasTransId>);
@@ -137,205 +145,6 @@ pub struct LibertasTimeZoneInfo {
     pub next_offset: LibertasDstOffset,
 }
 
-/// Represents the type of a Libertas system object
-/// 
-#[repr(u8)]
-#[derive(FromPrimitive, PartialEq, Eq, Debug, Clone, Copy)]
-pub enum LibertasObjectType {
-    PhysicalDevice,
-    LogicalDevice,
-    App,
-    AppTask,
-    User,
-    Client,
-}
-
-/// Represents the severity level of a message in the Libertas system
-#[repr(u8)]
-#[derive(FromPrimitive, PartialEq, Eq, Debug, Clone, Copy)]
-pub enum LibertasMessageLevel {
-    Debug,
-    Info,
-    AlertLow,
-    AlertGuarded,
-    AlertElevated,
-    AlertHigh,
-    AlertSevere,
-}
-
-/// Represents a system object in the Libertas system, such as a device, app, or user
-#[repr(C)]
-pub struct LibertasObject {
-    pub obj_type: LibertasObjectType,
-    pub obj_id: u32,
-}
-
-/// Represents an argument that can be included in a message sent through the Libertas system
-pub enum LibertasMessageArgument<'a> {
-    Boolean(bool),
-    Signed(i64),
-    Unsigned(u64),
-    Float(f64),
-    // A literal string, not resource string
-    Text(&'a str),
-    // It is the string resource name, not literal string!
-    ResourceString (&'a str), 
-    UnitSigned {unit_type: &'a str, value: i64},
-    UnitUnsigned {unit_type: &'a str, value: u64},
-    UnitFloat {unit_type: &'a str, value: f64},
-    // A Liberta system object. App task must have access permission to the object.
-    Object {obj_type: LibertasObjectType, obj_id: u32},
-}
-
-/// Internal representation of a message argument for C API compatibility
-#[repr(C)]
-struct LibertasMessageArgumentInternal {
-    arg_type: u8,
-    text: *const u8,
-    text_len: usize,
-    value: u64,
-}
-
-impl LibertasMessageArgumentInternal {
-    fn from(arg: &LibertasMessageArgument) -> Self {
-        match arg {
-            LibertasMessageArgument::Boolean(b) => {
-                Self {
-                    arg_type: 0,
-                    text: core::ptr::null(),
-                    text_len: 0,
-                    value: if *b { 1 } else { 0 },
-                }
-            }
-            LibertasMessageArgument::Signed(s) => {
-                Self {
-                    arg_type: 1,
-                    text: core::ptr::null(),
-                    text_len: 0,
-                    value: *s as u64,
-                }
-            }
-            LibertasMessageArgument::Unsigned(u) => {
-                Self {
-                    arg_type: 2,
-                    text: core::ptr::null(),
-                    text_len: 0,
-                    value: *u,
-                }
-            }
-            LibertasMessageArgument::Float(f) => {
-                Self {
-                    arg_type: 3,
-                    text: core::ptr::null(),
-                    text_len: 0,
-                    value: f.to_bits(),
-                }
-            }
-            LibertasMessageArgument::Text(s) => {
-                Self {
-                    arg_type: 4,
-                    text: s.as_ptr(),
-                    text_len: s.len(),
-                    value: 0,
-                }
-            }
-            LibertasMessageArgument::ResourceString(slice) => {
-                Self {
-                    arg_type: 5,
-                    text: slice.as_ptr(),
-                    text_len: slice.len(),
-                    value: 0,
-                }
-            }
-            LibertasMessageArgument::UnitSigned {unit_type, value} => {
-                Self {
-                    arg_type: 6,
-                    text: unit_type.as_ptr(),
-                    text_len: unit_type.len(),
-                    value: *value as u64,
-                }
-            }
-            LibertasMessageArgument::UnitUnsigned {unit_type, value} => {
-                Self {
-                    arg_type: 7,
-                    text: unit_type.as_ptr(),
-                    text_len: unit_type.len(),
-                    value: *value,
-                }
-            }
-            LibertasMessageArgument::UnitFloat {unit_type, value} => {
-                Self {
-                    arg_type: 8,
-                    text: unit_type.as_ptr(),
-                    text_len: unit_type.len(),
-                    value: value.to_bits(),
-                }
-            }
-            LibertasMessageArgument::Object {obj_type, obj_id} => {
-                let v = *obj_type as u64;
-                Self {
-                    arg_type: 9,
-                    text: core::ptr::null(),
-                    text_len: 0,
-                    value: (v << 32) | *obj_id as u64
-                }
-            }
-        }
-    }
-}
-
-/// Sends a message to a list of recipients. 
-/// 
-/// The message will be delivered to recipients' smartphones or other supported devices.
-/// 
-/// # Panics
-/// App will panic if the resulting message size exceeds STACK_BUF_SIZE bytes.
-/// App will panic on permission violation, including reecipients and LibertasObjects used in source and arguments.
-///
-/// # Arguments
-/// * `recipients` - List of recipient IDs (user, group or client) to send the message to
-/// * `level` - The severity level of the message (e.g., Debug, Info, Alert)
-/// * `source` - Optional source object identifying the sender (e.g., device or app)
-/// * `resource_name` - The resource string name for the message template
-/// * `args` - Arguments to substitute into the message template
-/// 
-pub fn libertas_send_message(recipients: &[u32], level: LibertasMessageLevel, source: Option<LibertasObject>, resource_name: &str, args: &[LibertasMessageArgument]) {
-    let mut arg_internals: Vec<LibertasMessageArgumentInternal> = Vec::with_capacity(args.len());
-    for arg in args {
-        arg_internals.push(LibertasMessageArgumentInternal::from(arg));
-    }
-    unsafe {
-        if let Some(runtime_api) = RUNTIME_API.as_ref() {
-            let src = match source {
-                Some(s) => s,
-                None => LibertasObject { obj_type: LibertasObjectType::App, obj_id: 0 },
-            };
-            (runtime_api.app_send_message)(recipients.as_ptr(), recipients.len(), level as u8, src, resource_name.as_ptr(), resource_name.len(), arg_internals.as_ptr(), arg_internals.len());
-        } else {
-            unreachable!();
-        }
-    }
-}
-
-
-/// Sends a literal text message to a list of recipients.
-///
-/// This function sends a simple text message directly without using a resource template.
-/// The message will be delivered to recipients' smartphones or other supported devices.
-/// 
-/// # Panics
-/// App will panic if the resulting message size exceeds STACK_BUF_SIZE bytes.
-/// App will panic on permission violation, including recipients.
-///
-/// # Arguments
-/// * `recipients` - List of recipient IDs (user, group or client) to send the message to
-/// * `level` - The severity level of the message (e.g., Debug, Info, Alert)
-/// * `text` - The literal text content of the message to send
-pub fn libertas_send_message_literal(recipients: &[u32], level: LibertasMessageLevel, text: &str) {
-    let arg = LibertasMessageArgument::Text(text);
-    libertas_send_message(recipients, level, None, "SYS_LITERAL", &[arg]);
-}
-
 // A count down timer
 enum TimerState {
     Idle,
@@ -367,11 +176,10 @@ struct LibertasRuntimeApi {
     version: u32,                       // Version of runtime. For compatibility check. Currently not used
     get_random: extern "C" fn(u8) -> u64,
     get_task_id: extern "C" fn() -> u32,
-    set_task_id: extern "C" fn(u32),    // Used internally in callback driver
+    set_task_id: extern "C" fn(u32),    // Used internally in callback driver. Only useful if we are driving multiple tasks within one thread.
     get_sys_ticks: extern "C" fn() -> u64,
     get_time_zone_info: extern "C" fn(*mut LibertasTimeZoneInfo) -> bool,
     get_utc_time: extern "C" fn() -> u64,
-    app_send_message: extern "C" fn(*const u32, usize, u8, LibertasObject, *const u8, usize, *const LibertasMessageArgumentInternal, usize),
     device_send: extern "C" fn(u32, u32, u8, *const u8, usize),
 }
 
@@ -508,7 +316,7 @@ impl LibertasPackageEnv{
             timers_active_deadline: PriorityQueue::with_default_hasher(), 
             contexts: HashMap::new(), 
             callback: LibertasPackageCallback {
-                version: VERSION,
+                version: CURRENT_VERSION,
                 init_task: libertas_impl_init_task,
                 remove_task: libertas_impl_remove_task,
                 timer_driver: libertas_impl_timer_driver,
@@ -577,8 +385,6 @@ pub fn __libertas_init_package(runtime_api:*mut c_void) -> *const LibertasPackag
         let env_ptr = addr_of_mut!(ENV);
         // We use .as_ref() on the *pointer* dereference, or better yet:
         if let Some(ref env) = *env_ptr {
-            // This is still technically a reference, so if the compiler 
-            // still complains, we go full raw:
             let callback_ptr = addr_of!(env.callback);
             callback_ptr
         } else {
@@ -1061,7 +867,7 @@ fn libertas_register_device_callback_impl(device: LibertasDevice, callback: Box<
                 let wrapped_cb = Rc::new(RefCell::new(callback));
                 let wrapped_tag = Rc::new(RefCell::new(tag));                
                 if let Some(context) = env.contexts.get_mut(&task_id) {
-                    if let Some(v) = context.device_callbacks.insert(device, DeviceCallback { cb: wrapped_cb, context: wrapped_tag }) {
+                    if let Some(_v) = context.device_callbacks.insert(device, DeviceCallback { cb: wrapped_cb, context: wrapped_tag }) {
                         panic!("Duplicate device callback registered");
                     }
                 } else {
