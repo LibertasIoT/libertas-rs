@@ -917,18 +917,17 @@ pub fn libertas_register_device_callback<F>(device: LibertasDevice, callback: F,
 /// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasDataExchange`.
 /// * `op` - Operation code for the request. This is an application defined.
 /// * `data` - Binary blob containing the request data. The content is application defined.
-/// * `dest` - The destination ID, only for virtual device & data exchange.
 /// 
 /// # Returns
 /// Unique transaction ID for tracking the response
 /// 
-pub fn libertas_device_send_request(protocol: u16, device: LibertasDevice, op: u8, data: &[u8], dest: u32) -> u32 {
+pub fn libertas_device_send_request(protocol: u16, device: LibertasDevice, op: u8, data: &[u8]) -> u32 {
     unsafe {
         match ENV {
             Some(ref mut env) => {
                 let ret = env.new_trans_id();
                 if let Some(runtime_api) = RUNTIME_API.as_ref() {
-                    (runtime_api.device_send)(protocol, device, ret, op, data.as_ptr(), data.len(), dest);
+                    (runtime_api.device_send)(protocol, device, ret, op, data.as_ptr(), data.len(), 0);
                 } else {
                     unreachable!();
                 }
@@ -950,12 +949,12 @@ pub fn libertas_device_send_request(protocol: u16, device: LibertasDevice, op: u
 /// * `op` - Operation code for the response. This is an application defined and typically defined in relation to the request op code.
 /// * `data` - Binary blob containing the response data
 /// * `trans_id` - Transaction ID from the original request to correlate the response.
-/// * `dest` - The destination ID, only for virtual device & data exchange.
+/// * `peer` - The peer that sent the original request.
 /// 
-pub fn libertas_device_send_response(protocol: u16, device: LibertasDevice, op: u8, data: &[u8], trans_id: u32, dest: u32) {
+pub fn libertas_device_send_response(protocol: u16, device: LibertasDevice, op: u8, data: &[u8], trans_id: u32, peer: u32) {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
-            (runtime_api.device_send)(protocol, device, trans_id, op, data.as_ptr(), data.len(), dest);
+            (runtime_api.device_send)(protocol, device, trans_id, op, data.as_ptr(), data.len(), peer);
         } else {
             unreachable!();
         }
@@ -972,12 +971,12 @@ pub fn libertas_device_send_response(protocol: u16, device: LibertasDevice, op: 
 /// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasDataExchange`.
 /// * `op` - Operation code for the report. This is an application defined.
 /// * `data` - Binary blob containing the report data.
-/// * `dest` - The destination ID, only for virtual device & data exchange.
+/// * `peer` - The peer that sent the original request.
 /// 
-pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8, data: &[u8], dest: u32) {
+pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8, data: &[u8], peer: u32) {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
-            (runtime_api.device_send)(protocol, device, 0, op, data.as_ptr(), data.len(), dest);
+            (runtime_api.device_send)(protocol, device, 0, op, data.as_ptr(), data.len(), peer);
         } else {
             unreachable!();
         }
@@ -1002,7 +1001,7 @@ pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8
 /// even included default request in the standard like in HTTP.
 #[inline(always)]
 pub fn libertas_data_exchange_request(device: LibertasDataExchange, data: &[u8]) -> u32 {
-    libertas_device_send_request(PROTOCOL_LIBERTAS, device, OP_DATA_EXCHANGE_REQ, data, 0)
+    libertas_device_send_request(PROTOCOL_LIBERTAS, device, OP_DATA_EXCHANGE_REQ, data)
 }
 
 /// Sends a data exchange response to a device
