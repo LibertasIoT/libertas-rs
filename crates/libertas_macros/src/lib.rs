@@ -13,7 +13,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
             // We use 'retain' to keep only the attributes that are NOT ours
             pat_type.attrs.retain(|attr| {
                 if attr.path().is_ident("data_exchange_schema") ||
-                   attr.path().is_ident("data_exchange_client") {
+                   attr.path().is_ident("data_exchange_server") {
                     // Get the parameter name for logging
                     if let Pat::Ident(ref id) = *pat_type.pat {
                         println!("Consuming attr on argument: {}", id.ident);
@@ -31,7 +31,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
     })
 }
 
-#[proc_macro_derive(LibertasExport, attributes(data_exchange_schema, data_exchange_client))]
+#[proc_macro_derive(LibertasExport, attributes(data_exchange_schema, data_exchange_server))]
 pub fn libertas_derive(input: TokenStream) -> TokenStream {
     // Parse the representation of the struct
     let input = parse_macro_input!(input as DeriveInput);

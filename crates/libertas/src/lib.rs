@@ -225,14 +225,14 @@ extern "C" fn libertas_impl_remove_task(task_id: u32) {
     }
 }
 
-extern "C" fn libertas_impl_device_callback(task: u32, device: u32, op_code: u8, trans_id: u32, data: *const c_void, data_len: usize, src: u32) {
+extern "C" fn libertas_impl_device_callback(task: u32, device: u32, op_code: u8, trans_id: u32, data: *const c_void, data_len: usize, peer: u32) {
     unsafe {
         match ENV {
             Some(ref mut env) => {
                 if let Some(context) = env.contexts.get_mut(&task) {
                     if let Some(dcb) = context.device_callbacks.get_mut(&device) {
                         let d = slice::from_raw_parts(data as *const u8, data_len);
-                        (dcb.cb.borrow_mut())(device, op_code, d, &mut *dcb.context.borrow_mut(), if trans_id == 0 { None } else { Some(trans_id) }, src);
+                        (dcb.cb.borrow_mut())(device, op_code, d, &mut *dcb.context.borrow_mut(), if trans_id == 0 { None } else { Some(trans_id) }, peer);
                     }
                 }
             }
