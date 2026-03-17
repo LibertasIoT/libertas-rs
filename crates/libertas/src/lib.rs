@@ -992,7 +992,6 @@ pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8
 ///
 /// # Arguments
 /// * `peer` - A data exchange server or a client peer. The link created when a Libertas machine is created.
-/// * `op_code` - [OP_DATA_EXCHANGE_SUB_REQ] (to server only) or [OP_DATA_EXCHANGE_REQ]
 /// * `data` - The data payload to send with the request
 ///
 /// # Returns
@@ -1003,8 +1002,29 @@ pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8
 /// We don't need any other Matter interactions. For example, Read and Write can all be implemented as InvokeRequest with custom data. We 
 /// even included default request in the standard like in HTTP.
 #[inline(always)]
-pub fn libertas_data_exchange_request(peer: u32, op_code: u8, data: &[u8]) -> u32 {
-    libertas_device_send_request(PROTOCOL_LIBERTAS, peer, op_code, data)
+pub fn libertas_data_exchange_request(peer: u32, data: &[u8]) -> u32 {
+    libertas_device_send_request(PROTOCOL_LIBERTAS, peer, OP_DATA_EXCHANGE_REQ, data)
+}
+
+/// Sends a data exchange request to a server
+///
+/// Sends a data exchange request to the specified server with the given operation code
+/// and data payload. Returns a transaction ID for tracking the response.
+///
+/// # Arguments
+/// * `peer` - A data exchange server or a client peer. The link created when a Libertas machine is created.
+/// * `data` - The data payload to send with the request
+///
+/// # Returns
+/// Transaction ID that can be used to correlate responses from the device
+/// 
+/// # Note
+/// Unlike Matter protocol, the data can be any data structure defined and published by the server developer, encoded with Apache Avro format.
+/// We don't need any other Matter interactions. For example, Read and Write can all be implemented as InvokeRequest with custom data. We 
+/// even included default request in the standard like in HTTP.
+#[inline(always)]
+pub fn libertas_data_exchange_subscribe_request(peer: u32, data: &[u8]) -> u32 {
+    libertas_device_send_request(PROTOCOL_LIBERTAS, peer, OP_DATA_EXCHANGE_SUB_REQ, data)
 }
 
 /// Sends a data exchange response to a device
