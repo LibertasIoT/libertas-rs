@@ -96,6 +96,8 @@ pub const OP_DATA_EXCHANGE_SUB_REQ:u8 = 3;
 pub const OP_DATA_EXCHANGE_DATA: u8 = 5;
 pub const OP_DATA_EXCHANGE_REQ: u8 = 8;
 pub const OP_DATA_EXCHANGE_RSP: u8 = 9;
+pub const OP_DATA_EXCHANGE_PEER_DOWN: u8 = 20;
+const OP_DATA_EXCHANGE_REMOVE_PEER: u8 = 21;    // device_send
 
 type LibertasTimerCallback = dyn FnMut(u32, u64, &mut Box<dyn Any>);
 type LibertasDeviceCallback = dyn FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, Option<LibertasTransId>, u32);
@@ -991,7 +993,7 @@ pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8
 /// and data payload. Returns a transaction ID for tracking the response.
 ///
 /// # Arguments
-/// * `peer` - A data exchange server or a client peer. The link created when a Libertas machine is created.
+/// * `server` - A data exchange server. The link created when a Libertas machine is created.
 /// * `data` - The data payload to send with the request
 ///
 /// # Returns
@@ -1002,8 +1004,8 @@ pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8
 /// We don't need any other Matter interactions. For example, Read and Write can all be implemented as InvokeRequest with custom data. We 
 /// even included default request in the standard like in HTTP.
 #[inline(always)]
-pub fn libertas_data_exchange_request(peer: u32, data: &[u8]) -> u32 {
-    libertas_device_send_request(PROTOCOL_LIBERTAS, peer, OP_DATA_EXCHANGE_REQ, data)
+pub fn libertas_data_exchange_request(server: u32, data: &[u8]) -> u32 {
+    libertas_device_send_request(PROTOCOL_LIBERTAS, server, OP_DATA_EXCHANGE_REQ, data)
 }
 
 /// Sends a data exchange request to a server
@@ -1012,7 +1014,7 @@ pub fn libertas_data_exchange_request(peer: u32, data: &[u8]) -> u32 {
 /// and data payload. Returns a transaction ID for tracking the response.
 ///
 /// # Arguments
-/// * `peer` - A data exchange server or a client peer. The link created when a Libertas machine is created.
+/// * `server` - A data exchange server. The link created when a Libertas machine is created.
 /// * `data` - The data payload to send with the request
 ///
 /// # Returns
@@ -1023,8 +1025,8 @@ pub fn libertas_data_exchange_request(peer: u32, data: &[u8]) -> u32 {
 /// We don't need any other Matter interactions. For example, Read and Write can all be implemented as InvokeRequest with custom data. We 
 /// even included default request in the standard like in HTTP.
 #[inline(always)]
-pub fn libertas_data_exchange_subscribe_request(peer: u32, data: &[u8]) -> u32 {
-    libertas_device_send_request(PROTOCOL_LIBERTAS, peer, OP_DATA_EXCHANGE_SUB_REQ, data)
+pub fn libertas_data_exchange_subscribe_request(server: u32, data: &[u8]) -> u32 {
+    libertas_device_send_request(PROTOCOL_LIBERTAS, server, OP_DATA_EXCHANGE_SUB_REQ, data)
 }
 
 /// Sends a data exchange response to a device
@@ -1033,7 +1035,7 @@ pub fn libertas_data_exchange_subscribe_request(peer: u32, data: &[u8]) -> u32 {
 /// and data payload using the provided transaction ID.
 ///
 /// # Arguments
-/// * `peer` - A data exchange server or a client peer. The link created when a Libertas machine is created.
+/// * `server` - A data exchange server id. The link created when a Libertas machine is created.
 /// * `data` - The data payload to send with the response
 /// * `trans_id` - The transaction ID from the original request
 /// * `dest` - The source of the original request as the destination of the request.
@@ -1041,8 +1043,8 @@ pub fn libertas_data_exchange_subscribe_request(peer: u32, data: &[u8]) -> u32 {
 /// # Note
 /// Unlike Matter protocol, the data can be any data structure defined and published by the server developer, encoded with Apache Avro format.
 #[inline(always)]
-pub fn libertas_data_exchange_rsp(peer: u32, data: &[u8], trans_id: u32, dest: u32) {
-    libertas_device_send_response(PROTOCOL_LIBERTAS, peer, OP_DATA_EXCHANGE_RSP, data, trans_id, dest);
+pub fn libertas_data_exchange_rsp(server: u32, data: &[u8], trans_id: u32, dest: u32) {
+    libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_DATA_EXCHANGE_RSP, data, trans_id, dest);
 }
 
 /// Sends a data exchange report to subscribers
@@ -1051,16 +1053,34 @@ pub fn libertas_data_exchange_rsp(peer: u32, data: &[u8], trans_id: u32, dest: u
 /// This is typically used to push data updates to clients that have subscribed to data changes.
 ///
 /// # Arguments
+/// * `server` - A data exchange server id. The link created when a Libertas machine is created.
 /// * `data` - The data payload to send in the report
-/// * `device` - Optional specific device ID to send the report to. If None, broadcasts to all subscribers.
-/// * `peer` - The source of the original request as the destination of the request.
-///     - Use [LIBERTAS_BROADCAST_DEST] for broadcasting to all subscribers.
+/// * `peer` - Optional specific device ID to send the report to. If None, broadcasts to all subscribers.
 ///
 /// # Note
 /// Unlike Matter protocol, the data can be any data structure defined and published by the server developer, encoded with Apache Avro format.
 /// This function is used to fulfill subscription requests that expect `OpCode::ReportData` messages.
 #[inline(always)]
-pub fn libertas_data_exchange_report(data: &[u8], device: Option<LibertasDataExchange>, peer: u32) {
-    let device = device.unwrap_or(u32::MAX);
-    libertas_device_send_report(PROTOCOL_LIBERTAS, device, OP_DATA_EXCHANGE_DATA, data, peer);
+pub fn libertas_data_exchange_report(server: u32, data: &[u8], peer: Option<LibertasDataExchange>) {
+    let peer_id = peer.unwrap_or(u32::MAX);
+    libertas_device_send_report(PROTOCOL_LIBERTAS, server, OP_DATA_EXCHANGE_DATA, data, peer_id);
+}
+
+/// Remove a subscriber. 
+/// 
+/// Because the protocol can be anything designed by the developer. There is
+/// no way for Libertas OS runtime to know whether a subscribe request has failed. After the 
+/// task sends back a reject response, it has to notify the OS runtime to remove the subscriber
+/// from the OS maintained list.
+/// * A broadcast data report will nopt be send to this peer.
+/// * OS will not try to maintain the session to keep it alive.
+/// 
+/// #Arguments
+/// * `server` - A data exchange server id. The link created when a Libertas machine is created.
+/// * `peer` - The subscriber peer.
+/// 
+#[inline(always)]
+pub fn libertas_data_exchange_remove_subscriber(server: u32, peer: u32) {
+    let empty_slice: &[u8] = &[];
+    libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_DATA_EXCHANGE_REMOVE_PEER, empty_slice, 0, peer);
 }
