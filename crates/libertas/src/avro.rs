@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 use alloc::string::String;
+use alloc::boxed::Box;
 
 pub trait AvroEncode {
     fn avro_encode(&self, buffer: &mut Vec<u8>);
@@ -29,6 +30,8 @@ impl<T> NotBytesEncode for Vec<T> {}
 impl<T> NotBytesDecode for Vec<T> {}
 impl<T> NotBytesEncode for Option<T> {}
 impl<T> NotBytesDecode for Option<T> {}
+impl<T> NotBytesEncode for Box<T> {}
+impl<T> NotBytesDecode for Box<T> {}
 
 impl AvroEncode for bool {
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
@@ -723,7 +726,17 @@ impl<T: AvroDecode> AvroDecode for Option<T> {
     }
 }
 
+impl<T: AvroEncode> AvroEncode for Box<T> {
+    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+        self.as_ref().avro_encode(buffer);
+    }
+}
 
+impl<T: AvroDecode> AvroDecode for Box<T> {
+    fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
+        Ok(Box::new(T::avro_decode(buffer, offset)?))
+    }
+}
 
 impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode, G: AvroEncode, H: AvroEncode, I: AvroEncode, J: AvroEncode, K: AvroEncode, L: AvroEncode, M: AvroEncode, N: AvroEncode> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N,) {
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
@@ -1490,4 +1503,3 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, 
 
 impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z> NotBytesEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,) {}
 impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z> NotBytesDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,) {}
-
