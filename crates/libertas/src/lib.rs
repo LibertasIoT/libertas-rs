@@ -34,8 +34,10 @@
 extern crate alloc;
 
 mod system_message;
+mod avro;
 
 pub use system_message::{LibertasObjectType, LibertasObject, LibertasMessageLevel, LibertasMessageArgument, libertas_send_message, libertas_send_message_literal};
+pub use avro::{AvroDecode, AvroEncode, NotBytesDecode, NotBytesEncode};
 
 use alloc::{slice, boxed::Box, rc::Rc, vec::Vec};
 use core::ffi::c_void;
@@ -440,7 +442,7 @@ pub fn libertas_get_random(bytes: u8) -> u64 {
 /// elapsed time between events.
 /// 
 /// # Returns
-/// The current system tick count in milliseconds as a 64-bit unsigned integer
+/// The current system tick count in microseconds as a 64-bit unsigned integer
 pub fn libertas_get_sys_ticks() -> u64 {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
@@ -667,7 +669,7 @@ pub fn libertas_timer_new_interval<F>(exipration: u64, callback: F, context: Box
 /// is invoked once when the deadline is reached.
 /// 
 /// # Arguments
-/// * `exipration` - The deadline in UTC time in milliseconds
+/// * `exipration` - The deadline in UTC time in microseconds
 /// * `callback` - Closure called when the deadline is reached. Receives timer ID, deadline time, and context.
 /// * `new_context` - User-defined data associated with the timer
 /// 
@@ -736,7 +738,7 @@ fn libertas_timer_update(timer: u32, exipration: u64, interval: bool, callback: 
 /// 
 /// # Arguments
 /// * `timer` - The timer ID to update
-/// * `exipration` - The new expiration time in system ticks in milliseconds
+/// * `exipration` - The new expiration time in system ticks in microseconds
 ///
 /// # Panics
 /// Panics if the timer ID is invalid or belongs to a different task
@@ -752,7 +754,7 @@ pub fn libertas_timer_update_interval(timer: u32, exipration: u64) {
 /// 
 /// # Arguments
 /// * `timer` - The timer ID to update
-/// * `exipration` - The new deadline in UTC milliseconds ticks
+/// * `exipration` - The new deadline in UTC microseconds ticks
 ///
 /// # Panics
 /// Panics if the timer ID is invalid or belongs to a different task
@@ -768,7 +770,7 @@ pub fn libertas_timer_update_deadline(timer: u32, exipration: u64) {
 /// 
 /// # Arguments
 /// * `timer` - The timer ID to update
-/// * `exipration` - The new expiration time in system ticks in milliseconds
+/// * `exipration` - The new expiration time in system ticks in microseconds
 /// * `callback` - New closure to invoke on each interval expiration
 /// * `new_context` - New user-defined data to associate with the timer
 ///

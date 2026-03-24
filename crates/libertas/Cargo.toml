@@ -11,9 +11,6 @@ repository = "https://github.com/LibertasIoT/libertas-rs"
 [dependencies]
 hashbrown = { version = "0.16" }
 priority-queue = { version = "2.7", default-features = false }
-num-traits = { version = "0.2", default-features = false }
-num-derive = { version = "0.4" }
-num = { version = "0.4", default-features = false, features = [] }
 
 [lib]
 name = "libertas"

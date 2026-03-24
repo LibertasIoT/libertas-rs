@@ -1,5 +1,3 @@
-use num_derive::{FromPrimitive};
-
 use crate::Vec;
 use crate::RUNTIME_API;
 use crate::DEVICE_SYSTEM;
@@ -9,7 +7,7 @@ use crate::PROTOCOL_LIBERTAS;
 /// Represents the type of a Libertas system object
 /// 
 #[repr(u8)]
-#[derive(FromPrimitive, PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum LibertasObjectType {
     PhysicalDevice,
     LogicalDevice,
@@ -21,7 +19,7 @@ pub enum LibertasObjectType {
 
 /// Represents the severity level of a message in the Libertas system
 #[repr(u8)]
-#[derive(FromPrimitive, PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum LibertasMessageLevel {
     Debug,
     Info,
