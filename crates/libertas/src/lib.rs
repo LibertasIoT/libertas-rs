@@ -65,7 +65,7 @@ pub type LibertasVirtualDevice = LibertasDevice;
 
 /// A special LibertasVirtualDevice for exchanging structural data between tasks.
 /// The data schema is defined by the original server developer and must be published.
-pub type LibertasDataExchange = LibertasVirtualDevice;
+pub type LibertasAgentTool = LibertasVirtualDevice;
 
 /// Timestamp representing date and time
 pub type LibertasDateTime = u64;
@@ -898,7 +898,7 @@ fn libertas_register_device_callback_impl(device: LibertasDevice, callback: Box<
 /// Developer shall not call this API directly. Instead, they should use the protocol-specific APIs built on top of this API. For example, for Matter protocol, developers should use `matter_register_device_callback` instead of this API. The protocol-specific APIs will handle the protocol details and provide a more user-friendly interface.
 ///
 /// # Arguments
-/// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasDataExchange`.
+/// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasAgentTool`.
 /// * `callback` - Closure called when device events occur. Receives device ID, operation code, event data, mutable context, and optional transaction ID.
 /// * `context` - Developer-defined data passed to the callback function
 /// 
@@ -920,7 +920,7 @@ pub fn libertas_register_device_callback<F>(device: LibertasDevice, callback: F,
 /// 
 /// # Arguments
 /// * `protocol` - The protocol ID for the request.
-/// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasDataExchange`.
+/// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasAgentTool`.
 /// * `op` - Operation code for the request. This is an application defined.
 /// * `data` - Binary blob containing the request data. The content is application defined.
 /// 
@@ -951,7 +951,7 @@ pub fn libertas_device_send_request(protocol: u16, device: LibertasDevice, op: u
 /// 
 /// # Arguments
 /// * `protocol` - The protocol ID for the request.
-/// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasDataExchange`.
+/// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasAgentTool`.
 /// * `op` - Operation code for the response. This is an application defined and typically defined in relation to the request op code.
 /// * `data` - Binary blob containing the response data
 /// * `trans_id` - Transaction ID from the original request to correlate the response.
@@ -974,7 +974,7 @@ pub fn libertas_device_send_response(protocol: u16, device: LibertasDevice, op: 
 /// 
 /// # Arguments
 /// * `protocol` - The protocol ID for the request.
-/// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasDataExchange`.
+/// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasAgentTool`.
 /// * `op` - Operation code for the report. This is an application defined.
 /// * `data` - Binary blob containing the report data.
 /// * `peer` - The peer that sent the original request.
@@ -1006,7 +1006,7 @@ pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8
 /// We don't need any other Matter interactions. For example, Read and Write can all be implemented as InvokeRequest with custom data. We 
 /// even included default request in the standard like in HTTP.
 #[inline(always)]
-pub fn libertas_data_exchange_request(server: u32, data: &[u8]) -> u32 {
+pub fn libertas_agent_tool_request(server: u32, data: &[u8]) -> u32 {
     libertas_device_send_request(PROTOCOL_LIBERTAS, server, OP_DATA_EXCHANGE_REQ, data)
 }
 
@@ -1027,7 +1027,7 @@ pub fn libertas_data_exchange_request(server: u32, data: &[u8]) -> u32 {
 /// We don't need any other Matter interactions. For example, Read and Write can all be implemented as InvokeRequest with custom data. We 
 /// even included default request in the standard like in HTTP.
 #[inline(always)]
-pub fn libertas_data_exchange_subscribe_request(server: u32, data: &[u8]) -> u32 {
+pub fn libertas_agent_tool_subscribe_request(server: u32, data: &[u8]) -> u32 {
     libertas_device_send_request(PROTOCOL_LIBERTAS, server, OP_DATA_EXCHANGE_SUB_REQ, data)
 }
 
@@ -1045,7 +1045,7 @@ pub fn libertas_data_exchange_subscribe_request(server: u32, data: &[u8]) -> u32
 /// # Note
 /// Unlike Matter protocol, the data can be any data structure defined and published by the server developer, encoded with Apache Avro format.
 #[inline(always)]
-pub fn libertas_data_exchange_rsp(server: u32, data: &[u8], trans_id: u32, dest: u32) {
+pub fn libertas_agent_tool_rsp(server: u32, data: &[u8], trans_id: u32, dest: u32) {
     libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_DATA_EXCHANGE_RSP, data, trans_id, dest);
 }
 
@@ -1063,7 +1063,7 @@ pub fn libertas_data_exchange_rsp(server: u32, data: &[u8], trans_id: u32, dest:
 /// Unlike Matter protocol, the data can be any data structure defined and published by the server developer, encoded with Apache Avro format.
 /// This function is used to fulfill subscription requests that expect `OpCode::ReportData` messages.
 #[inline(always)]
-pub fn libertas_data_exchange_report(server: u32, data: &[u8], peer: Option<LibertasDataExchange>) {
+pub fn libertas_agent_tool_report(server: u32, data: &[u8], peer: Option<LibertasAgentTool>) {
     let peer_id = peer.unwrap_or(u32::MAX);
     libertas_device_send_report(PROTOCOL_LIBERTAS, server, OP_DATA_EXCHANGE_DATA, data, peer_id);
 }
@@ -1082,7 +1082,7 @@ pub fn libertas_data_exchange_report(server: u32, data: &[u8], peer: Option<Libe
 /// * `peer` - The subscriber peer.
 /// 
 #[inline(always)]
-pub fn libertas_data_exchange_remove_subscriber(server: u32, peer: u32) {
+pub fn libertas_agent_tool_remove_subscriber(server: u32, peer: u32) {
     let empty_slice: &[u8] = &[];
     libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_DATA_EXCHANGE_REMOVE_PEER, empty_slice, 0, peer);
 }
