@@ -1,7 +1,7 @@
 //! Libertas SDK Rust Bindings
 //!
 //! This library provides Rust bindings for the Libertas IoT system, allowing applications
-//! to interact with devices, manage timers, subscribe to events, and handle data exchange.
+//! to interact with devices, manage timers, subscribe to events, and handle agent/tool.
 //!
 //! # Core Features
 //!
@@ -63,7 +63,7 @@ pub type LibertasDevice = u32;
 /// It will be automatically deleted when the corresponding task is deleted.
 pub type LibertasVirtualDevice = LibertasDevice;
 
-/// A special LibertasVirtualDevice for exchanging structural data between tasks.
+/// A special LibertasVirtualDevice for agent or tool calls.
 /// The data schema is defined by the original server developer and must be published.
 pub type LibertasAgentTool = LibertasVirtualDevice;
 
@@ -94,12 +94,12 @@ const PROTOCOL_LIBERTAS: u16 = 0;
 const DEVICE_SYSTEM: u32 = 0;
 const OP_SYSTEM_MESSAGE: u8 = 0xfe;
 
-pub const OP_DATA_EXCHANGE_SUB_REQ:u8 = 3;
-pub const OP_DATA_EXCHANGE_DATA: u8 = 5;
-pub const OP_DATA_EXCHANGE_REQ: u8 = 8;
-pub const OP_DATA_EXCHANGE_RSP: u8 = 9;
-pub const OP_DATA_EXCHANGE_PEER_DOWN: u8 = 20;
-const OP_DATA_EXCHANGE_REMOVE_PEER: u8 = 21;    // device_send
+pub const OP_AGENT_TOOL_SUB_REQ:u8 = 3;
+pub const OP_AGENT_TOOL_DATA: u8 = 5;
+pub const OP_AGENT_TOOL_REQ: u8 = 8;
+pub const OP_AGENT_TOOL_RSP: u8 = 9;
+pub const OP_AGENT_TOOL_PEER_DOWN: u8 = 20;
+const OP_AGENT_TOOL_REMOVE_PEER: u8 = 21;    // device_send
 
 type LibertasTimerCallback = dyn FnMut(u32, u64, &mut Box<dyn Any>);
 type LibertasDeviceCallback = dyn FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, Option<LibertasTransId>, u32);
@@ -190,7 +190,7 @@ struct LibertasRuntimeApi {
     get_sys_ticks: extern "C" fn() -> u64,
     get_time_zone_info: extern "C" fn(*mut LibertasTimeZoneInfo) -> bool,
     get_utc_time: extern "C" fn() -> u64,
-    device_send: extern "C" fn(u16, u32, u32, u8, *const u8, usize, u32),               // Protocol, device (virtual device src), trans_id, op_code, data, data_len, ack_dest (virtual device & data exchange)
+    device_send: extern "C" fn(u16, u32, u32, u8, *const u8, usize, u32),               // Protocol, device (virtual device src), trans_id, op_code, data, data_len, ack_dest (virtual device & agent/tool)
 }
 
 // Use &pt as *const LibertasPackageCallback to pass back to C
@@ -200,7 +200,7 @@ pub struct LibertasPackageCallback {
     init_task: extern "C" fn(u32),
     remove_task: extern "C" fn(u32),
     timer_driver: extern "C" fn(u64, u64)->TimerDriverResult,
-    device_callback: extern "C" fn(u32, u32, u8, *const u32, *const c_void, usize, u32),       // task, device (virtual device dst), op_code, trans_id, data, data_len, source (virtual device & data exchange)
+    device_callback: extern "C" fn(u32, u32, u8, *const u32, *const c_void, usize, u32),       // task, device (virtual device dst), op_code, trans_id, data, data_len, source (virtual device & agent/tool)
 }
 
 struct Context {
@@ -869,7 +869,7 @@ pub fn libertas_timer_delete(timer: u32) {
     }    
 }
 
-fn libertas_register_device_callback_impl(device: LibertasDevice, callback: Box<LibertasDeviceCallback>, tag: Box<dyn Any>) {
+fn libertas_register_device_listener_impl(device: LibertasDevice, callback: Box<LibertasDeviceCallback>, tag: Box<dyn Any>) {
     unsafe {
         match ENV {
             Some(ref mut env) => {
@@ -909,8 +909,33 @@ fn libertas_register_device_callback_impl(device: LibertasDevice, callback: Box<
 /// A task is advised to collect all devices from function arguments before registering any callback to eliminate potential duplicates.
 /// 
 #[inline(always)]
-pub fn libertas_register_device_callback<F>(device: LibertasDevice, callback: F, context: Box<dyn Any>) where F: FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, Option<LibertasTransId>, u32) + Sized + 'static {
-    libertas_register_device_callback_impl(device, Box::new(callback), context);
+pub fn libertas_register_device_listener<F>(device: LibertasDevice, callback: F, context: Box<dyn Any>) where F: FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, Option<LibertasTransId>, u32) + Sized + 'static {
+    libertas_register_device_listener_impl(device, Box::new(callback), context);
+}
+
+type AgentToolCallback<T> = dyn FnMut(LibertasAgentTool, u8, Option<T>, &mut Box<dyn Any>, Option<LibertasTransId>, u32);
+struct AgentToolListener<T> {
+    callback: Box<AgentToolCallback<T>>,
+    context: Box<dyn Any>,
+}
+
+pub fn libertas_register_agent_tool_listener<T, F>(id: LibertasAgentTool, callback: F, context: Box<dyn Any>)
+        where 
+            T: AvroDecode + 'static,
+            F: FnMut(LibertasAgentTool, u8, Option<T>, &mut Box<dyn Any>, Option<LibertasTransId>, u32) + Sized + 'static {
+    let listener = Box::new(AgentToolListener {
+        callback: Box::new(callback),
+        context,
+    });
+    libertas_register_device_listener(id, |device, opcode, data, tag_any, trans_id, peer| {
+        let tag = tag_any.downcast_mut::<AgentToolListener<T>>().unwrap();
+        let mut protocol_obj: Option<T> = None;
+        if opcode != OP_AGENT_TOOL_PEER_DOWN {
+            let mut offset: usize = 1;
+            protocol_obj = Some(T::avro_decode(data, &mut offset).unwrap());  //  serde_avro_fast::from_datum_slice::<T>(&data[1..], &tag.protocol_schema).unwrap();
+        }
+        (tag.callback)(device, opcode, protocol_obj, &mut tag.context, trans_id, peer);
+    }, listener);
 }
 
 /// Sends a request to a LibertasDevice. A response is always expected as a transaction. Thus, a unique transaction ID is generated and returned.
@@ -989,13 +1014,13 @@ pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8
     }
 }
 
-/// Sends a data exchange request to a server
+/// Sends a agent/tool request to a server
 ///
-/// Sends a data exchange request to the specified server with the given operation code
+/// Sends a agent/tool request to the specified server with the given operation code
 /// and data payload. Returns a transaction ID for tracking the response.
 ///
 /// # Arguments
-/// * `server` - A data exchange server. The link created when a Libertas machine is created.
+/// * `server` - A agent/tool server. The link created when a Libertas machine is created.
 /// * `data` - The data payload to send with the request
 ///
 /// # Returns
@@ -1006,17 +1031,22 @@ pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8
 /// We don't need any other Matter interactions. For example, Read and Write can all be implemented as InvokeRequest with custom data. We 
 /// even included default request in the standard like in HTTP.
 #[inline(always)]
-pub fn libertas_agent_tool_request(server: u32, data: &[u8]) -> u32 {
-    libertas_device_send_request(PROTOCOL_LIBERTAS, server, OP_DATA_EXCHANGE_REQ, data)
+pub fn libertas_agent_tool_request<T>(server: u32, data: &T) -> u32 
+    where 
+        T: AvroEncode + 'static {
+    let mut bytes: Vec<_> = Vec::new();
+    bytes.push(0u8);
+    data.avro_encode(&mut bytes);
+    libertas_device_send_request(PROTOCOL_LIBERTAS, server, OP_AGENT_TOOL_REQ, &bytes)
 }
 
-/// Sends a data exchange request to a server
+/// Sends a agent/tool request to a server
 ///
-/// Sends a data exchange request to the specified server with the given operation code
+/// Sends a agent/tool request to the specified server with the given operation code
 /// and data payload. Returns a transaction ID for tracking the response.
 ///
 /// # Arguments
-/// * `server` - A data exchange server. The link created when a Libertas machine is created.
+/// * `server` - A agent/tool server. The link created when a Libertas machine is created.
 /// * `data` - The data payload to send with the request
 ///
 /// # Returns
@@ -1027,17 +1057,22 @@ pub fn libertas_agent_tool_request(server: u32, data: &[u8]) -> u32 {
 /// We don't need any other Matter interactions. For example, Read and Write can all be implemented as InvokeRequest with custom data. We 
 /// even included default request in the standard like in HTTP.
 #[inline(always)]
-pub fn libertas_agent_tool_subscribe_request(server: u32, data: &[u8]) -> u32 {
-    libertas_device_send_request(PROTOCOL_LIBERTAS, server, OP_DATA_EXCHANGE_SUB_REQ, data)
+pub fn libertas_agent_tool_subscribe_request<T>(server: u32, data: &T) -> u32 
+    where 
+        T: AvroEncode + 'static {
+    let mut bytes: Vec<_> = Vec::new();
+    bytes.push(0u8);
+    data.avro_encode(&mut bytes);
+    libertas_device_send_request(PROTOCOL_LIBERTAS, server, OP_AGENT_TOOL_SUB_REQ, &bytes)
 }
 
-/// Sends a data exchange response to a device
+/// Sends a agent/tool response to a device
 ///
-/// Sends a response to a data exchange request with the specified operation code
+/// Sends a response to a agent/tool request with the specified operation code
 /// and data payload using the provided transaction ID.
 ///
 /// # Arguments
-/// * `server` - A data exchange server id. The link created when a Libertas machine is created.
+/// * `server` - A agent/tool server id. The link created when a Libertas machine is created.
 /// * `data` - The data payload to send with the response
 /// * `trans_id` - The transaction ID from the original request
 /// * `dest` - The source of the original request as the destination of the request.
@@ -1045,17 +1080,22 @@ pub fn libertas_agent_tool_subscribe_request(server: u32, data: &[u8]) -> u32 {
 /// # Note
 /// Unlike Matter protocol, the data can be any data structure defined and published by the server developer, encoded with Apache Avro format.
 #[inline(always)]
-pub fn libertas_agent_tool_rsp(server: u32, data: &[u8], trans_id: u32, dest: u32) {
-    libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_DATA_EXCHANGE_RSP, data, trans_id, dest);
+pub fn libertas_agent_tool_response<T>(server: u32, data: &T, trans_id: u32, dest: u32) 
+    where 
+        T: AvroEncode + 'static {
+    let mut bytes: Vec<_> = Vec::new();
+    bytes.push(0u8);
+    data.avro_encode(&mut bytes);
+    libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_AGENT_TOOL_RSP, &bytes, trans_id, dest);
 }
 
-/// Sends a data exchange report to subscribers
+/// Sends a agent/tool report to subscribers
 ///
-/// Sends report data to all subscribers of a data exchange point or to a specific device.
+/// Sends report data to all subscribers of a agent/tool point or to a specific device.
 /// This is typically used to push data updates to clients that have subscribed to data changes.
 ///
 /// # Arguments
-/// * `server` - A data exchange server id. The link created when a Libertas machine is created.
+/// * `server` - A agent/tool server id. The link created when a Libertas machine is created.
 /// * `data` - The data payload to send in the report
 /// * `peer` - Optional specific device ID to send the report to. If None, broadcasts to all subscribers.
 ///
@@ -1063,9 +1103,14 @@ pub fn libertas_agent_tool_rsp(server: u32, data: &[u8], trans_id: u32, dest: u3
 /// Unlike Matter protocol, the data can be any data structure defined and published by the server developer, encoded with Apache Avro format.
 /// This function is used to fulfill subscription requests that expect `OpCode::ReportData` messages.
 #[inline(always)]
-pub fn libertas_agent_tool_report(server: u32, data: &[u8], peer: Option<LibertasAgentTool>) {
-    let peer_id = peer.unwrap_or(u32::MAX);
-    libertas_device_send_report(PROTOCOL_LIBERTAS, server, OP_DATA_EXCHANGE_DATA, data, peer_id);
+pub fn libertas_agent_tool_report<T>(server: u32, data: &T, peer: Option<LibertasAgentTool>) 
+    where 
+        T: AvroEncode + 'static {
+    let peer_id = peer.unwrap_or(LIBERTAS_BROADCAST_DEST);
+    let mut bytes: Vec<_> = Vec::new();
+    bytes.push(0u8);
+    data.avro_encode(&mut bytes);
+    libertas_device_send_report(PROTOCOL_LIBERTAS, server, OP_AGENT_TOOL_DATA, &bytes, peer_id);
 }
 
 /// Remove a subscriber. 
@@ -1077,12 +1122,12 @@ pub fn libertas_agent_tool_report(server: u32, data: &[u8], peer: Option<Liberta
 /// * A broadcast data report will nopt be send to this peer.
 /// * OS will not try to maintain the session to keep it alive.
 /// 
-/// #Arguments
-/// * `server` - A data exchange server id. The link created when a Libertas machine is created.
+/// # Arguments
+/// * `server` - A agent/tool server id. The link created when a Libertas machine is created.
 /// * `peer` - The subscriber peer.
 /// 
 #[inline(always)]
 pub fn libertas_agent_tool_remove_subscriber(server: u32, peer: u32) {
     let empty_slice: &[u8] = &[];
-    libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_DATA_EXCHANGE_REMOVE_PEER, empty_slice, 0, peer);
+    libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_AGENT_TOOL_REMOVE_PEER, empty_slice, 0, peer);
 }
