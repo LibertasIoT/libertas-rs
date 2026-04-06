@@ -13,7 +13,10 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
             // We use 'retain' to keep only the attributes that are NOT ours
             pat_type.attrs.retain(|attr| {
                 if attr.path().is_ident("agent_tool_schema") ||
-                   attr.path().is_ident("agent_tool_server") {
+                   attr.path().is_ident("agent_tool_server") || 
+                   attr.path().is_ident("tag") ||
+                   attr.path().is_ident("content") || 
+                   attr.path().is_ident("untagged") {
                     // Get the parameter name for logging
                     if let Pat::Ident(ref id) = *pat_type.pat {
                         println!("Consuming attr on argument: {}", id.ident);
