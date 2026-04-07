@@ -24,8 +24,9 @@ impl NotBytesDecode for f32 {}
 impl NotBytesEncode for f64 {}
 impl NotBytesDecode for f64 {}
 impl NotBytesEncode for String {}
-
 impl NotBytesDecode for String {}
+impl NotBytesEncode for &str {}
+impl<T> NotBytesEncode for &[T] {}
 impl<T> NotBytesEncode for Vec<T> {}
 impl<T> NotBytesDecode for Vec<T> {}
 impl<T> NotBytesEncode for Option<T> {}
@@ -161,6 +162,59 @@ impl AvroDecode for f64 {
     }
 }
 
+impl AvroEncode for String {
+    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+        let len = self.len() as i64;
+        len.avro_encode(buffer);
+        buffer.extend_from_slice(self.as_bytes());
+    }
+}
+
+
+impl AvroDecode for String {
+    fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
+        let len = i64::avro_decode(buffer, offset)?;
+        if len < 0 { return Err("Negative length for string"); }
+        let len = len as usize;
+        if *offset + len > buffer.len() { return Err("EOF while reading string"); }
+        let bytes = &buffer[*offset..*offset + len];
+        *offset += len;
+        String::from_utf8(bytes.to_vec()).map_err(|_| "Invalid UTF-8 in string")
+    }
+}
+
+impl AvroEncode for &str {
+    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+        let bytes = self.as_bytes();
+        let len = bytes.len() as i64;
+        len.avro_encode(buffer);
+        buffer.extend_from_slice(bytes);
+    }
+}
+
+impl<T> AvroEncode for &[T] 
+where 
+    T: AvroEncode 
+{
+    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+        let len = self.len() as i64;
+
+        if len == 0 {
+            // Avro represents an empty array as a single 0 byte (0 count block)
+            buffer.push(0);
+            return;
+        }
+        len.avro_encode(buffer);
+
+        // 2. Encode each element in the block
+        for item in *self {
+            item.avro_encode(buffer);
+        }
+
+        // 3. Write a 0 to indicate the end of blocks
+        buffer.push(0);
+    }
+}
 
 impl<A: AvroEncode> AvroEncode for (A,) {
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
@@ -568,28 +622,6 @@ impl<A, B, C, D, E, F, G, H, I, J, K, L> NotBytesEncode for (A, B, C, D, E, F, G
 impl<A, B, C, D, E, F, G, H, I, J, K, L> NotBytesDecode for (A, B, C, D, E, F, G, H, I, J, K, L) {}
 impl<A, B, C, D, E, F, G, H, I, J, K, L, M> NotBytesEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M) {}
 impl<A, B, C, D, E, F, G, H, I, J, K, L, M> NotBytesDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M) {}
-
-impl AvroEncode for String {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
-        let len = self.len() as i64;
-        len.avro_encode(buffer);
-        buffer.extend_from_slice(self.as_bytes());
-    }
-}
-
-
-impl AvroDecode for String {
-    fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
-        let len = i64::avro_decode(buffer, offset)?;
-        if len < 0 { return Err("Negative length for string"); }
-        let len = len as usize;
-        if *offset + len > buffer.len() { return Err("EOF while reading string"); }
-        let bytes = &buffer[*offset..*offset + len];
-        *offset += len;
-        String::from_utf8(bytes.to_vec()).map_err(|_| "Invalid UTF-8 in string")
-    }
-}
-
 
 impl AvroEncode for u8 { fn avro_encode(&self, buffer: &mut Vec<u8>) { (*self as i32).avro_encode(buffer); } }
 impl AvroDecode for u8 { fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> { Ok(i32::avro_decode(buffer, offset)? as u8) } }

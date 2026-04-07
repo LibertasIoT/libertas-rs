@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "crates/libertas", "crates/libertas_macros",
+    "crates/libertas", "crates/libertas_macros", "crates/libertas_notification",
 ]
 resolver = "2" # Use the modern feature resolver
 

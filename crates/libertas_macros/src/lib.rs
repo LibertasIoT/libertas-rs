@@ -36,24 +36,20 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_derive(LibertasExport, attributes(agent_tool_schema, agent_tool_server))]
 pub fn libertas_derive(input: TokenStream) -> TokenStream {
-    // Parse the representation of the struct
-    let input = parse_macro_input!(input as DeriveInput);
-    let name = input.ident;
+    // 1. Parse the input tokens into a syntax tree
+    // We parse it even if we do nothing to ensure the code is valid Rust
+    let _input = parse_macro_input!(input as DeriveInput);
 
-    // We aren't doing anything with the fields here,
-    // just providing a blank implementation of a hypothetical trait.
-    let expanded = quote! {
-        impl LibertasExport for #name {
-        }
-    };
-
-    TokenStream::from(expanded)
+    // 2. Return an empty TokenStream
+    // This "does nothing" to the final compiled output
+    TokenStream::new()
 }
 
 #[proc_macro_derive(LibertasAvroEncode)]
 pub fn libertas_avro_encode_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
 
     let encode_logic = match &input.data {
         syn::Data::Struct(data) => {
@@ -136,17 +132,17 @@ pub fn libertas_avro_encode_derive(input: TokenStream) -> TokenStream {
     };
 
     let expanded = quote! {
-        impl ::libertas::NotBytesEncode for #name {}
+        impl #impl_generics ::libertas::NotBytesEncode for #name #ty_generics #where_clause {}
 
-        impl ::libertas::AvroEncode for #name {
-            fn avro_encode(&self, buffer: &mut std::vec::Vec<u8>) {
+        impl #impl_generics ::libertas::AvroEncode for #name #ty_generics #where_clause {
+            fn avro_encode(&self, buffer: &mut alloc::vec::Vec<u8>) {
                 #encode_logic
             }
         }
 
-        impl #name {
-            pub fn to_avro(&self) -> std::vec::Vec<u8> {
-                let mut buffer = std::vec::Vec::new();
+        impl #impl_generics #name #ty_generics #where_clause {
+            pub fn to_avro(&self) -> alloc::vec::Vec<u8> {
+                let mut buffer = alloc::vec::Vec::new();
                 ::libertas::AvroEncode::avro_encode(self, &mut buffer);
                 buffer
             }
@@ -159,6 +155,7 @@ pub fn libertas_avro_encode_derive(input: TokenStream) -> TokenStream {
 pub fn libertas_avro_decode_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
 
     let decode_logic = match &input.data {
         syn::Data::Struct(data) => {
@@ -244,16 +241,16 @@ pub fn libertas_avro_decode_derive(input: TokenStream) -> TokenStream {
     };
 
     let expanded = quote! {
-        impl ::libertas::NotBytesDecode for #name {}
+        impl #impl_generics ::libertas::NotBytesDecode for #name #ty_generics #where_clause {}
 
-        impl ::libertas::AvroDecode for #name {
-            fn avro_decode(buffer: &[u8], offset: &mut usize) -> std::result::Result<Self, &'static str> {
+        impl #impl_generics ::libertas::AvroDecode for #name #ty_generics #where_clause {
+            fn avro_decode(buffer: &[u8], offset: &mut usize) -> core::result::Result<Self, &'static str> {
                 #decode_logic
             }
         }
 
-        impl #name {
-            pub fn from_avro(buffer: &[u8]) -> std::result::Result<Self, &'static str> {
+        impl #impl_generics #name #ty_generics #where_clause {
+            pub fn from_avro(buffer: &[u8]) -> core::result::Result<Self, &'static str> {
                 let mut offset = 0;
                 let result = <Self as ::libertas::AvroDecode>::avro_decode(buffer, &mut offset)?;
                 if offset != buffer.len() {

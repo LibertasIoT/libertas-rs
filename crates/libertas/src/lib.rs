@@ -33,10 +33,8 @@
 // Bring in the alloc crate
 extern crate alloc;
 
-mod system_message;
 mod avro;
 
-pub use system_message::{LibertasObjectType, LibertasObject, LibertasMessageLevel, LibertasMessageArgument, libertas_send_message, libertas_send_message_literal};
 pub use avro::{AvroDecode, AvroEncode, NotBytesDecode, NotBytesEncode};
 
 use alloc::{slice, boxed::Box, rc::Rc, vec::Vec};
@@ -89,16 +87,17 @@ pub const STACK_BUF_SIZE: usize = 1000;
 
 pub const LIBERTAS_BROADCAST_DEST: u32 = 0xffffffff;
 
-const CURRENT_VERSION: u32 = 0x000204;     // Version 0.2.4, 1.0 shall be 0x10000, each sub version must be within [0,255]
-const PROTOCOL_LIBERTAS: u16 = 0;
-const DEVICE_SYSTEM: u32 = 0;
-const OP_SYSTEM_MESSAGE: u8 = 0xfe;
+pub const PROTOCOL_LIBERTAS: u16 = 0;
+pub const DEVICE_SYSTEM: u32 = 0;
+pub const OP_SYSTEM_MESSAGE: u8 = 0xfe;
 
 pub const OP_AGENT_TOOL_SUB_REQ:u8 = 3;
 pub const OP_AGENT_TOOL_DATA: u8 = 5;
 pub const OP_AGENT_TOOL_REQ: u8 = 8;
 pub const OP_AGENT_TOOL_RSP: u8 = 9;
 pub const OP_AGENT_TOOL_PEER_DOWN: u8 = 20;
+
+const CURRENT_VERSION: u32 = 0x000204;     // Version 0.2.4, 1.0 shall be 0x10000, each sub version must be within [0,255]
 const OP_AGENT_TOOL_REMOVE_PEER: u8 = 21;    // device_send
 
 type LibertasTimerCallback = dyn FnMut(u32, u64, &mut Box<dyn Any>);
@@ -595,7 +594,7 @@ pub fn libertas_utc_time_to_local(utc: u64) -> Option<u64> {
     }
 }
 
-fn libertas_get_task_id() -> u32 {
+pub fn libertas_get_task_id() -> u32 {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
             return (runtime_api.get_task_id)();
@@ -936,6 +935,16 @@ pub fn libertas_register_agent_tool_listener<T, F>(id: LibertasAgentTool, callba
         }
         (tag.callback)(device, opcode, protocol_obj, &mut tag.context, trans_id, peer);
     }, listener);
+}
+
+pub fn __libertas_device_send_raw(protocol: u16, device: LibertasDevice, op: u8, peer: u32, trans_id: u32, data: *const u8, data_len: usize) {
+    unsafe {
+        if let Some(runtime_api) = RUNTIME_API.as_ref() {
+            (runtime_api.device_send)(protocol, device, trans_id, op, data, data_len, peer);
+        } else {
+            unreachable!();
+        }
+    }    
 }
 
 /// Sends a request to a LibertasDevice. A response is always expected as a transaction. Thus, a unique transaction ID is generated and returned.
