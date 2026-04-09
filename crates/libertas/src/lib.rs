@@ -947,6 +947,23 @@ pub fn __libertas_device_send_raw(protocol: u16, device: LibertasDevice, op: u8,
     }    
 }
 
+pub fn __libertas_device_send_raw_req(protocol: u16, device: LibertasDevice, op: u8, peer: u32, data: *const u8, data_len: usize) -> u32 {
+    unsafe {
+        match ENV {
+            Some(ref mut env) => {
+                let ret = env.new_trans_id();
+                if let Some(runtime_api) = RUNTIME_API.as_ref() {
+                    (runtime_api.device_send)(protocol, device, ret, op, data, data_len, peer);
+                } else {
+                    unreachable!();
+                }
+                return ret;
+            }
+            _ => { unreachable!(); }
+        }
+    }    
+}
+
 /// Sends a request to a LibertasDevice. A response is always expected as a transaction. Thus, a unique transaction ID is generated and returned.
 /// 
 /// # Remarks
@@ -961,21 +978,9 @@ pub fn __libertas_device_send_raw(protocol: u16, device: LibertasDevice, op: u8,
 /// # Returns
 /// Unique transaction ID for tracking the response
 /// 
+#[inline(always)]
 pub fn libertas_device_send_request(protocol: u16, device: LibertasDevice, op: u8, data: &[u8]) -> u32 {
-    unsafe {
-        match ENV {
-            Some(ref mut env) => {
-                let ret = env.new_trans_id();
-                if let Some(runtime_api) = RUNTIME_API.as_ref() {
-                    (runtime_api.device_send)(protocol, device, ret, op, data.as_ptr(), data.len(), 0);
-                } else {
-                    unreachable!();
-                }
-                return ret;
-            }
-            _ => { unreachable!(); }
-        }
-    }    
+    __libertas_device_send_raw_req(protocol, device, op, 0, data.as_ptr(), data.len())
 }
 
 /// Sends a response to a device request. This API is used to respond to a request received from a device, using the transaction ID provided in the request callback.
@@ -991,14 +996,9 @@ pub fn libertas_device_send_request(protocol: u16, device: LibertasDevice, op: u
 /// * `trans_id` - Transaction ID from the original request to correlate the response.
 /// * `peer` - The peer that sent the original request.
 /// 
+#[inline(always)]
 pub fn libertas_device_send_response(protocol: u16, device: LibertasDevice, op: u8, data: &[u8], trans_id: u32, peer: u32) {
-    unsafe {
-        if let Some(runtime_api) = RUNTIME_API.as_ref() {
-            (runtime_api.device_send)(protocol, device, trans_id, op, data.as_ptr(), data.len(), peer);
-        } else {
-            unreachable!();
-        }
-    }
+    __libertas_device_send_raw(protocol, device, op, peer, trans_id, data.as_ptr(), data.len());
 }
 
 /// Sends a report to a device without expecting a response. This API can be used for unsolicited updates to the device.
