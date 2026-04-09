@@ -41,10 +41,10 @@ pub enum NotificationArgument<'a> {
 
 #[derive(LibertasAvroEncode)]
 pub struct LibertasNotification<'a> {
-    level: NotificationImportance,
-    source: u32,
-    resource_name: &'a str,
-    arguments: &'a [NotificationArgument<'a>],
+    pub level: NotificationImportance,
+    pub source: u32,
+    pub resource_name: &'a str,
+    pub arguments: &'a [NotificationArgument<'a>],
 }
 
 #[repr(C)]
