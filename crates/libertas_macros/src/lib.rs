@@ -2,6 +2,8 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, ItemFn, FnArg, Pat, DeriveInput};
 
+/// This macro is used on Libertas public functions.
+/// 
 #[proc_macro_attribute]
 pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(item as ItemFn);
@@ -34,7 +36,9 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
     })
 }
 
-#[proc_macro_derive(LibertasExport, attributes(agent_tool_schema, agent_tool_server))]
+/// This macro is used on structs and enums.
+/// 
+#[proc_macro_derive(LibertasExport, attributes(agent_tool_schema, agent_tool_server, libertas_request, libertas_response, libertas_subscription_request, libertas_data_report))]
 pub fn libertas_derive(input: TokenStream) -> TokenStream {
     // 1. Parse the input tokens into a syntax tree
     // We parse it even if we do nothing to ensure the code is valid Rust
