@@ -33,9 +33,13 @@
 // Bring in the alloc crate
 extern crate alloc;
 
+extern crate self as libertas;
+
 mod avro;
+mod notification;
 
 pub use avro::{AvroDecode, AvroEncode, NotBytesDecode, NotBytesEncode};
+pub use notification::{NotificationImportance, NotificationArgument, libertas_send_notification, libertas_send_notification_literal};
 
 use alloc::{slice, boxed::Box, rc::Rc, vec::Vec};
 use core::ffi::c_void;
@@ -89,7 +93,11 @@ pub const LIBERTAS_BROADCAST_DEST: u32 = 0xffffffff;
 
 pub const PROTOCOL_LIBERTAS: u16 = 0;
 pub const DEVICE_SYSTEM: u32 = 0;
+pub const DEVICE_SYSTEM_DATABASE_STADNALONE: u32 = 0;
+pub const DEVICE_SYSTEM_DATABASE_INDEXED: u32 = 1;
+
 pub const OP_SYSTEM_MESSAGE: u8 = 0xfe;
+pub const OP_SYSTEM_DATABASE_GET_NAMES: u8 = 0xf0;
 
 pub const OP_AGENT_TOOL_SUB_REQ:u8 = 3;
 pub const OP_AGENT_TOOL_DATA: u8 = 5;
@@ -178,6 +186,13 @@ struct TimerDriverResult {
     next_utc: u64,
 }
 
+#[repr(C)]
+struct ReadResult {
+    success: bool,
+    data: *const c_void, 
+    len: usize,
+}
+
 /// C API provided by Libertas OS runtime to the App package. This struct is passed to the App package during 
 /// initialization and contains function pointers for all interactions with the system.
 #[repr(C)]
@@ -189,7 +204,8 @@ struct LibertasRuntimeApi {
     get_sys_ticks: extern "C" fn() -> u64,
     get_time_zone_info: extern "C" fn(*mut LibertasTimeZoneInfo) -> bool,
     get_utc_time: extern "C" fn() -> u64,
-    device_send: extern "C" fn(u16, u32, u32, u8, *const u8, usize, u32),               // Protocol, device (virtual device src), trans_id, op_code, data, data_len, ack_dest (virtual device & agent/tool)
+    device_send: extern "C" fn(u16, u32, u32, u8, *const u8, usize, u32),           // Protocol, device (virtual device src), trans_id, op_code, data, data_len, ack_dest (virtual device & agent/tool)
+    device_read: extern "C" fn(u16, u32, u8, *const u8, usize) -> ReadResult,       // Synchronous kernel operation for current task. protocol, device, op_code, data, data_len
 }
 
 // Use &pt as *const LibertasPackageCallback to pass back to C
@@ -937,7 +953,7 @@ pub fn libertas_register_agent_tool_listener<T, F>(id: LibertasAgentTool, callba
     }, listener);
 }
 
-pub fn __libertas_device_send_raw(protocol: u16, device: LibertasDevice, op: u8, peer: u32, trans_id: u32, data: *const u8, data_len: usize) {
+fn __libertas_device_send_raw(protocol: u16, device: LibertasDevice, op: u8, peer: u32, trans_id: u32, data: *const u8, data_len: usize) {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
             (runtime_api.device_send)(protocol, device, trans_id, op, data, data_len, peer);
