@@ -37,9 +37,13 @@ extern crate self as libertas;
 
 mod avro;
 mod notification;
+mod data;
+mod log;
 
 pub use avro::{AvroDecode, AvroEncode, NotBytesDecode, NotBytesEncode};
 pub use notification::{NotificationImportance, NotificationArgument, libertas_send_notification, libertas_send_notification_literal};
+pub use data::{DataName, IndexedData, IndexDirection, IndexedDataStat, libertas_get_data_names, libertas_get_indexed_data_names, libertas_write_data, libertas_write_indexed_record, libertas_read_data, libertas_read_indexed_data, libertas_read_indexed_data_range, libertas_remove_data, libertas_remove_indexed_data, libertas_remove_indexed_record, libertas_open_indexed_data};
+pub use log::{LogLevel, libertas_log};
 
 use alloc::{slice, boxed::Box, rc::Rc, vec::Vec};
 use core::ffi::c_void;
@@ -87,23 +91,33 @@ pub type LibertasAction = u32;
 /// Transaction identifier
 pub type LibertasTransId = u32;
 
+pub type LibertasDataStore = u32;
+
 pub const STACK_BUF_SIZE: usize = 1000;
 
 pub const LIBERTAS_BROADCAST_DEST: u32 = 0xffffffff;
 
-pub const PROTOCOL_LIBERTAS: u16 = 0;
-pub const DEVICE_SYSTEM: u32 = 0;
-pub const DEVICE_SYSTEM_DATABASE_STADNALONE: u32 = 0;
-pub const DEVICE_SYSTEM_DATABASE_INDEXED: u32 = 1;
+const PROTOCOL_LIBERTAS: u16 = 0;
 
-pub const OP_SYSTEM_MESSAGE: u8 = 0xfe;
-pub const OP_SYSTEM_DATABASE_GET_NAMES: u8 = 0xf0;
+const DEVICE_SYSTEM: u32 = 0;
+const DEVICE_SYSTEM_DATABASE_STADNALONE: u32 = 0;
+const DEVICE_SYSTEM_DATABASE_INDEXED: u32 = 1;
 
-pub const OP_AGENT_TOOL_SUB_REQ:u8 = 3;
-pub const OP_AGENT_TOOL_DATA: u8 = 5;
-pub const OP_AGENT_TOOL_REQ: u8 = 8;
-pub const OP_AGENT_TOOL_RSP: u8 = 9;
-pub const OP_AGENT_TOOL_PEER_DOWN: u8 = 20;
+const OP_SYSTEM_LOG: u8 = 0xe0;
+
+const OP_SYSTEM_MESSAGE: u8 = 0xfe;
+const OP_SYSTEM_DATABASE_GET_NAMES: u8 = 0xf0;
+const OP_SYSTEM_DATABASE_OPEN_INDEXED_DATA: u8 = 0xf1;
+const OP_SYSTEM_DATABASE_WRITE_DATA: u8 = 0xf2;
+const OP_SYSTEM_DATABASE_READ_DATA: u8 = 0xf3;
+const OP_SYSTEM_DATABASE_REMOVE_DATA: u8 = 0xf4;
+const OP_SYSTEM_DATABASE_REMOVE_RECORD: u8 = 0xf5;
+
+const OP_AGENT_TOOL_SUB_REQ:u8 = 3;
+const OP_AGENT_TOOL_DATA: u8 = 5;
+const OP_AGENT_TOOL_REQ: u8 = 8;
+const OP_AGENT_TOOL_RSP: u8 = 9;
+const OP_AGENT_TOOL_PEER_DOWN: u8 = 20;
 
 const CURRENT_VERSION: u32 = 0x000204;     // Version 0.2.4, 1.0 shall be 0x10000, each sub version must be within [0,255]
 const OP_AGENT_TOOL_REMOVE_PEER: u8 = 21;    // device_send
@@ -189,8 +203,8 @@ struct TimerDriverResult {
 #[repr(C)]
 struct ReadResult {
     success: bool,
-    data: *const c_void, 
-    len: usize,
+    data: *const u8, 
+    data_len: usize,
 }
 
 /// C API provided by Libertas OS runtime to the App package. This struct is passed to the App package during 
@@ -961,6 +975,16 @@ fn __libertas_device_send_raw(protocol: u16, device: LibertasDevice, op: u8, pee
             unreachable!();
         }
     }    
+}
+
+fn __libertas_device_read_raw(protocol: u16, device: LibertasDevice, op: u8, data: *const u8, data_len: usize) -> ReadResult{
+    unsafe {
+        if let Some(runtime_api) = RUNTIME_API.as_ref() {
+            (runtime_api.device_read)(protocol, device, op, data, data_len)
+        } else {
+            unreachable!();
+        }
+    }
 }
 
 pub fn __libertas_device_send_raw_req(protocol: u16, device: LibertasDevice, op: u8, peer: u32, data: *const u8, data_len: usize) -> u32 {

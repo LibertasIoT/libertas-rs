@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
-use libertas_macros::LibertasAvroEncode;
+use alloc::string::String;
+use libertas_macros::{LibertasAvroEncode, LibertasAvroDecode};
 use crate::*;
 
 /// Represents the severity level of a message in the Libertas system
@@ -33,6 +34,48 @@ pub enum NotificationArgument<'a> {
     UnitDouble {unit_type: &'a str, value: f64},
     /// It is the string resource name, not literal string!
     ResourceText (&'a str), 
+    Plural(i64),
+}
+
+#[derive(LibertasAvroDecode, PartialEq, Debug, Clone)]
+pub enum NotificationArgumentDecode {
+    /// A literal string, not resource string
+    LiteralText(String),
+    /// A Liberta system object such a a device or a user, etc. App task must have access permission to the object.
+    Object(u32),
+    Boolean(bool),
+    Signed(i64),
+    Unsigned(u64),
+    Float(f32),
+    Double(f64),
+    UnitSigned {unit_type: String, value: i64},
+    UnitUnsigned {unit_type: String, value: u64},
+    UnitFloat {unit_type: String, value: f32},
+    UnitDouble {unit_type: String, value: f64},
+    /// It is the string resource name, not literal string!
+    ResourceText (String), 
+    Plural(i64),
+}
+
+impl PartialEq<NotificationArgument<'_>> for NotificationArgumentDecode {
+    fn eq(&self, other: &NotificationArgument<'_>) -> bool {
+        match (self, other) {
+            (NotificationArgumentDecode::LiteralText(s1), NotificationArgument::LiteralText(s2)) => s1 == s2,
+            (NotificationArgumentDecode::Object(o1), NotificationArgument::Object(o2)) => o1 == o2,
+            (NotificationArgumentDecode::Boolean(b1), NotificationArgument::Boolean(b2)) => b1 == b2,
+            (NotificationArgumentDecode::Signed(i1), NotificationArgument::Signed(i2)) => i1 == i2,
+            (NotificationArgumentDecode::Unsigned(u1), NotificationArgument::Unsigned(u2)) => u1 == u2,
+            (NotificationArgumentDecode::Float(f1), NotificationArgument::Float(f2)) => f1 == f2,
+            (NotificationArgumentDecode::Double(d1), NotificationArgument::Double(d2)) => d1 == d2,
+            (NotificationArgumentDecode::UnitSigned {unit_type: ut1, value: v1}, NotificationArgument::UnitSigned {unit_type: ut2, value: v2}) => ut1 == ut2 && v1 == v2,
+            (NotificationArgumentDecode::UnitUnsigned {unit_type: ut1, value: v1}, NotificationArgument::UnitUnsigned {unit_type: ut2, value: v2}) => ut1 == ut2 && v1 == v2,
+            (NotificationArgumentDecode::UnitFloat {unit_type: ut1, value: v1}, NotificationArgument::UnitFloat {unit_type: ut2, value: v2}) => ut1 == ut2 && v1 == v2,
+            (NotificationArgumentDecode::UnitDouble {unit_type: ut1, value: v1}, NotificationArgument::UnitDouble {unit_type: ut2, value: v2}) => ut1 == ut2 && v1 == v2,
+            (NotificationArgumentDecode::ResourceText(s1), NotificationArgument::ResourceText(s2)) => s1 == s2,
+            (NotificationArgumentDecode::Plural(p1), NotificationArgument::Plural(p2)) => p1 == p2,
+            _ => false
+        }
+    }
 }
 
 #[derive(LibertasAvroEncode)]
@@ -56,7 +99,7 @@ struct LibertasNotificationRaw {
 /// The message will be delivered to recipients' smartphones or other supported devices.
 /// 
 /// # Panics
-/// Some host platform may limit the size of the message. App may panic on such platforms. Libertas Hub doesn't limit the message size thus will never panic.
+/// Some host platforms may limit the size of the message. App may panic on such platforms. Libertas Hub doesn't limit the message size thus will never panic.
 /// 
 /// By default the access permission is limited to the users (or groups) within the input data of the task function. If the user doesn't input a user in the 
 /// task's function arguments and the code accesses that user, the task will be terminated for access violation.
