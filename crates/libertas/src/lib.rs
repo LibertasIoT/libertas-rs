@@ -97,6 +97,13 @@ pub const STACK_BUF_SIZE: usize = 1000;
 
 pub const LIBERTAS_BROADCAST_DEST: u32 = 0xffffffff;
 
+pub const OP_AGENT_TOOL_SUB_REQ:u8 = 3;
+pub const OP_AGENT_TOOL_DATA: u8 = 5;
+pub const OP_AGENT_TOOL_REQ: u8 = 8;
+pub const OP_AGENT_TOOL_RSP: u8 = 9;
+pub const OP_AGENT_TOOL_PEER_DOWN: u8 = 20;
+pub const OP_AGENT_TOOL_REMOVE_PEER: u8 = 21;    // device_send
+
 const PROTOCOL_LIBERTAS: u16 = 0;
 
 const DEVICE_SYSTEM: u32 = 0;
@@ -113,14 +120,7 @@ const OP_SYSTEM_DATABASE_READ_DATA: u8 = 0xf3;
 const OP_SYSTEM_DATABASE_REMOVE_DATA: u8 = 0xf4;
 const OP_SYSTEM_DATABASE_REMOVE_RECORD: u8 = 0xf5;
 
-const OP_AGENT_TOOL_SUB_REQ:u8 = 3;
-const OP_AGENT_TOOL_DATA: u8 = 5;
-const OP_AGENT_TOOL_REQ: u8 = 8;
-const OP_AGENT_TOOL_RSP: u8 = 9;
-const OP_AGENT_TOOL_PEER_DOWN: u8 = 20;
-
 const CURRENT_VERSION: u32 = 0x000204;     // Version 0.2.4, 1.0 shall be 0x10000, each sub version must be within [0,255]
-const OP_AGENT_TOOL_REMOVE_PEER: u8 = 21;    // device_send
 
 type LibertasTimerCallback = dyn FnMut(u32, u64, &mut Box<dyn Any>);
 type LibertasDeviceCallback = dyn FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, Option<LibertasTransId>, u32);
