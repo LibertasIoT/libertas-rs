@@ -38,7 +38,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 /// This macro is used on structs and enums.
 /// 
-#[proc_macro_derive(LibertasExport, attributes(agent_tool_schema, agent_tool_server, libertas_request, libertas_response, libertas_subscription_request, libertas_data_report))]
+#[proc_macro_derive(LibertasExport, attributes(libertas_data_schema, agent_tool_schema, agent_tool_server, libertas_request, libertas_response, libertas_subscription_request, libertas_data_report))]
 pub fn libertas_derive(input: TokenStream) -> TokenStream {
     // 1. Parse the input tokens into a syntax tree
     // We parse it even if we do nothing to ensure the code is valid Rust
