@@ -4,12 +4,17 @@ use libertas_macros::{LibertasAvroEncode, LibertasAvroDecode};
 use crate::*;
 use notification::*;
 
+/// The direction in which to read indexed data records from the indexed database, either above or below a specified index value. This enum is used as a parameter in the `libertas_read_indexed_data_range` function to determine whether to read records with index values greater than or equal to the specified starting index (`Above`) or to read records with index values less than or equal to the specified starting index (`Below`). The choice of direction allows you to control whether you want to read forward or backward from the starting index, which can be useful for different use cases when working with indexed data. For example, if you want to read the most recent records up to a certain point, you might use `Below` to read backward from a high index value. Conversely, if you want to read upcoming records starting from a certain point, you might use `Above` to read forward from a low index value.
 #[repr(u8)]
 pub enum IndexDirection {
+    /// Read records with index values greater than or equal to the specified starting index. When this direction is specified in the `libertas_read_indexed_data_range` function, it will read records from the indexed database that have index values that are greater than or equal to the `index` parameter provided to that function. This means that if you specify a starting index value, the function will return records that have index values at that starting point and any index values above it. This can be useful when you want to read forward from a certain point in your indexed data, such as reading upcoming events or future data points based on their index values.
     Above,
+    /// Read records with index values less than or equal to the specified starting index. When this direction is specified in the `libertas_read_indexed_data_range` function, it will read records from the indexed database that have index values that are less than or equal to the `index` parameter provided to that function. This means that if you specify a starting index value, the function will return records that have index values at that starting point and any index values below it. This can be useful when you want to read backward from a certain point in your indexed data, such as reading past events or historical data points based on their index values.
     Below,
 }
 
+/// A struct representing a piece of indexed data in the indexed database, containing the index value and the decoded data of type `T`. This struct is used to represent individual records of indexed data that are read from the indexed database using functions like `libertas_read_indexed_data_range`. The `index` field is a 64-bit integer that represents the index value associated with that piece of indexed data, which can be used to identify and query for specific records based on their index values. The `data` field contains the actual data associated with that index value, decoded into the specified type `T` that implements the `AvroDecode` trait. When you read indexed data from the database, it is stored in Avro format, so it needs to be decoded into a usable Rust type, and this struct serves as a convenient way to package both the index and the decoded data together when working with indexed records.
+///     
 pub struct IndexedData<T> where T: AvroDecode {
     pub index: i64,
     pub data: T,
