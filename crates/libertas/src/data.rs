@@ -78,7 +78,7 @@ pub struct IndexedDataStat {
     /// The number of records currently stored in the indexed database for the opened indexed data. This count indicates how many records are associated with the specific piece of indexed data that you have opened using `libertas_open_indexed_data`. The count can be useful for understanding how much data is stored for that indexed data and for making decisions about how to read or write records based on the number of existing records. For example, if the count is zero, it means there are no records currently stored for that indexed data, and you may want to write some records before attempting to read. Conversely, if the count is very high, you may want to read a range of records instead of trying to read them all at once.
     pub count: u64,
     /// The minimum index value for the records stored in the indexed database for the opened indexed data. This value indicates the lowest index value among the records that are currently stored for that piece of indexed data. The minimum index can be useful for understanding the range of index values and for performing range queries on the indexed data. For example, if you want to read records starting from a certain index value, knowing the minimum index can help you determine where to start reading from. Note that if the `count` of the indexed data is zero, this `min_index` value should be ignored, as there are no records in the indexed database for that indexed data.
-    min_index: i64,
+    pub min_index: i64,
     /// The maximum index value for the records stored in the indexed database for the opened indexed data. This value indicates the highest index value among the records that are currently stored for that piece of indexed data. The maximum index can be useful for understanding the range of index values and for performing range queries on the indexed data. For example, if you want to read records up to a certain index value, knowing the maximum index can help you determine where to stop reading. Note that if the `count` of the indexed data is zero, this `max_index` value should be ignored, as there are no records in the indexed database for that indexed data.
     pub max_index: i64,
 }
@@ -299,10 +299,10 @@ pub fn libertas_read_data<T>(resource_name: &str, arguments: &[NotificationArgum
 /// * `results` - A mutable reference to a vector where the read indexed data records will be stored. Each record will be an `IndexedData<T>` struct containing the index value and the decoded data of type `T`. If the read operation is successful, the specified range of indexed data records will be appended to this vector. If the read operation fails, this vector will be left unchanged. You should provide an empty vector when calling this function, and after the function returns, it will contain the indexed data records that were read from the database. You can then iterate over this vector to access the individual records and their data.
 /// Note that the indexed data records returned by this function are decoded from Avro format into the specified type `T`, so you need to ensure that the type `T` you specify for decoding matches the structure of the data in the indexed database, otherwise the decoding will fail and you may not get the expected results. When using this function, be sure to provide the correct database handle, starting index, direction, and maximum number of records to read based on how your indexed data is organized and how you want to access it. This function is a powerful way to read a range of indexed data records based on their index values, which can be very useful for time series data or any data where you want to read records in a specific order based on their index values.
 /// 
-pub fn libertas_read_indexed_data_range<T>(db: LibertasDataStore, index: i32, direction: IndexDirection, max_n: usize, results: &mut Vec<IndexedData<T>>) where T: AvroDecode {
+pub fn libertas_read_indexed_data_range<T>(db: LibertasDataStore, index: i64, direction: IndexDirection, max_n: usize, results: &mut Vec<IndexedData<T>>) where T: AvroDecode {
     let req = DataReadIndexedReq {
         db,
-        index: index as i64,
+        index,
         direction,
         max_n,
     };
@@ -332,10 +332,10 @@ pub fn libertas_read_indexed_data_range<T>(db: LibertasDataStore, index: i32, di
 /// * `T` - The type into which to decode the data. This can be any type that implements the `AvroDecode` trait. When you read indexed data from the database, it is stored in Avro format, so you need to specify the type that matches the structure of the data you are trying to read and that implements `AvroDecode` so that the function can decode the Avro data into that type before returning it. If the data in the database does not match the structure of the specified type `T`, the decoding will fail and this function will return `None`.
 /// Note that the indexed database allows for multiple records with the same resource name and arguments, distinguished by their index values. This function reads a single record based on its index value, so you need to provide the correct database handle and index value that match the record you want to read. If you want to read multiple records based on a starting index and direction, you can use the `libertas_read_indexed_data_range` function instead, which allows you to read a range of indexed data records based on their index values. When using this function, be sure to provide the correct database handle and index value based on how your indexed data is organized and how you want to access it. This function is a convenient way to read a single piece of indexed data based on its index value, which can be very useful for time series data or any data where you want to read records based on their index values.
 /// 
-pub fn libertas_read_indexed_data<T>(db: LibertasDataStore, index: i32) -> Option<IndexedData<T>> where T: AvroDecode {
+pub fn libertas_read_indexed_data<T>(db: LibertasDataStore, index: i64) -> Option<IndexedData<T>> where T: AvroDecode {
     let req = DataReadIndexedReq {
         db,
-        index: index as i64,
+        index,
         direction: IndexDirection::Above,
         max_n: 1,
     };
