@@ -74,13 +74,13 @@ struct DataIndexedRaw {
 #[repr(C)]
 pub struct IndexedDataStat {
     /// The handle for the opened indexed data, which is used for subsequent read or write operations on that indexed data. This handle is obtained when opening indexed data using `libertas_open_indexed_data` and is required for functions that read or write records associated with that indexed data, such as `libertas_read_indexed_data`, `libertas_read_indexed_data_range`, and `libertas_write_indexed_record`. The handle serves as a reference to the specific piece of indexed data in the indexed database that you have opened, allowing you to perform operations on it without needing to specify the resource name and arguments again.
-    handle: LibertasDataStore,
+    pub handle: LibertasDataStore,
     /// The number of records currently stored in the indexed database for the opened indexed data. This count indicates how many records are associated with the specific piece of indexed data that you have opened using `libertas_open_indexed_data`. The count can be useful for understanding how much data is stored for that indexed data and for making decisions about how to read or write records based on the number of existing records. For example, if the count is zero, it means there are no records currently stored for that indexed data, and you may want to write some records before attempting to read. Conversely, if the count is very high, you may want to read a range of records instead of trying to read them all at once.
-    count: u64,
+    pub count: u64,
     /// The minimum index value for the records stored in the indexed database for the opened indexed data. This value indicates the lowest index value among the records that are currently stored for that piece of indexed data. The minimum index can be useful for understanding the range of index values and for performing range queries on the indexed data. For example, if you want to read records starting from a certain index value, knowing the minimum index can help you determine where to start reading from. Note that if the `count` of the indexed data is zero, this `min_index` value should be ignored, as there are no records in the indexed database for that indexed data.
     min_index: i64,
     /// The maximum index value for the records stored in the indexed database for the opened indexed data. This value indicates the highest index value among the records that are currently stored for that piece of indexed data. The maximum index can be useful for understanding the range of index values and for performing range queries on the indexed data. For example, if you want to read records up to a certain index value, knowing the maximum index can help you determine where to stop reading. Note that if the `count` of the indexed data is zero, this `max_index` value should be ignored, as there are no records in the indexed database for that indexed data.
-    max_index: i64,
+    pub max_index: i64,
 }
 
 /// Gets a list of all data names in the standalone database. Each name includes the resource name and arguments. 
