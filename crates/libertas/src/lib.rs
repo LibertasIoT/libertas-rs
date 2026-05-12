@@ -42,7 +42,7 @@ mod log;
 
 pub use avro::{AvroDecode, AvroEncode, NotBytesDecode, NotBytesEncode};
 pub use notification::{NotificationImportance, NotificationArgument, libertas_send_notification, libertas_send_notification_literal};
-pub use data::{DataName, IndexedData, IndexDirection, IndexedDataStat, libertas_get_data_names, libertas_get_indexed_data_names, libertas_write_data, libertas_write_indexed_record, libertas_read_data, libertas_read_indexed_data, libertas_read_indexed_data_range, libertas_remove_data, libertas_remove_indexed_data, libertas_remove_indexed_record, libertas_open_indexed_data};
+pub use data::{DataName, IndexedData, IndexDirection, IndexedDataStat, libertas_get_data_names, libertas_get_indexed_data_names, libertas_write_data, libertas_write_indexed_record, libertas_read_data, libertas_read_indexed_data, libertas_read_indexed_data_range, libertas_remove_data, libertas_remove_indexed_data, libertas_remove_indexed_records, libertas_open_indexed_data};
 pub use log::{LogLevel, libertas_log};
 
 use alloc::{slice, boxed::Box, rc::Rc, vec::Vec};
