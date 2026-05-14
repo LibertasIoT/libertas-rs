@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 homepage.workspace = true
-description = "Libertas IoT App SDK"
+description = "Libertas App SDK"
 repository = "https://github.com/LibertasIoT/libertas-rs"
 
 [dependencies]
