@@ -1,3 +1,11 @@
+/// Libertas Rust SDK - Notification API
+/// This module provides functions for sending notifications through the Libertas system. It defines the `NotificationImportance` enum to represent the severity level of messages, the `NotificationArgument` enum to 
+/// represent various types of arguments that can be included in messages, and the `NotificationArgumentDecode` enum for decoding notification arguments. The main function in this module is `libertas_notification_send`, 
+/// which allows you to send a system message to a list of recipients with a specified importance level, source, resource name, and arguments. Additionally, there is a convenience function `libertas_notification_send_literal` 
+/// for sending simple literal text messages without using a resource template. By using this module, you can easily send notifications to users or groups within the Libertas system, allowing for effective communication and 
+/// alerting based on various conditions and events in your application.
+/// 
+
 use alloc::vec::Vec;
 use alloc::string::String;
 use libertas_macros::{LibertasAvroEncode, LibertasAvroDecode};
@@ -164,7 +172,7 @@ struct LibertasNotificationRaw {
 /// * `resource_name` - The resource string name for the message template
 /// * `args` - Arguments to substitute into the message template
 /// 
-pub fn libertas_send_notification(recipients: &[u32], level: NotificationImportance, source: Option<u32>, resource_name: &str, args: &[NotificationArgument]) {
+pub fn libertas_notification_send(recipients: &[u32], level: NotificationImportance, source: Option<u32>, resource_name: &str, args: &[NotificationArgument]) {
     let sourceid = if let Some(source) = source { source } else { libertas_get_task_id() };
     let n = LibertasNotification{
         level,
@@ -196,7 +204,7 @@ pub fn libertas_send_notification(recipients: &[u32], level: NotificationImporta
 /// * `recipients` - List of recipient IDs (user, group or client) to send the message to
 /// * `level` - The severity level of the message (e.g., Debug, Info, Alert)
 /// * `text` - The literal text content of the message to send
-pub fn libertas_send_notification_literal(recipients: &[u32], level: NotificationImportance, text: &str) {
+pub fn libertas_notification_send_literal(recipients: &[u32], level: NotificationImportance, text: &str) {
     let arg = NotificationArgument::LiteralText(text);
-    libertas_send_notification(recipients, level, None, "SYS_LITERAL", &[arg]);
+    libertas_notification_send(recipients, level, None, "SYS_LITERAL", &[arg]);
 }

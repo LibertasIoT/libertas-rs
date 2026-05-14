@@ -5,27 +5,18 @@
 //!
 //! # Core Features
 //!
-//! - **Device Communication**: Send commands and read data from devices via `libertas_device_invoke_req()`,
-//!   `libertas_device_read_req()`, and `libertas_device_write_req()`
-//! - **Virtual Devices**: Respond to requests for virtual devices with `libertas_virtual_device_invoke_rsp()`,
-//!   `libertas_virtual_device_write_rsp()`, and `libertas_virtual_device_status_rsp()`
-//! - **Timers**: Create and manage both interval and deadline timers for scheduling tasks
-//! - **Subscriptions**: Subscribe to device attributes and events for reactive programming
-//! - **Time Access**: Query system ticks and current time (UTC/local) via timing functions
+//! - **Timers and Scheduling**: Create interval and deadline timers for periodic or delayed work.
+//! - **Runtime protocol interaction**: Interact with the developer defined runtime protocol. A peer could be a human, an LLM, or another App.
+//! - **Subscriptions and Events**: Subscribe to runtime incoming protocol messages.
+//! - **Time and Diagnostics**: Access monotonic ticks, UTC/local time, logging, and notification delivery.
 //!
 //! # Example
 //!
 //! ```ignore
-//! // Create a subscription to device attributes
-//! let mut dev_sub = LibertasDeviceSubscribeReq::new(device_id);
-//! let mut cluster_sub = LibertasClusterSubscribeReq::new(0x0006, 0, 300);
-//! cluster_sub.attributes.push(0x0000);
-//! dev_sub.cluster_subs.push(cluster_sub);
-//! libertas_app_subscribe_req(&[dev_sub]);
-//!
-//! // Create an interval timer
-//! let timer_id = libertas_timer_new_interval(1000, |id, time, context| {
-//!     println!("Timer {} fired at {}", id, time);
+//! // Schedule a recurring timer callback
+//! let timer_id = libertas_timer_new_interval(1_000, |id, time, context| {
+//!     libertas_log(LogLevel::Info, b"timer fired");
+//!     // handle timer event here
 //! }, Box::new(()));
 //! ```
 
@@ -41,8 +32,8 @@ mod data;
 mod log;
 
 pub use avro::{AvroDecode, AvroEncode, NotBytesDecode, NotBytesEncode};
-pub use notification::{NotificationImportance, NotificationArgument, libertas_send_notification, libertas_send_notification_literal};
-pub use data::{DataName, IndexedData, IndexDirection, IndexedDataStat, libertas_get_data_names, libertas_get_indexed_data_names, libertas_write_data, libertas_write_indexed_record, libertas_read_data, libertas_read_indexed_data, libertas_read_indexed_data_range, libertas_remove_data, libertas_remove_indexed_data, libertas_remove_indexed_records, libertas_open_indexed_data};
+pub use notification::{NotificationImportance, NotificationArgument, libertas_notification_send, libertas_notification_send_literal};
+pub use data::{DataName, IndexedData, IndexDirection, IndexedDataStat, libertas_data_get_names, libertas_data_get_indexed_names, libertas_data_write, libertas_data_write_indexed, libertas_data_read, libertas_data_read_indexed, libertas_data_read_indexed_range, libertas_data_remove, libertas_data_remove_indexed, libertas_data_remove_indexed_records, libertas_data_open_indexed};
 pub use log::{LogLevel, libertas_log};
 
 use alloc::{slice, boxed::Box, rc::Rc, vec::Vec};
@@ -417,6 +408,7 @@ static mut ENV: Option<LibertasPackageEnv> = None;
  * Attempting to call it again is considered a security attack and the caller App will be banned.
  * This function will be re-exported with a new unique name assigned by Libertas builder for each App package.
  */
+#[doc(hidden)]
 pub fn __libertas_init_package(runtime_api:*mut c_void) -> *const LibertasPackageCallback {
     unsafe {
         RUNTIME_API = runtime_api as *mut LibertasRuntimeApi;
@@ -437,6 +429,7 @@ pub fn __libertas_init_package(runtime_api:*mut c_void) -> *const LibertasPackag
  * This API shall be called only by the Libertas OS App engine. Apps calling the API will end up with being banned.
  * This function will be re-exported with a new unique name assigned by Libertas builder for each App package.
  */
+#[doc(hidden)]
 pub fn __libertas_release_package() {
     unsafe {
         ENV = None;     // Drop all memory
@@ -987,6 +980,7 @@ fn __libertas_device_read_raw(protocol: u16, device: LibertasDevice, op: u8, dat
     }
 }
 
+#[doc(hidden)]
 pub fn __libertas_device_send_raw_req(protocol: u16, device: LibertasDevice, op: u8, peer: u32, data: *const u8, data_len: usize) -> u32 {
     unsafe {
         match ENV {
