@@ -1,22 +1,23 @@
 //! Libertas SDK Rust Bindings
 //!
-//! This library provides Rust bindings for the Libertas IoT system, allowing applications
-//! to interact with devices, manage timers, subscribe to events, and handle agent/tool.
+//! Rust bindings for Libertas Apps, enabling interaction with peers, timer management, and persistent data handling.
 //!
 //! # Core Features
 //!
-//! - **Timers and Scheduling**: Create interval and deadline timers for periodic or delayed work.
-//! - **Runtime protocol interaction**: Interact with the developer defined runtime protocol. A peer could be a human, an LLM, or another App.
-//! - **Subscriptions and Events**: Subscribe to runtime incoming protocol messages.
-//! - **Time and Diagnostics**: Access monotonic ticks, UTC/local time, logging, and notification delivery.
+//! - **Datetime and Timezone**: Access UTC/local time and monotonic system ticks for scheduling.
+//! - **Timers**: Create interval and deadline timers for periodic or delayed tasks.
+//! - **Peer Communication**: Send/receive messages via developer-defined protocols with peers (humans, LLMs, or other apps).
+//! - **Logging and Notifications**: Log messages and send notifications with configurable importance.
+//! - **Persistent Data**: Store/retrieve data in standalone or indexed databases using Avro encoding.
 //!
 //! # Example
 //!
 //! ```ignore
-//! // Schedule a recurring timer callback
-//! let timer_id = libertas_timer_new_interval(1_000, |id, time, context| {
+//! // Create a recurring timer (timers are one-off; update in callback for recurrence)
+//! let timer_id = libertas_timer_new_interval(libertas_get_sys_ticks() + 1000, |timer, cur_ticks, _tag| {
 //!     libertas_log(LogLevel::Info, b"timer fired");
-//!     // handle timer event here
+//!     // Handle event and reschedule
+//!     libertas_timer_update_interval(timer, cur_ticks + 1000);
 //! }, Box::new(()));
 //! ```
 
@@ -46,54 +47,58 @@ use hashbrown::HashMap;
 use hashbrown::DefaultHashBuilder;
 use priority_queue::PriorityQueue;
 
-/// A LibertasDevice is key component of this world. It represents anything that has information, 
-/// while Libertas is the platform for "Internet of Everything."
-/// 
-/// A LibertasDevice is a logical representation of "anything, " such as:
-/// * A light bulb
-/// * An email account
-/// * A PDF file
+/// Core entity representing any information source in the Libertas ecosystem.
+/// Examples: physical devices (lights, sensors), virtual entities (email accounts, files), or services.
 pub type LibertasDevice = u32;
 
-/// A dynamically created Libertas device. It's life time
-/// is bound to the task that creates it.
-/// It will be automatically deleted when the corresponding task is deleted.
+/// Dynamically created virtual device bound to its creating task.
+/// Automatically deleted when the task is removed.
 pub type LibertasVirtualDevice = LibertasDevice;
 
-/// A special LibertasVirtualDevice for agent or tool calls.
-/// The data schema is defined by the original server developer and must be published.
+/// Specialized virtual device for agent/tool interactions.
+/// Data schema must be predefined and published by the server developer.
 pub type LibertasAgentTool = LibertasVirtualDevice;
 
-/// Timestamp representing date and time
+/// Timestamp in seconds since Unix epoch (full date and time).
 pub type LibertasDateTime = u64;
 
-/// Timestamp representing time only (without date)
+/// Time-only timestamp in seconds (no date component).
 pub type LibertasTimeOnly = u32;
 
-/// Identifier for a LAN device
+/// Identifier for a local area network device.
 pub type LibertasLanDevice = u32;
 
-/// Identifier for a user
+/// User identifier.
 pub type LibertasUser = u32;
 
-/// Identifier for an action
+/// Action identifier.
 pub type LibertasAction = u32;
 
-/// Transaction identifier
+/// Transaction identifier for request/response correlation.
 pub type LibertasTransId = u32;
 
+/// Handle for an opened indexed data store, obtained via `libertas_data_open_indexed`.
+/// Valid until closed or the opening task terminates.
 pub type LibertasDataStore = u32;
 
+/// Default stack buffer size in bytes.
 pub const STACK_BUF_SIZE: usize = 1000;
 
+/// Broadcast destination for sending to all peers.
 pub const LIBERTAS_BROADCAST_DEST: u32 = 0xffffffff;
 
-pub const OP_AGENT_TOOL_SUB_REQ:u8 = 3;
+/// Agent/tool subscription request opcode.
+pub const OP_AGENT_TOOL_SUB_REQ: u8 = 3;
+/// Agent/tool data message opcode.
 pub const OP_AGENT_TOOL_DATA: u8 = 5;
+/// Agent/tool request opcode (expects response).
 pub const OP_AGENT_TOOL_REQ: u8 = 8;
+/// Agent/tool response opcode.
 pub const OP_AGENT_TOOL_RSP: u8 = 9;
+/// Agent/tool peer down notification opcode.
 pub const OP_AGENT_TOOL_PEER_DOWN: u8 = 20;
-pub const OP_AGENT_TOOL_REMOVE_PEER: u8 = 21;    // device_send
+
+const OP_AGENT_TOOL_REMOVE_PEER: u8 = 21;    // device_send
 
 const PROTOCOL_LIBERTAS: u16 = 0;
 
@@ -116,6 +121,7 @@ const CURRENT_VERSION: u32 = 0x000204;     // Version 0.2.4, 1.0 shall be 0x1000
 type LibertasTimerCallback = dyn FnMut(u32, u64, &mut Box<dyn Any>);
 type LibertasDeviceCallback = dyn FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, Option<LibertasTransId>, u32);
 
+#[doc(hidden)]
 pub trait LibertasExport {
 }
 
@@ -148,6 +154,7 @@ impl LibertasUninitStackbuf {
 }
 
 /// Represents the Daylight Saving Time (DST) offset information for a specific time zone
+#[doc(hidden)]
 #[repr(C)]
 pub struct LibertasDstOffset {
     /// DST offset in seconds
@@ -159,6 +166,7 @@ pub struct LibertasDstOffset {
 }
 
 /// Represents the time zone information for the current local time, including current DST offset and next DST change information
+#[doc(hidden)]
 #[repr(C)]
 pub struct LibertasTimeZoneInfo {
     /// Current time zone offset from UTC in seconds
@@ -214,6 +222,7 @@ struct LibertasRuntimeApi {
 }
 
 // Use &pt as *const LibertasPackageCallback to pass back to C
+#[doc(hidden)]
 #[repr(C)]
 pub struct LibertasPackageCallback {
     version: u32,
@@ -436,18 +445,16 @@ pub fn __libertas_release_package() {
     }
 }
 
-/// Gets random bytes from the system's random number generator
+/// Generates random bytes from the system RNG.
 /// 
 /// # Arguments
-/// * `bytes` - The number of random bytes to generate (up to 8)
-/// # Returns
-/// A 64-bit unsigned integer containing the random bytes in the least significant bits.
-///
-/// # Notes 
-/// * Only the least significant `bytes` bytes of the returned value are valid random data. For example, if `bytes` is 4, only the least significant 4 bytes (32 bits) of the returned value contain random data, and the upper 4 bytes will be zero.
-/// * The `bytes` argument must be between 1 and 8. If `bytes` is greater than 8 will be treated as if it were 8. If `bytes` is less than one, it will be treated as if it were 1.
-/// * On many embedded MCUs, the random number generator may only provide 1 byte (8 bits) of randomness at a time. That's the reason why the API accepts a `bytes` argument to specify how many random bytes are needed, and the implementation may call the underlying RNG multiple times if more than 1 byte is requested.
+/// * `bytes` - Number of random bytes to generate (1-8).
 /// 
+/// # Returns
+/// Random data in the least significant bits of a u64.
+/// 
+/// # Notes
+/// Only the lower `bytes` are valid. May call RNG multiple times for embedded systems.
 pub fn libertas_get_random(bytes: u8) -> u64 {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
@@ -458,13 +465,8 @@ pub fn libertas_get_random(bytes: u8) -> u64 {
     }
 }
 
-/// Gets the current system tick count
-/// 
-/// Returns the monotonic system clock in ticks. This can be used to measure
-/// elapsed time between events.
-/// 
-/// # Returns
-/// The current system tick count in microseconds as a 64-bit unsigned integer
+/// Returns the current monotonic system tick count in microseconds.
+/// Useful for measuring elapsed time and timer expiration.
 pub fn libertas_get_sys_ticks() -> u64 {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
@@ -475,14 +477,8 @@ pub fn libertas_get_sys_ticks() -> u64 {
     }
 }
 
-/// Gets the current UTC time in microseconds since Unix epoch
-/// 
-/// # Returns
-/// The current UTC time in microseconds since Unix epoch as a 64-bit unsigned integer (typically Unix timestamp)
-/// 
-/// The function may return `None` if the system doesn't have the capability to provide UTC time, or the UTC time is not set. For example, MCUs may not have 
-/// a real-time clock and the UTC from network may not be ready when the API is called.
-/// 
+/// Returns current UTC time in microseconds since Unix epoch.
+/// Returns `None` if UTC is unavailable (e.g., no RTC or network time).
 pub fn libertas_get_utc_time() -> Option<u64> {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
@@ -511,17 +507,8 @@ fn libertas_update_time_zone_info(utc: u64, env: & mut LibertasPackageEnv, runti
     }
 }
 
-/// Gets the current local time in microseconds since Unix epoch by applying the local time zone offset to the current UTC time.
-/// 
-/// # Returns
-/// The current local time in microseconds since Unix epoch as a 64-bit unsigned integer
-/// 
-/// The function may return `None` if the system doesn't have the capability to provide UTC time, or the UTC time is not set. For example, MCUs may not have 
-/// a real-time clock and the UTC from network may not be ready when the API is called.
-/// 
-/// # Remarks
-/// We always assume the `LibertasTimeZoneInfo` is retrieved within a year of current time.
-/// 
+/// Returns current local time in microseconds since Unix epoch.
+/// Applies timezone offset to UTC. Returns `None` if UTC unavailable.
 pub fn libertas_get_local_time() -> Option<u64> {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
@@ -551,11 +538,8 @@ pub fn libertas_get_local_time() -> Option<u64> {
     }
 }
 
-/// Converts a local time in microseconds since Unix epoch to UTC time by applying the local time zone offset.
-/// 
-/// # Remarks
-/// The result is only accurate within the end of next Daylight Saving Time cycle (over a year). It is intended to be used on low-power MCUs.
-/// 
+/// Converts local time to UTC by applying timezone offset.
+/// Accurate within the next DST cycle (typically >1 year).
 pub fn libertas_local_time_to_utc(local: u64) -> Option<u64> {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
@@ -584,11 +568,8 @@ pub fn libertas_local_time_to_utc(local: u64) -> Option<u64> {
     }
 }
 
-/// Converts a UTC time in microseconds since Unix epoch to local time by applying the local time zone offset.
-/// 
-/// # Remarks
-/// The result is only accurate within the end of next Daylight Saving Time cycle (over a year). It is intended to be used on low-power MCUs.
-/// 
+/// Converts UTC time to local time by applying timezone offset.
+/// Accurate within the next DST cycle (typically >1 year).
 pub fn libertas_utc_time_to_local(utc: u64) -> Option<u64> {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
@@ -617,6 +598,7 @@ pub fn libertas_utc_time_to_local(utc: u64) -> Option<u64> {
     }
 }
 
+/// Returns the current task's unique identifier.
 pub fn libertas_get_task_id() -> u32 {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
@@ -627,7 +609,7 @@ pub fn libertas_get_task_id() -> u32 {
     }
 }
 
-fn libertas_timer_new(exipration: u64, interval: bool, callback: Box<LibertasTimerCallback>, context: Box<dyn Any>) -> u32 {
+fn libertas_timer_new(expiration: u64, interval: bool, callback: Box<LibertasTimerCallback>, context: Box<dyn Any>) -> u32 {
     unsafe {
         match ENV {
             Some(ref mut env) => {
@@ -635,23 +617,23 @@ fn libertas_timer_new(exipration: u64, interval: bool, callback: Box<LibertasTim
                 let id = env.new_timer_id();
                 let wrapped_cb = Rc::new(RefCell::new(callback));
                 let wrapped_tag = Rc::new(RefCell::new(context));
-                if exipration > 0 {
+                if expiration > 0 {
                     if interval {
                         env.timers.insert(id, Timer {
                             task: task_id,
-                            state: TimerState::ArmedInterval(exipration),
+                            state: TimerState::ArmedInterval(expiration),
                             cb: wrapped_cb,
                             context: wrapped_tag,
                         });
-                        env.timers_active_interval.push(id, Reverse(exipration));
+                        env.timers_active_interval.push(id, Reverse(expiration));
                     } else {
                         env.timers.insert(id, Timer {
                             task: task_id,
-                            state: TimerState::ArmedDeadline(exipration),
+                            state: TimerState::ArmedDeadline(expiration),
                             cb: wrapped_cb,
                             context: wrapped_tag,
                         });
-                        env.timers_active_deadline.push(id, Reverse(exipration));
+                        env.timers_active_deadline.push(id, Reverse(expiration));
                     }
                 } else {
                     env.timers.insert(id, Timer {
@@ -668,42 +650,33 @@ fn libertas_timer_new(exipration: u64, interval: bool, callback: Box<LibertasTim
     }
 }
 
-/// Creates a new interval timer based on system ticks, which is a monotonic clock that is not affected by changes in the system time.
-/// 
-/// Please note that the system tick is in microseconds.
+/// Creates an interval timer that fires at the specified system tick.
 /// 
 /// # Arguments
-/// * `exipration` - The expiration time in system ticks in microseconds.
-/// * `callback` - Closure called when the timer fires. Receives timer ID, current time, and context.
-/// * `context` - User-defined data associated with the timer
+/// * `expiration` - Expiration time in system ticks (microseconds).
+/// * `callback` - Called on fire with (timer_id, current_ticks, context).
+/// * `context` - User data passed to callback.
 /// 
 /// # Returns
-/// Timer identifier for use with other timer functions
-/// 
-#[inline(always)]
-pub fn libertas_timer_new_interval<F>(exipration: u64, callback: F, context: Box<dyn Any>) -> u32 where F: FnMut(u32, u64, &mut Box<dyn Any>) + Sized + 'static {
-    return libertas_timer_new(exipration, true, Box::new(callback), context);
+/// Timer ID for management.
+pub fn libertas_timer_new_interval<F>(expiration: u64, callback: F, context: Box<dyn Any>) -> u32 where F: FnMut(u32, u64, &mut Box<dyn Any>) + Sized + 'static {
+    return libertas_timer_new(expiration, true, Box::new(callback), context);
 }
 
-/// Creates a new deadline timer. Unlike interval timers, deadline timers waits until the specified UTC time.
-/// 
-/// Creates a one-shot timer that fires at a specific deadline. The callback
-/// is invoked once when the deadline is reached.
+/// Creates a deadline timer that fires at the specified UTC time.
 /// 
 /// # Arguments
-/// * `exipration` - The deadline in UTC time in microseconds
-/// * `callback` - Closure called when the deadline is reached. Receives timer ID, deadline time, and context.
-/// * `new_context` - User-defined data associated with the timer
+/// * `expiration` - Deadline in UTC microseconds.
+/// * `callback` - Called on fire with (timer_id, deadline_time, context).
+/// * `context` - User data passed to callback.
 /// 
 /// # Returns
-/// Timer identifier for use with other timer functions
-/// 
-#[inline(always)]
-pub fn libertas_timer_new_deadline<F>(exipration: u64, callback: F, context: Box<dyn Any>) -> u32 where F: FnMut(u32, u64, &mut Box<dyn Any>) + Sized + 'static {
-    return libertas_timer_new(exipration, false, Box::new(callback), context);
+/// Timer ID for management.
+pub fn libertas_timer_new_deadline<F>(expiration: u64, callback: F, context: Box<dyn Any>) -> u32 where F: FnMut(u32, u64, &mut Box<dyn Any>) + Sized + 'static {
+    return libertas_timer_new(expiration, false, Box::new(callback), context);
 }
 
-fn libertas_timer_update(timer: u32, exipration: u64, interval: bool, callback: Option<Box<LibertasTimerCallback>>, new_context: Option<Box<dyn Any>>) {
+fn libertas_timer_update(timer: u32, expiration: u64, interval: bool, callback: Option<Box<LibertasTimerCallback>>, new_context: Option<Box<dyn Any>>) {
     unsafe {
         match ENV {
             Some(ref mut env) => {
@@ -713,29 +686,29 @@ fn libertas_timer_update(timer: u32, exipration: u64, interval: bool, callback: 
                     }
                     if interval {
                         if let TimerState::ArmedInterval(old_exp) = t.state {
-                            if old_exp != exipration {
-                                t.state = TimerState::ArmedInterval(exipration);
-                                env.timers_active_interval.change_priority(&timer, Reverse(exipration));
+                            if old_exp != expiration {
+                                t.state = TimerState::ArmedInterval(expiration);
+                                env.timers_active_interval.change_priority(&timer, Reverse(expiration));
                             }
                         } else {
                             if let TimerState::ArmedDeadline(_) = t.state {
                                 env.timers_active_deadline.remove(&timer);
                             }
-                            t.state = TimerState::ArmedInterval(exipration);
-                            env.timers_active_interval.push(timer, Reverse(exipration));
+                            t.state = TimerState::ArmedInterval(expiration);
+                            env.timers_active_interval.push(timer, Reverse(expiration));
                         }
                     } else {
                         if let TimerState::ArmedDeadline(old_exp) = t.state {
-                            if old_exp != exipration {
-                                t.state = TimerState::ArmedDeadline(exipration);
-                                env.timers_active_deadline.change_priority(&timer, Reverse(exipration));
+                            if old_exp != expiration {
+                                t.state = TimerState::ArmedDeadline(expiration);
+                                env.timers_active_deadline.change_priority(&timer, Reverse(expiration));
                             }
                         } else {
                             if let TimerState::ArmedInterval(_) = t.state {
                                 env.timers_active_interval.remove(&timer);
                             }
-                            t.state = TimerState::ArmedDeadline(exipration);
-                            env.timers_active_deadline.push(timer, Reverse(exipration));
+                            t.state = TimerState::ArmedDeadline(expiration);
+                            env.timers_active_deadline.push(timer, Reverse(expiration));
                         }
                     }
                     if let Some(new_cb) = callback {
@@ -753,86 +726,66 @@ fn libertas_timer_update(timer: u32, exipration: u64, interval: bool, callback: 
     }
 }
 
-/// Updates the expiration time of an existing interval timer
-/// 
-/// Changes the expiration time for a running interval timer. The callback and context
-/// remain unchanged.
+/// Updates an interval timer's expiration time.
 /// 
 /// # Arguments
-/// * `timer` - The timer ID to update
-/// * `exipration` - The new expiration time in system ticks in microseconds
-///
+/// * `timer` - Timer ID.
+/// * `expiration` - New expiration in system ticks.
+/// 
 /// # Panics
-/// Panics if the timer ID is invalid or belongs to a different task
-#[inline(always)]
-pub fn libertas_timer_update_interval(timer: u32, exipration: u64) {
-    libertas_timer_update(timer, exipration, true, None, None);
+/// If timer invalid or not owned by current task.
+pub fn libertas_timer_update_interval(timer: u32, expiration: u64) {
+    libertas_timer_update(timer, expiration, true, None, None);
 }
 
-/// Updates the deadline of an existing deadline timer
-/// 
-/// Changes the deadline for a running deadline timer. The callback and context
-/// remain unchanged.
+/// Updates a deadline timer's deadline.
 /// 
 /// # Arguments
-/// * `timer` - The timer ID to update
-/// * `exipration` - The new deadline in UTC microseconds ticks
-///
-/// # Panics
-/// Panics if the timer ID is invalid or belongs to a different task
+/// * `timer` - Timer ID.
+/// * `expiration` - New deadline in UTC microseconds.
 /// 
-#[inline(always)]
-pub fn libertas_timer_update_deadline(timer: u32, exipration: u64) {
-    libertas_timer_update(timer, exipration, false, None, None);
+/// # Panics
+/// If timer invalid or not owned by current task.
+pub fn libertas_timer_update_deadline(timer: u32, expiration: u64) {
+    libertas_timer_update(timer, expiration, false, None, None);
 }
 
-/// Updates an interval timer with new callback and/or expiration time
-/// 
-/// Changes the expiration time and/or callback for a running interval timer.
+/// Updates an interval timer with new expiration and callback.
 /// 
 /// # Arguments
-/// * `timer` - The timer ID to update
-/// * `exipration` - The new expiration time in system ticks in microseconds
-/// * `callback` - New closure to invoke on each interval expiration
-/// * `new_context` - New user-defined data to associate with the timer
-///
-/// # Panics
-/// Panics if the timer ID is invalid or belongs to a different task
+/// * `timer` - Timer ID.
+/// * `expiration` - New expiration in system ticks.
+/// * `callback` - New callback closure.
+/// * `new_context` - New user data.
 /// 
-#[inline(always)]
-pub fn libertas_timer_update_interval_callback<F>(timer: u32, exipration: u64, callback: F, new_context: Box<dyn Any>) where F: FnMut(u32, u64, &mut Box<dyn Any>) + Sized + 'static {
-    libertas_timer_update(timer, exipration, true, Some(Box::new(callback)), Some(new_context));
+/// # Panics
+/// If timer invalid or not owned by current task.
+pub fn libertas_timer_update_interval_callback<F>(timer: u32, expiration: u64, callback: F, new_context: Box<dyn Any>) where F: FnMut(u32, u64, &mut Box<dyn Any>) + Sized + 'static {
+    libertas_timer_update(timer, expiration, true, Some(Box::new(callback)), Some(new_context));
 }
 
-/// Updates a deadline timer with new callback and/or deadline
-/// 
-/// Changes the deadline and/or callback for a running deadline timer.
+/// Updates a deadline timer with new deadline and callback.
 /// 
 /// # Arguments
-/// * `timer` - The timer ID to update
-/// * `exipration` - The new deadline in system ticks
-/// * `callback` - New closure to invoke when the deadline is reached
-/// * `new_context` - New user-defined data to associate with the timer
-///
-/// # Panics
-/// Panics if the timer ID is invalid or belongs to a different task
+/// * `timer` - Timer ID.
+/// * `expiration` - New deadline in UTC microseconds.
+/// * `callback` - New callback closure.
+/// * `new_context` - New user data.
 /// 
-#[inline(always)]
-pub fn libertas_timer_update_deadline_callback<F>(timer: u32, exipration: u64, callback: F, new_context: Box<dyn Any>) where F: FnMut(u32, u64, &mut Box<dyn Any>) + Sized + 'static {
-    libertas_timer_update(timer, exipration, false, Some(Box::new(callback)), Some(new_context));
+/// # Panics
+/// If timer invalid or not owned by current task.
+pub fn libertas_timer_update_deadline_callback<F>(timer: u32, expiration: u64, callback: F, new_context: Box<dyn Any>) where F: FnMut(u32, u64, &mut Box<dyn Any>) + Sized + 'static {
+    libertas_timer_update(timer, expiration, false, Some(Box::new(callback)), Some(new_context));
 }
 
-/// Cancels a running timer
-/// 
-/// Stops an active timer without deleting it. The timer can be restarted
-/// by updating it again.
+/// Cancels a running timer without deleting it.
+/// Timer can be restarted later.
 /// 
 /// # Arguments
-/// * `timer` - The timer ID to cancel
-///
-/// # Panics
-/// Panics if the timer ID is invalid or belongs to a different task
+/// * `timer` - Timer ID.
 /// 
+/// # Panics
+/// If timer invalid or not owned by current task.
 pub fn libertas_timer_cancel(timer: u32) {  
     unsafe {
         match ENV {
@@ -857,17 +810,14 @@ pub fn libertas_timer_cancel(timer: u32) {
     }
 }
 
-/// Deletes a timer and frees its resources
-/// 
-/// Removes a timer completely from the system. The timer cannot be used again
-/// without creating a new one.
+/// Deletes a timer and frees its resources.
+/// Timer cannot be used again.
 /// 
 /// # Arguments
-/// * `timer` - The timer ID to delete
-///
-/// # Panics
-/// Panics if the timer ID is invalid or belongs to a different task
+/// * `timer` - Timer ID.
 /// 
+/// # Panics
+/// If timer invalid or not owned by current task.
 pub fn libertas_timer_delete(timer: u32) {
     unsafe {
         match ENV {
@@ -930,6 +880,7 @@ fn libertas_register_device_listener_impl(device: LibertasDevice, callback: Box<
 /// 
 /// A task is advised to collect all devices from function arguments before registering any callback to eliminate potential duplicates.
 /// 
+#[doc(hidden)]
 #[inline(always)]
 pub fn libertas_register_device_listener<F>(device: LibertasDevice, callback: F, context: Box<dyn Any>) where F: FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, Option<LibertasTransId>, u32) + Sized + 'static {
     libertas_register_device_listener_impl(device, Box::new(callback), context);
@@ -941,6 +892,14 @@ struct AgentToolListener<T> {
     context: Box<dyn Any>,
 }
 
+/// Registers a callback for agent/tool events.
+/// 
+/// # Arguments
+/// * `id` - Agent/tool device ID.
+/// * `callback` - Called with (device, opcode, decoded_data, context, trans_id, peer).
+/// * `context` - User data.
+/// 
+/// Data is decoded from Avro based on type T.
 pub fn libertas_register_agent_tool_listener<T, F>(id: LibertasAgentTool, callback: F, context: Box<dyn Any>)
         where 
             T: AvroDecode + 'static,
@@ -1012,6 +971,7 @@ pub fn __libertas_device_send_raw_req(protocol: u16, device: LibertasDevice, op:
 /// # Returns
 /// Unique transaction ID for tracking the response
 /// 
+#[doc(hidden)]
 #[inline(always)]
 pub fn libertas_device_send_request(protocol: u16, device: LibertasDevice, op: u8, data: &[u8]) -> u32 {
     __libertas_device_send_raw_req(protocol, device, op, 0, data.as_ptr(), data.len())
@@ -1030,6 +990,7 @@ pub fn libertas_device_send_request(protocol: u16, device: LibertasDevice, op: u
 /// * `trans_id` - Transaction ID from the original request to correlate the response.
 /// * `peer` - The peer that sent the original request.
 /// 
+#[doc(hidden)]
 #[inline(always)]
 pub fn libertas_device_send_response(protocol: u16, device: LibertasDevice, op: u8, data: &[u8], trans_id: u32, peer: u32) {
     __libertas_device_send_raw(protocol, device, op, peer, trans_id, data.as_ptr(), data.len());
@@ -1047,6 +1008,7 @@ pub fn libertas_device_send_response(protocol: u16, device: LibertasDevice, op: 
 /// * `data` - Binary blob containing the report data.
 /// * `peer` - The peer that sent the original request.
 /// 
+#[doc(hidden)]
 pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8, data: &[u8], peer: u32) {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
@@ -1074,7 +1036,7 @@ pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8
 /// We don't need any other Matter interactions. For example, Read and Write can all be implemented as InvokeRequest with custom data. We 
 /// even included default request in the standard like in HTTP.
 #[inline(always)]
-pub fn libertas_agent_tool_request<T>(server: u32, data: &T) -> u32 
+pub fn libertas_agent_tool_request<T>(server: LibertasAgentTool, data: &T) -> u32 
     where 
         T: AvroEncode + 'static {
     let mut bytes: Vec<_> = Vec::new();
@@ -1100,7 +1062,7 @@ pub fn libertas_agent_tool_request<T>(server: u32, data: &T) -> u32
 /// We don't need any other Matter interactions. For example, Read and Write can all be implemented as InvokeRequest with custom data. We 
 /// even included default request in the standard like in HTTP.
 #[inline(always)]
-pub fn libertas_agent_tool_subscribe_request<T>(server: u32, data: &T) -> u32 
+pub fn libertas_agent_tool_subscribe_request<T>(server: LibertasAgentTool, data: &T) -> u32 
     where 
         T: AvroEncode + 'static {
     let mut bytes: Vec<_> = Vec::new();
@@ -1123,7 +1085,7 @@ pub fn libertas_agent_tool_subscribe_request<T>(server: u32, data: &T) -> u32
 /// # Note
 /// Unlike Matter protocol, the data can be any data structure defined and published by the server developer, encoded with Apache Avro format.
 #[inline(always)]
-pub fn libertas_agent_tool_response<T>(server: u32, data: &T, trans_id: u32, dest: u32) 
+pub fn libertas_agent_tool_response<T>(server: LibertasAgentTool, data: &T, trans_id: u32, dest: u32) 
     where 
         T: AvroEncode + 'static {
     let mut bytes: Vec<_> = Vec::new();
@@ -1146,7 +1108,7 @@ pub fn libertas_agent_tool_response<T>(server: u32, data: &T, trans_id: u32, des
 /// Unlike Matter protocol, the data can be any data structure defined and published by the server developer, encoded with Apache Avro format.
 /// This function is used to fulfill subscription requests that expect `OpCode::ReportData` messages.
 #[inline(always)]
-pub fn libertas_agent_tool_report<T>(server: u32, data: &T, peer: Option<LibertasAgentTool>) 
+pub fn libertas_agent_tool_report<T>(server: LibertasAgentTool, data: &T, peer: Option<LibertasAgentTool>) 
     where 
         T: AvroEncode + 'static {
     let peer_id = peer.unwrap_or(LIBERTAS_BROADCAST_DEST);
@@ -1170,7 +1132,7 @@ pub fn libertas_agent_tool_report<T>(server: u32, data: &T, peer: Option<Liberta
 /// * `peer` - The subscriber peer.
 /// 
 #[inline(always)]
-pub fn libertas_agent_tool_remove_subscriber(server: u32, peer: u32) {
+pub fn libertas_agent_tool_remove_subscriber(server: LibertasAgentTool, peer: u32) {
     let empty_slice: &[u8] = &[];
     libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_AGENT_TOOL_REMOVE_PEER, empty_slice, 0, peer);
 }
