@@ -4,7 +4,7 @@
 //!
 //! # Core Features
 //!
-//! - **Datetime and Timezone**: Access UTC/local time and monotonic system ticks for scheduling.
+//! - **Datetime**: Access UTC/local time and monotonic system ticks for scheduling.
 //! - **Timers**: Create interval and deadline timers for periodic or delayed tasks.
 //! - **Peer Communication**: Send/receive messages via developer-defined protocols with peers (humans, LLMs, or other apps).
 //! - **Logging and Notifications**: Log messages and send notifications with configurable importance.
@@ -153,28 +153,6 @@ impl LibertasUninitStackbuf {
     }
 }
 
-/// Represents the Daylight Saving Time (DST) offset information for a specific time zone
-#[doc(hidden)]
-#[repr(C)]
-pub struct LibertasDstOffset {
-    /// DST offset in seconds
-    pub offset: i32,
-    /// UTC timestamp when current DST period begins
-    pub begin: u64,
-    /// UTC timestamp when current DST period ends
-    pub end: u64,
-}
-
-/// Represents the time zone information for the current local time, including current DST offset and next DST change information
-#[doc(hidden)]
-#[repr(C)]
-pub struct LibertasTimeZoneInfo {
-    /// Current time zone offset from UTC in seconds
-    pub current_offset: LibertasDstOffset,
-    /// Next DST offset change information
-    pub next_offset: LibertasDstOffset,
-}
-
 // A count down timer
 enum TimerState {
     Idle,
@@ -215,8 +193,9 @@ struct LibertasRuntimeApi {
     get_task_id: extern "C" fn() -> u32,
     set_task_id: extern "C" fn(u32),    // Used internally in callback driver. Only useful if we are driving multiple tasks within one thread.
     get_sys_ticks: extern "C" fn() -> u64,
-    get_time_zone_info: extern "C" fn(*mut LibertasTimeZoneInfo) -> bool,
     get_utc_time: extern "C" fn() -> u64,
+    utc_to_local: extern "C" fn(i64) -> i64,
+    local_to_utc: extern "C" fn(i64) -> i64,
     device_send: extern "C" fn(u16, u32, u32, u8, *const u8, usize, u32),           // Protocol, device (virtual device src), trans_id, op_code, data, data_len, ack_dest (virtual device & agent/tool)
     device_read: extern "C" fn(u16, u32, u8, *const u8, usize) -> ReadResult,       // Synchronous kernel operation for current task. protocol, device, op_code, data, data_len
 }
@@ -341,7 +320,6 @@ struct LibertasPackageEnv {
     timers_active_deadline: PriorityQueue<u32, Reverse<u64>, DefaultHashBuilder>,
     contexts: HashMap<u32, Context>,    // Key is task ID
     callback: LibertasPackageCallback,
-    time_zone_info: Option<LibertasTimeZoneInfo>,
 }
 
 impl LibertasPackageEnv{
@@ -361,7 +339,6 @@ impl LibertasPackageEnv{
                 timer_driver: libertas_impl_timer_driver,
                 device_callback: libertas_impl_device_callback,
             },
-            time_zone_info: None,
         }
     }
 
@@ -490,23 +467,6 @@ pub fn libertas_get_utc_time() -> Option<u64> {
     }
 }
 
-fn libertas_update_time_zone_info(utc: u64, env: & mut LibertasPackageEnv, runtime_api: & LibertasRuntimeApi) {
-    unsafe {
-        let update_tz = match env.time_zone_info {
-            Some(ref tz) => {
-                utc >= tz.current_offset.end
-            }
-            None => true,
-        };
-        if update_tz {
-            let mut info = MaybeUninit::<LibertasTimeZoneInfo>::uninit();
-            if (runtime_api.get_time_zone_info)(info.as_mut_ptr()) {
-                env.time_zone_info = Some(info.assume_init());
-            }
-        }
-    }
-}
-
 /// Returns current local time in microseconds since Unix epoch.
 /// Applies timezone offset to UTC. Returns `None` if UTC unavailable.
 pub fn libertas_get_local_time() -> Option<u64> {
@@ -516,22 +476,7 @@ pub fn libertas_get_local_time() -> Option<u64> {
             if utc == 0 {
                 return None;
             }
-            match ENV {
-                Some(ref mut env) => {
-                    libertas_update_time_zone_info(utc, env, runtime_api);
-                    if let Some(ref tz) = env.time_zone_info {
-                        let offset = if utc < tz.current_offset.end {
-                            tz.current_offset.offset
-                        } else {
-                            tz.next_offset.offset
-                        };
-                        return Some((utc as i64 + (offset as i64) * 1000 * 1000) as u64);
-                    } else {
-                        return None;
-                    }
-                }
-                _ => { unreachable!(); }
-            }
+            Some((runtime_api.utc_to_local)(utc as i64) as u64)
         } else {
             unreachable!();
         }
@@ -540,28 +485,10 @@ pub fn libertas_get_local_time() -> Option<u64> {
 
 /// Converts local time to UTC by applying timezone offset.
 /// Accurate within the next DST cycle (typically >1 year).
-pub fn libertas_local_time_to_utc(local: u64) -> Option<u64> {
+pub fn libertas_local_time_to_utc(local: i64) -> i64 {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
-            let now = (runtime_api.get_utc_time)();
-            if now == 0 {
-                return None;
-            }            
-            match ENV {
-                Some(ref mut env) => {
-                    libertas_update_time_zone_info(now, env, runtime_api);
-                    if let Some(ref tz) = env.time_zone_info {
-                        let mut try_utc = (local as i64 - (tz.current_offset.offset as i64) * 1000 * 1000) as u64;
-                        if try_utc > tz.current_offset.end {
-                            try_utc = (local as i64 - (tz.next_offset.offset as i64) * 1000 * 1000) as u64;
-                        }
-                        return Some(try_utc);
-                    } else {
-                        return None;
-                    }
-                }
-                _ => { unreachable!(); }
-            }
+            (runtime_api.local_to_utc)(local)
         } else {
             unreachable!();
         }
@@ -570,28 +497,10 @@ pub fn libertas_local_time_to_utc(local: u64) -> Option<u64> {
 
 /// Converts UTC time to local time by applying timezone offset.
 /// Accurate within the next DST cycle (typically >1 year).
-pub fn libertas_utc_time_to_local(utc: u64) -> Option<u64> {
+pub fn libertas_utc_time_to_local(utc: i64) -> i64 {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
-            let now = (runtime_api.get_utc_time)();
-            if now == 0 {
-                return None;
-            }            
-            match ENV {
-                Some(ref mut env) => {
-                    libertas_update_time_zone_info(now, env, runtime_api);
-                    if let Some(ref tz) = env.time_zone_info {
-                        return if utc >= tz.current_offset.end {
-                            Some((utc as i64 + (tz.next_offset.offset as i64) * 1000 * 1000) as u64)
-                        } else {
-                            Some((utc as i64 + (tz.current_offset.offset as i64) * 1000 * 1000) as u64)
-                        }
-                    } else {
-                        return None;
-                    }
-                }
-                _ => { unreachable!(); }
-            }
+            (runtime_api.utc_to_local)(utc)
         } else {
             unreachable!();
         }

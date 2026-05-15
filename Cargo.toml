@@ -5,7 +5,7 @@ members = [
 resolver = "2" # Use the modern feature resolver
 
 [workspace.package]
-version = "0.2.6"
+version = "0.2.7"
 edition = "2024"
 license = "MIT"
 authors = ["Qingjun Wei"]
