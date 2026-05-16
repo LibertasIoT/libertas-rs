@@ -719,7 +719,7 @@ pub fn libertas_timer_cancel(timer: u32) {
     }
 }
 
-/// Deletes a timer and frees its resources.
+/// Destroys a timer and frees its resources.
 /// Timer cannot be used again.
 /// 
 /// # Arguments
@@ -727,7 +727,7 @@ pub fn libertas_timer_cancel(timer: u32) {
 /// 
 /// # Panics
 /// If timer invalid or not owned by current task.
-pub fn libertas_timer_delete(timer: u32) {
+pub fn libertas_timer_destroy(timer: u32) {
     unsafe {
         match ENV {
             Some(ref mut env) => {
@@ -742,7 +742,7 @@ pub fn libertas_timer_delete(timer: u32) {
                     }
                     env.timers.remove(&timer);
                 } else {
-                    panic!("timer_delete invalid timer");
+                    panic!("timer_destroy invalid timer");
                 }
             }
             _ => { unreachable!(); }
