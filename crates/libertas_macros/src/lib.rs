@@ -16,6 +16,21 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
             pat_type.attrs.retain(|attr| {
                 if attr.path().is_ident("agent_tool_schema") ||
                    attr.path().is_ident("agent_tool_server") || 
+                   attr.path().is_ident("libertas_default") || 
+                   attr.path().is_ident("libertas_ui_header") || 
+                   attr.path().is_ident("libertas_read_only") || 
+                   attr.path().is_ident("libertas_hidden") || 
+                   attr.path().is_ident("libertas_number") || 
+                   attr.path().is_ident("libertas_time_interval") || 
+                   attr.path().is_ident("libertas_string") || 
+                   attr.path().is_ident("libertas_enum") || 
+                   attr.path().is_ident("libertas_array") || 
+                   attr.path().is_ident("libertas_unordered") || 
+                   attr.path().is_ident("libertas_unique") || 
+                   attr.path().is_ident("agent_tool_schema") || 
+                   attr.path().is_ident("agent_tool_server") || 
+                   attr.path().is_ident("base_objects") || 
+                   attr.path().is_ident("libertas_data_schema") || 
                    attr.path().is_ident("tag") ||
                    attr.path().is_ident("content") || 
                    attr.path().is_ident("untagged") {
@@ -36,9 +51,46 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
     })
 }
 
+#[proc_macro_attribute]
+pub fn libertas_string_resources(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as ItemFn);
+    // Return the modified function (now clean of custom attributes)
+    TokenStream::from(quote! {
+        #input
+    })
+}
+
+#[proc_macro_attribute]
+pub fn libertas_data_schema(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as ItemFn);
+    // Return the modified function (now clean of custom attributes)
+    TokenStream::from(quote! {
+        #input
+    })
+}
+
 /// This macro is used on structs and enums.
 /// 
-#[proc_macro_derive(LibertasExport, attributes(libertas_data_schema, agent_tool_schema, agent_tool_server, libertas_request, libertas_response, libertas_subscription_request, libertas_data_report))]
+#[proc_macro_derive(LibertasExport, attributes(
+    agent_tool_schema, 
+    agent_tool_server, 
+    libertas_request, 
+    libertas_response, 
+    libertas_subscription_request, 
+    libertas_subscription_data,
+    base_objects,
+    libertas_default,
+    libertas_ui_header,
+    libertas_read_only,
+    libertas_hidden,
+    libertas_number,
+    libertas_time_interval,
+    libertas_string,
+    libertas_enum,
+    libertas_array,
+    libertas_unordered,
+    libertas_unique
+    ))]
 pub fn libertas_derive(input: TokenStream) -> TokenStream {
     // 1. Parse the input tokens into a syntax tree
     // We parse it even if we do nothing to ensure the code is valid Rust
@@ -266,3 +318,5 @@ pub fn libertas_avro_decode_derive(input: TokenStream) -> TokenStream {
     };
     TokenStream::from(expanded)
 }
+
+
