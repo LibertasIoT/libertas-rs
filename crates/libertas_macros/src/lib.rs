@@ -89,7 +89,10 @@ pub fn libertas_data_schema(_attr: TokenStream, item: TokenStream) -> TokenStrea
     libertas_enum,
     libertas_array,
     libertas_unordered,
-    libertas_unique
+    libertas_unique,
+    libertas_next_request,
+    libertas_next_response,
+    libertas_cacheable,
     ))]
 pub fn libertas_derive(input: TokenStream) -> TokenStream {
     // 1. Parse the input tokens into a syntax tree
