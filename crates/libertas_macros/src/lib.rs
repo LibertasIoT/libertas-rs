@@ -16,7 +16,9 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
             pat_type.attrs.retain(|attr| {
                 if attr.path().is_ident("agent_tool_schema") ||
                    attr.path().is_ident("agent_tool_server") || 
+                   attr.path().is_ident("libertas_data_schema") || 
                    attr.path().is_ident("libertas_default") || 
+                   attr.path().is_ident("libertas_device_type") || 
                    attr.path().is_ident("libertas_ui_header") || 
                    attr.path().is_ident("libertas_read_only") || 
                    attr.path().is_ident("libertas_hidden") || 
@@ -27,10 +29,10 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                    attr.path().is_ident("libertas_array") || 
                    attr.path().is_ident("libertas_unordered") || 
                    attr.path().is_ident("libertas_unique") || 
+                   attr.path().is_ident("libertas_virtual_device_type") || 
                    attr.path().is_ident("agent_tool_schema") || 
                    attr.path().is_ident("agent_tool_server") || 
                    attr.path().is_ident("base_objects") || 
-                   attr.path().is_ident("libertas_data_schema") || 
                    attr.path().is_ident("tag") ||
                    attr.path().is_ident("content") || 
                    attr.path().is_ident("untagged") {
@@ -80,6 +82,8 @@ pub fn libertas_data_schema(_attr: TokenStream, item: TokenStream) -> TokenStrea
     libertas_subscription_data,
     base_objects,
     libertas_default,
+    libertas_device_type,
+    libertas_virtual_device_type,
     libertas_ui_header,
     libertas_read_only,
     libertas_hidden,
