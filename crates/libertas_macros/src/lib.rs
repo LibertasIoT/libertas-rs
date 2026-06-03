@@ -14,8 +14,9 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
             // 1. Check the attributes on this specific argument
             // We use 'retain' to keep only the attributes that are NOT ours
             pat_type.attrs.retain(|attr| {
-                if attr.path().is_ident("agent_tool_schema") ||
-                   attr.path().is_ident("agent_tool_server") || 
+                if attr.path().is_ident("libertas_endpoint_schema") ||
+                   attr.path().is_ident("libertas_endpoint_base_objects") || 
+                   attr.path().is_ident("libertas_endpoint_server") || 
                    attr.path().is_ident("libertas_data_schema") || 
                    attr.path().is_ident("libertas_default") || 
                    attr.path().is_ident("libertas_device_type") || 
@@ -30,9 +31,6 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                    attr.path().is_ident("libertas_unordered") || 
                    attr.path().is_ident("libertas_unique") || 
                    attr.path().is_ident("libertas_virtual_device_type") || 
-                   attr.path().is_ident("agent_tool_schema") || 
-                   attr.path().is_ident("agent_tool_server") || 
-                   attr.path().is_ident("base_objects") || 
                    attr.path().is_ident("tag") ||
                    attr.path().is_ident("content") || 
                    attr.path().is_ident("untagged") {
@@ -74,13 +72,13 @@ pub fn libertas_data_schema(_attr: TokenStream, item: TokenStream) -> TokenStrea
 /// This macro is used on structs and enums.
 /// 
 #[proc_macro_derive(LibertasExport, attributes(
-    agent_tool_schema, 
-    agent_tool_server, 
+    libertas_endpoint_schema, 
+    libertas_endpoint_server, 
+    libertas_endpoint_base_objects,
     libertas_request, 
     libertas_response, 
     libertas_subscription_request, 
     libertas_subscription_data,
-    base_objects,
     libertas_default,
     libertas_device_type,
     libertas_virtual_device_type,

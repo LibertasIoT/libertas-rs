@@ -55,9 +55,9 @@ pub type LibertasDevice = u32;
 /// Automatically deleted when the task is removed.
 pub type LibertasVirtualDevice = LibertasDevice;
 
-/// Specialized virtual device for agent/tool interactions.
+/// Specialized virtual device for endpoint interactions.
 /// Data schema must be predefined and published by the server developer.
-pub type LibertasAgentTool = LibertasVirtualDevice;
+pub type LibertasEndpoint = LibertasVirtualDevice;
 
 /// Timestamp in seconds since Unix epoch (full date and time).
 pub type LibertasDateTime = u64;
@@ -88,17 +88,17 @@ pub const STACK_BUF_SIZE: usize = 1000;
 pub const LIBERTAS_BROADCAST_DEST: u32 = 0xffffffff;
 
 /// Agent/tool subscription request opcode.
-pub const OP_AGENT_TOOL_SUB_REQ: u8 = 3;
+pub const OP_ENDPOINT_SUB_REQ: u8 = 3;
 /// Agent/tool data message opcode.
-pub const OP_AGENT_TOOL_DATA: u8 = 5;
+pub const OP_ENDPOINT_DATA: u8 = 5;
 /// Agent/tool request opcode (expects response).
-pub const OP_AGENT_TOOL_REQ: u8 = 8;
+pub const OP_ENDPOINT_REQ: u8 = 8;
 /// Agent/tool response opcode.
-pub const OP_AGENT_TOOL_RSP: u8 = 9;
+pub const OP_ENDPOINT_RSP: u8 = 9;
 /// Agent/tool peer down notification opcode.
-pub const OP_AGENT_TOOL_PEER_DOWN: u8 = 20;
+pub const OP_ENDPOINT_PEER_DOWN: u8 = 20;
 
-const OP_AGENT_TOOL_REMOVE_PEER: u8 = 21;    // device_send
+const OP_ENDPOINT_REMOVE_PEER: u8 = 21;    // device_send
 
 const PROTOCOL_LIBERTAS: u16 = 0;
 
@@ -196,7 +196,7 @@ struct LibertasRuntimeApi {
     get_utc_time: extern "C" fn() -> u64,
     utc_to_local: extern "C" fn(i64) -> i64,
     local_to_utc: extern "C" fn(i64) -> i64,
-    device_send: extern "C" fn(u16, u32, u32, u8, *const u8, usize, u32),           // Protocol, device (virtual device src), trans_id, op_code, data, data_len, ack_dest (virtual device & agent/tool)
+    device_send: extern "C" fn(u16, u32, u32, u8, *const u8, usize, u32),           // Protocol, device (virtual device src), trans_id, op_code, data, data_len, ack_dest (virtual device & endpoint)
     device_read: extern "C" fn(u16, u32, u8, *const u8, usize) -> ReadResult,       // Synchronous kernel operation for current task. protocol, device, op_code, data, data_len
 }
 
@@ -208,7 +208,7 @@ pub struct LibertasPackageCallback {
     init_task: extern "C" fn(u32),
     remove_task: extern "C" fn(u32),
     timer_driver: extern "C" fn(u64, u64)->TimerDriverResult,
-    device_callback: extern "C" fn(u32, u32, u8, *const u32, *const c_void, usize, u32),       // task, device (virtual device dst), op_code, trans_id, data, data_len, source (virtual device & agent/tool)
+    device_callback: extern "C" fn(u32, u32, u8, *const u32, *const c_void, usize, u32),       // task, device (virtual device dst), op_code, trans_id, data, data_len, source (virtual device & endpoint)
 }
 
 struct Context {
@@ -779,7 +779,7 @@ fn libertas_register_device_listener_impl(device: LibertasDevice, callback: Box<
 /// Developer shall not call this API directly. Instead, they should use the protocol-specific APIs built on top of this API. For example, for Matter protocol, developers should use `matter_register_device_callback` instead of this API. The protocol-specific APIs will handle the protocol details and provide a more user-friendly interface.
 ///
 /// # Arguments
-/// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasAgentTool`.
+/// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasEndpoint`.
 /// * `callback` - Closure called when device events occur. Receives device ID, operation code, event data, mutable context, and optional transaction ID.
 /// * `context` - Developer-defined data passed to the callback function
 /// 
@@ -795,13 +795,13 @@ pub fn libertas_register_device_listener<F>(device: LibertasDevice, callback: F,
     libertas_register_device_listener_impl(device, Box::new(callback), context);
 }
 
-type AgentToolCallback<T> = dyn FnMut(LibertasAgentTool, u8, Option<T>, &mut Box<dyn Any>, Option<LibertasTransId>, u32);
-struct AgentToolListener<T> {
-    callback: Box<AgentToolCallback<T>>,
+type EndpointCallback<T> = dyn FnMut(LibertasEndpoint, u8, Option<T>, &mut Box<dyn Any>, Option<LibertasTransId>, u32);
+struct EndpointListener<T> {
+    callback: Box<EndpointCallback<T>>,
     context: Box<dyn Any>,
 }
 
-/// Registers a callback for agent/tool events.
+/// Registers a callback for endpoint events.
 /// 
 /// # Arguments
 /// * `id` - Agent/tool device ID.
@@ -809,18 +809,18 @@ struct AgentToolListener<T> {
 /// * `context` - User data.
 /// 
 /// Data is decoded from Avro based on type T.
-pub fn libertas_register_agent_tool_listener<T, F>(id: LibertasAgentTool, callback: F, context: Box<dyn Any>)
+pub fn libertas_register_endpoint_listener<T, F>(id: LibertasEndpoint, callback: F, context: Box<dyn Any>)
         where 
             T: AvroDecode + 'static,
-            F: FnMut(LibertasAgentTool, u8, Option<T>, &mut Box<dyn Any>, Option<LibertasTransId>, u32) + Sized + 'static {
-    let listener = Box::new(AgentToolListener {
+            F: FnMut(LibertasEndpoint, u8, Option<T>, &mut Box<dyn Any>, Option<LibertasTransId>, u32) + Sized + 'static {
+    let listener = Box::new(EndpointListener {
         callback: Box::new(callback),
         context,
     });
     libertas_register_device_listener(id, |device, opcode, data, tag_any, trans_id, peer| {
-        let tag = tag_any.downcast_mut::<AgentToolListener<T>>().unwrap();
+        let tag = tag_any.downcast_mut::<EndpointListener<T>>().unwrap();
         let mut protocol_obj: Option<T> = None;
-        if opcode != OP_AGENT_TOOL_PEER_DOWN {
+        if opcode != OP_ENDPOINT_PEER_DOWN {
             let mut offset: usize = 1;
             protocol_obj = Some(T::avro_decode(data, &mut offset).unwrap());  //  serde_avro_fast::from_datum_slice::<T>(&data[1..], &tag.protocol_schema).unwrap();
         }
@@ -873,7 +873,7 @@ pub fn __libertas_device_send_raw_req(protocol: u16, device: LibertasDevice, op:
 /// 
 /// # Arguments
 /// * `protocol` - The protocol ID for the request.
-/// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasAgentTool`.
+/// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasEndpoint`.
 /// * `op` - Operation code for the request. This is an application defined.
 /// * `data` - Binary blob containing the request data. The content is application defined.
 /// 
@@ -893,7 +893,7 @@ pub fn libertas_device_send_request(protocol: u16, device: LibertasDevice, op: u
 /// 
 /// # Arguments
 /// * `protocol` - The protocol ID for the request.
-/// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasAgentTool`.
+/// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasEndpoint`.
 /// * `op` - Operation code for the response. This is an application defined and typically defined in relation to the request op code.
 /// * `data` - Binary blob containing the response data
 /// * `trans_id` - Transaction ID from the original request to correlate the response.
@@ -912,7 +912,7 @@ pub fn libertas_device_send_response(protocol: u16, device: LibertasDevice, op: 
 /// 
 /// # Arguments
 /// * `protocol` - The protocol ID for the request.
-/// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasAgentTool`.
+/// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasEndpoint`.
 /// * `op` - Operation code for the report. This is an application defined.
 /// * `data` - Binary blob containing the report data.
 /// * `peer` - The peer that sent the original request.
@@ -928,13 +928,13 @@ pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8
     }
 }
 
-/// Sends a agent/tool request to a server
+/// Sends a endpoint request to a server
 ///
-/// Sends a agent/tool request to the specified server with the given operation code
+/// Sends a endpoint request to the specified server with the given operation code
 /// and data payload. Returns a transaction ID for tracking the response.
 ///
 /// # Arguments
-/// * `server` - A agent/tool server. The link created when a Libertas machine is created.
+/// * `server` - A endpoint server. The link created when a Libertas machine is created.
 /// * `data` - The data payload to send with the request
 ///
 /// # Returns
@@ -945,22 +945,22 @@ pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8
 /// We don't need any other Matter interactions. For example, Read and Write can all be implemented as InvokeRequest with custom data. We 
 /// even included default request in the standard like in HTTP.
 #[inline(always)]
-pub fn libertas_agent_tool_request<T>(server: LibertasAgentTool, data: &T) -> u32 
+pub fn libertas_endpoint_request<T>(server: LibertasEndpoint, data: &T) -> u32 
     where 
         T: AvroEncode + 'static {
     let mut bytes: Vec<_> = Vec::new();
     bytes.push(0u8);
     data.avro_encode(&mut bytes);
-    libertas_device_send_request(PROTOCOL_LIBERTAS, server, OP_AGENT_TOOL_REQ, &bytes)
+    libertas_device_send_request(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_REQ, &bytes)
 }
 
-/// Sends a agent/tool request to a server
+/// Sends a endpoint request to a server
 ///
-/// Sends a agent/tool request to the specified server with the given operation code
+/// Sends a endpoint request to the specified server with the given operation code
 /// and data payload. Returns a transaction ID for tracking the response.
 ///
 /// # Arguments
-/// * `server` - A agent/tool server. The link created when a Libertas machine is created.
+/// * `server` - A endpoint server. The link created when a Libertas machine is created.
 /// * `data` - The data payload to send with the request
 ///
 /// # Returns
@@ -971,22 +971,22 @@ pub fn libertas_agent_tool_request<T>(server: LibertasAgentTool, data: &T) -> u3
 /// We don't need any other Matter interactions. For example, Read and Write can all be implemented as InvokeRequest with custom data. We 
 /// even included default request in the standard like in HTTP.
 #[inline(always)]
-pub fn libertas_agent_tool_subscribe_request<T>(server: LibertasAgentTool, data: &T) -> u32 
+pub fn libertas_endpoint_subscribe_request<T>(server: LibertasEndpoint, data: &T) -> u32 
     where 
         T: AvroEncode + 'static {
     let mut bytes: Vec<_> = Vec::new();
     bytes.push(0u8);
     data.avro_encode(&mut bytes);
-    libertas_device_send_request(PROTOCOL_LIBERTAS, server, OP_AGENT_TOOL_SUB_REQ, &bytes)
+    libertas_device_send_request(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_SUB_REQ, &bytes)
 }
 
-/// Sends a agent/tool response to a device
+/// Sends a endpoint response to a device
 ///
-/// Sends a response to a agent/tool request with the specified operation code
+/// Sends a response to a endpoint request with the specified operation code
 /// and data payload using the provided transaction ID.
 ///
 /// # Arguments
-/// * `server` - A agent/tool server id. The link created when a Libertas machine is created.
+/// * `server` - A endpoint server id. The link created when a Libertas machine is created.
 /// * `data` - The data payload to send with the response
 /// * `trans_id` - The transaction ID from the original request
 /// * `dest` - The source of the original request as the destination of the request.
@@ -994,22 +994,22 @@ pub fn libertas_agent_tool_subscribe_request<T>(server: LibertasAgentTool, data:
 /// # Note
 /// Unlike Matter protocol, the data can be any data structure defined and published by the server developer, encoded with Apache Avro format.
 #[inline(always)]
-pub fn libertas_agent_tool_response<T>(server: LibertasAgentTool, data: &T, trans_id: u32, dest: u32) 
+pub fn libertas_endpoint_response<T>(server: LibertasEndpoint, data: &T, trans_id: u32, dest: u32) 
     where 
         T: AvroEncode + 'static {
     let mut bytes: Vec<_> = Vec::new();
     bytes.push(0u8);
     data.avro_encode(&mut bytes);
-    libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_AGENT_TOOL_RSP, &bytes, trans_id, dest);
+    libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_RSP, &bytes, trans_id, dest);
 }
 
-/// Sends a agent/tool report to subscribers
+/// Sends a endpoint report to subscribers
 ///
-/// Sends report data to all subscribers of a agent/tool point or to a specific device.
+/// Sends report data to all subscribers of a endpoint point or to a specific device.
 /// This is typically used to push data updates to clients that have subscribed to data changes.
 ///
 /// # Arguments
-/// * `server` - A agent/tool server id. The link created when a Libertas machine is created.
+/// * `server` - A endpoint server id. The link created when a Libertas machine is created.
 /// * `data` - The data payload to send in the report
 /// * `peer` - Optional specific device ID to send the report to. If None, broadcasts to all subscribers.
 ///
@@ -1017,14 +1017,14 @@ pub fn libertas_agent_tool_response<T>(server: LibertasAgentTool, data: &T, tran
 /// Unlike Matter protocol, the data can be any data structure defined and published by the server developer, encoded with Apache Avro format.
 /// This function is used to fulfill subscription requests that expect `OpCode::ReportData` messages.
 #[inline(always)]
-pub fn libertas_agent_tool_report<T>(server: LibertasAgentTool, data: &T, peer: Option<LibertasAgentTool>) 
+pub fn libertas_endpoint_report<T>(server: LibertasEndpoint, data: &T, peer: Option<LibertasEndpoint>) 
     where 
         T: AvroEncode + 'static {
     let peer_id = peer.unwrap_or(LIBERTAS_BROADCAST_DEST);
     let mut bytes: Vec<_> = Vec::new();
     bytes.push(0u8);
     data.avro_encode(&mut bytes);
-    libertas_device_send_report(PROTOCOL_LIBERTAS, server, OP_AGENT_TOOL_DATA, &bytes, peer_id);
+    libertas_device_send_report(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_DATA, &bytes, peer_id);
 }
 
 /// Remove a subscriber. 
@@ -1037,11 +1037,11 @@ pub fn libertas_agent_tool_report<T>(server: LibertasAgentTool, data: &T, peer: 
 /// * OS will not try to maintain the session to keep it alive.
 /// 
 /// # Arguments
-/// * `server` - A agent/tool server id. The link created when a Libertas machine is created.
+/// * `server` - A endpoint server id. The link created when a Libertas machine is created.
 /// * `peer` - The subscriber peer.
 /// 
 #[inline(always)]
-pub fn libertas_agent_tool_remove_subscriber(server: LibertasAgentTool, peer: u32) {
+pub fn libertas_endpoint_remove_subscriber(server: LibertasEndpoint, peer: u32) {
     let empty_slice: &[u8] = &[];
-    libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_AGENT_TOOL_REMOVE_PEER, empty_slice, 0, peer);
+    libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_REMOVE_PEER, empty_slice, 0, peer);
 }
