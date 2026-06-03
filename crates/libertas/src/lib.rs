@@ -87,15 +87,15 @@ pub const STACK_BUF_SIZE: usize = 1000;
 /// Broadcast destination for sending to all peers.
 pub const LIBERTAS_BROADCAST_DEST: u32 = 0xffffffff;
 
-/// Agent/tool subscription request opcode.
+/// Endpoint subscription request opcode.
 pub const OP_ENDPOINT_SUB_REQ: u8 = 3;
-/// Agent/tool data message opcode.
+/// Endpoint data message opcode.
 pub const OP_ENDPOINT_DATA: u8 = 5;
-/// Agent/tool request opcode (expects response).
+/// Endpoint request opcode (expects response).
 pub const OP_ENDPOINT_REQ: u8 = 8;
-/// Agent/tool response opcode.
+/// Endpoint response opcode.
 pub const OP_ENDPOINT_RSP: u8 = 9;
-/// Agent/tool peer down notification opcode.
+/// Endpoint peer down notification opcode.
 pub const OP_ENDPOINT_PEER_DOWN: u8 = 20;
 
 const OP_ENDPOINT_REMOVE_PEER: u8 = 21;    // device_send
@@ -804,7 +804,7 @@ struct EndpointListener<T> {
 /// Registers a callback for endpoint events.
 /// 
 /// # Arguments
-/// * `id` - Agent/tool device ID.
+/// * `id` - Endpoint device ID.
 /// * `callback` - Called with (device, opcode, decoded_data, context, trans_id, peer).
 /// * `context` - User data.
 /// 
