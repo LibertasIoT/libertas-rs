@@ -14,7 +14,8 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
             // 1. Check the attributes on this specific argument
             // We use 'retain' to keep only the attributes that are NOT ours
             pat_type.attrs.retain(|attr| {
-                if attr.path().is_ident("libertas_endpoint_schema") ||
+                if attr.path().is_ident("libertas_copy_from") ||
+                   attr.path().is_ident("libertas_endpoint_schema") ||
                    attr.path().is_ident("libertas_endpoint_base_objects") || 
                    attr.path().is_ident("libertas_endpoint_server") || 
                    attr.path().is_ident("libertas_data_schema") || 
@@ -72,6 +73,7 @@ pub fn libertas_data_schema(_attr: TokenStream, item: TokenStream) -> TokenStrea
 /// This macro is used on structs and enums.
 /// 
 #[proc_macro_derive(LibertasExport, attributes(
+    libertas_copy_from,
     libertas_endpoint_schema, 
     libertas_endpoint_server, 
     libertas_endpoint_base_objects,
