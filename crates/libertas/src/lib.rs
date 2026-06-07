@@ -98,6 +98,7 @@ pub const OP_ENDPOINT_RSP: u8 = 9;
 /// Endpoint peer down notification opcode.
 pub const OP_ENDPOINT_PEER_DOWN: u8 = 20;
 
+const OP_WAKE_UP: u8 = 255;                // See 
 const OP_ENDPOINT_REMOVE_PEER: u8 = 21;    // device_send
 
 const PROTOCOL_LIBERTAS: u16 = 0;
@@ -120,6 +121,7 @@ const CURRENT_VERSION: u32 = 0x000204;     // Version 0.2.4, 1.0 shall be 0x1000
 
 type LibertasTimerCallback = dyn FnMut(u32, u64, &mut Box<dyn Any>);
 type LibertasDeviceCallback = dyn FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, Option<LibertasTransId>, u32);
+type LibertasWakeupCallback = dyn FnMut(&mut Box<dyn Any>);
 
 #[doc(hidden)]
 pub trait LibertasExport {
@@ -168,6 +170,11 @@ struct Timer {
 
 struct DeviceCallback {
     cb: Rc<RefCell<Box<LibertasDeviceCallback>>>,
+    context: Rc<RefCell<Box<dyn Any>>>,
+}
+
+struct WakeupCallback {
+    cb: Rc<RefCell<Box<LibertasWakeupCallback>>>,
     context: Rc<RefCell<Box<dyn Any>>>,
 }
 
@@ -260,6 +267,10 @@ extern "C" fn libertas_impl_timer_driver(monotonic: u64, utc: u64) -> TimerDrive
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
             match ENV {
                 Some(ref mut env) => {
+                    // Process wakeup callback first if exists.
+                    if let Some(ref wakeup_callback) = env.wakeup_callbacks {
+                        (wakeup_callback.cb.borrow_mut())(&mut *wakeup_callback.context.borrow_mut());
+                    }
                     let mut next_mono = u64::MAX;
                     let mut next_time = u64::MAX;
                     loop {
@@ -319,7 +330,8 @@ struct LibertasPackageEnv {
     timers_active_interval: PriorityQueue<u32, Reverse<u64>, DefaultHashBuilder>,
     timers_active_deadline: PriorityQueue<u32, Reverse<u64>, DefaultHashBuilder>,
     contexts: HashMap<u32, Context>,    // Key is task ID
-    callback: LibertasPackageCallback,
+    package_callback: LibertasPackageCallback,
+    wakeup_callbacks: Option<WakeupCallback>,
 }
 
 impl LibertasPackageEnv{
@@ -332,13 +344,14 @@ impl LibertasPackageEnv{
             timers_active_interval: PriorityQueue::with_default_hasher(), 
             timers_active_deadline: PriorityQueue::with_default_hasher(), 
             contexts: HashMap::new(), 
-            callback: LibertasPackageCallback {
+            package_callback: LibertasPackageCallback {
                 version: CURRENT_VERSION,
                 init_task: libertas_impl_init_task,
                 remove_task: libertas_impl_remove_task,
                 timer_driver: libertas_impl_timer_driver,
                 device_callback: libertas_impl_device_callback,
             },
+            wakeup_callbacks: None,
         }
     }
 
@@ -402,7 +415,7 @@ pub fn __libertas_init_package(runtime_api:*mut c_void) -> *const LibertasPackag
         let env_ptr = &raw mut ENV;
         // We use .as_ref() on the *pointer* dereference, or better yet:
         if let Some(ref env) = *env_ptr {
-            let callback_ptr = &raw const (env.callback);
+            let callback_ptr = &raw const (env.package_callback);
             callback_ptr
         } else {
             core::ptr::null()
@@ -419,6 +432,23 @@ pub fn __libertas_init_package(runtime_api:*mut c_void) -> *const LibertasPackag
 pub fn __libertas_release_package() {
     unsafe {
         ENV = None;     // Drop all memory
+    }
+}
+
+/// Wake up the main thread loop. This function is usually called from another thread, for example, after sending to the main thread.
+/// 
+/// The callback registered by [`libertas_register_wakeup_callback`] will be called the first when main thread wakes up.
+/// 
+/// Multi-threading communication with main thread must be non-blocking on both sides. If the sender from another thread is blocking, 
+/// it will not have a chance to call [`libertas_wake_up`]. The wake up callback implementation must ensure both sending and receiving operations are non-blocking.
+/// 
+pub fn libertas_wake_up() {
+    unsafe {
+        if let Some(runtime_api) = RUNTIME_API.as_ref() {
+            (runtime_api.device_send)(PROTOCOL_LIBERTAS, DEVICE_SYSTEM, 0, OP_WAKE_UP, core::ptr::null(), 0, 0);
+        } else {
+            unreachable!();
+        }
     }
 }
 
@@ -793,6 +823,30 @@ fn libertas_register_device_listener_impl(device: LibertasDevice, callback: Box<
 #[inline(always)]
 pub fn libertas_register_device_listener<F>(device: LibertasDevice, callback: F, context: Box<dyn Any>) where F: FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, Option<LibertasTransId>, u32) + Sized + 'static {
     libertas_register_device_listener_impl(device, Box::new(callback), context);
+}
+
+/// Registers a callback function for wakeup events. The callback will be called first thing after the task is waken up before timers are processed.
+/// 
+/// All multi-threadng communication with main thread must be performed in this callback.
+/// 
+/// This callback must be non-blocking on both sending and receiving! Read [`libertas_wake_up`] for more details.
+/// 
+/// # Arguments
+/// * `callback` - Closure called on wakeup with mutable context.
+/// * `context` - Developer-defined data passed to the callback function.
+/// 
+pub fn libertas_register_wakeup_callback<F>(callback: F, context: Box<dyn Any>) where F: FnMut(&mut Box<dyn Any>) + Sized + 'static {
+    unsafe {
+        match ENV {
+            Some(ref mut env) => {
+                env.wakeup_callbacks = Some(WakeupCallback {
+                    cb: Rc::new(RefCell::new(Box::new(callback))),
+                    context: Rc::new(RefCell::new(context)),
+                });
+            }
+            _ => { unreachable!(); }
+        }
+    }
 }
 
 type EndpointCallback<T> = dyn FnMut(LibertasEndpoint, u8, Option<T>, &mut Box<dyn Any>, Option<LibertasTransId>, u32);
