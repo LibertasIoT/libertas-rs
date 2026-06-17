@@ -21,6 +21,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                    attr.path().is_ident("libertas_data_schema") || 
                    attr.path().is_ident("libertas_default") || 
                    attr.path().is_ident("libertas_device_type") || 
+                   attr.path().is_ident("libertas_foreign_type") || 
                    attr.path().is_ident("libertas_ui_header") || 
                    attr.path().is_ident("libertas_read_only") || 
                    attr.path().is_ident("libertas_hidden") || 
@@ -77,6 +78,7 @@ pub fn libertas_data_schema(_attr: TokenStream, item: TokenStream) -> TokenStrea
     libertas_endpoint_schema, 
     libertas_endpoint_server, 
     libertas_endpoint_base_objects,
+    libertas_foreign_type,
     libertas_request, 
     libertas_response, 
     libertas_subscription_request, 

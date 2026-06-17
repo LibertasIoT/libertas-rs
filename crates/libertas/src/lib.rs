@@ -87,6 +87,8 @@ pub const STACK_BUF_SIZE: usize = 1000;
 /// Broadcast destination for sending to all peers.
 pub const LIBERTAS_BROADCAST_DEST: u32 = 0xffffffff;
 
+const OP_SYSTEM_LOG: u8 = 0xe0;
+
 /// Endpoint subscription request opcode.
 pub const OP_ENDPOINT_SUB_REQ: u8 = 3;
 /// Endpoint data message opcode.
@@ -97,17 +99,14 @@ pub const OP_ENDPOINT_REQ: u8 = 8;
 pub const OP_ENDPOINT_RSP: u8 = 9;
 /// Endpoint peer down notification opcode.
 pub const OP_ENDPOINT_PEER_DOWN: u8 = 20;
-
-const OP_WAKE_UP: u8 = 255;                // See 
 const OP_ENDPOINT_REMOVE_PEER: u8 = 21;    // device_send
 
+const OP_SYSTEM_WAKE_UP: u8 = 255;         // See 
 const PROTOCOL_LIBERTAS: u16 = 0;
 
 const DEVICE_SYSTEM: u32 = 0;
 const DEVICE_SYSTEM_DATABASE_STADNALONE: u32 = 0;
 const DEVICE_SYSTEM_DATABASE_INDEXED: u32 = 1;
-
-const OP_SYSTEM_LOG: u8 = 0xe0;
 
 const OP_SYSTEM_MESSAGE: u8 = 0xfe;
 const OP_SYSTEM_DATABASE_GET_NAMES: u8 = 0xf0;
@@ -445,7 +444,7 @@ pub fn __libertas_release_package() {
 pub fn libertas_wake_up() {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
-            (runtime_api.device_send)(PROTOCOL_LIBERTAS, DEVICE_SYSTEM, 0, OP_WAKE_UP, core::ptr::null(), 0, 0);
+            (runtime_api.device_send)(PROTOCOL_LIBERTAS, DEVICE_SYSTEM, 0, OP_SYSTEM_WAKE_UP, core::ptr::null(), 0, 0);
         } else {
             unreachable!();
         }
