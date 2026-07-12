@@ -16,7 +16,7 @@ use crate::*;
 /// - `AlertHigh`: High alerts.
 /// - `AlertSevere`: Severe alerts.
 #[repr(u8)]
-#[derive(LibertasAvroEncode, PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(LibertasAvroEncode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum NotificationImportance {
     Debug,
     Info,
@@ -29,7 +29,7 @@ pub enum NotificationImportance {
 
 /// Arguments for notification templates.
 /// Supports various data types for message formatting.
-#[derive(LibertasAvroEncode)]
+#[derive(LibertasAvroEncode, Debug, Clone, Copy)]
 pub enum NotificationArgument<'a> {
     LiteralText(&'a str),
     Object(u32),
@@ -81,7 +81,7 @@ pub enum NotificationArgument<'a> {
 /// - `UnitDouble`: A variant that represents a unit value with a specific type that can be included as an argument in a message sent through the Libertas system. This allows messages to convey measurements or other data that has a specific unit of measurement, such as precise temperature readings with units (e.g., "Celsius" or "Fahrenheit"), financial amounts with units (e.g., "USD" or "EUR"), or any other relevant value that is associated with a specific unit type in the context of the message being sent.
 /// - `ResourceText`: A variant that represents a resource string argument, which is a string that is included in the message as a reference to a resource string rather than as a literal string. This allows messages to include text that can be localized or looked up from resources based on the user's language or other context, providing more flexibility and internationalization support for the message content.
 /// - `Plural`: A plural value that can be included as an argument in a message sent through the Libertas system. This variant of the `NotificationArgument` enum allows you to include a numerical value that represents a count for pluralization purposes in the context of the message being sent. The `Plural` variant is typically used in conjunction with resource string templates that have plural forms, where the value provided in this argument will determine which plural form of the resource string to use when generating the final message. For example, if you have a resource string that has different forms for singular and plural (e.g., "You have {0} new message" vs. "You have {0} new messages"), you would use the `Plural` argument to provide the count of new messages, and the system would automatically certain word of the resource string based on that count.
-#[derive(LibertasAvroDecode, PartialEq, Debug, Clone)]
+#[derive(LibertasAvroEncode, LibertasAvroDecode, PartialEq, Debug, Clone)]
 pub enum NotificationArgumentDecode {
     LiteralText(String),
     Object(u32),
