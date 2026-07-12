@@ -31,7 +31,14 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
     })
 }
 
-#[proc_macro_derive(LibertasExport, attributes(data_exchange_schema, data_exchange_client))]
+#[proc_macro_derive(
+    LibertasExport,
+    attributes(
+        data_exchange_schema,
+        data_exchange_client,
+        libertas_protocol_conformance
+    )
+)]
 pub fn libertas_derive(input: TokenStream) -> TokenStream {
     // Parse the representation of the struct
     let input = parse_macro_input!(input as DeriveInput);
