@@ -1,5 +1,6 @@
 [package]
 name = "libertas_macros"
+description = "Attributes for Libertas rust parser."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

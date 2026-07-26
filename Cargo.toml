@@ -1,11 +1,11 @@
 [workspace]
 members = [
-    "crates/libertas", "crates/libertas_macros",
+    "crates/libertas_macros", "crates/libertas"
 ]
 resolver = "2" # Use the modern feature resolver
 
 [workspace.package]
-version = "0.2.4"
+version = "0.2.9"
 edition = "2024"
 license = "MIT"
 authors = ["Qingjun Wei"]
