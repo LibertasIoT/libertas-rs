@@ -12,6 +12,7 @@ repository = "https://github.com/LibertasIoT/libertas-rs"
 hashbrown = { version = "0.16" }
 priority-queue = { version = "2.7", default-features = false }
 libertas_macros = { path = "../libertas_macros", version="0.2.9" }
+libertas_utils = { path = "../libertas_utils", version="0.2.9" }
 
 [lib]
 name = "libertas"

@@ -1,0 +1,13 @@
+[package]
+name = "libertas_utils"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+homepage.workspace = true
+description = "Low-level utilities for Libertas Rust applications"
+repository = "https://github.com/LibertasIoT/libertas-rs"
+
+[lib]
+name = "libertas_utils"
+crate-type = ["rlib"]

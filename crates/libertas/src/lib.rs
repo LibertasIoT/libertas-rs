@@ -36,11 +36,11 @@ pub use avro::{AvroDecode, AvroEncode, NotBytesDecode, NotBytesEncode};
 pub use notification::{NotificationImportance, NotificationArgument, libertas_notification_send, libertas_notification_send_literal};
 pub use data::{DataName, IndexedData, IndexDirection, IndexedDataStat, libertas_data_get_names, libertas_data_get_indexed_names, libertas_data_write, libertas_data_write_indexed, libertas_data_read, libertas_data_read_indexed, libertas_data_read_indexed_range, libertas_data_remove, libertas_data_remove_indexed, libertas_data_remove_indexed_records, libertas_data_open_indexed};
 pub use log::{LogLevel, libertas_log};
+pub use libertas_utils::{InlineByteBuffer, STACK_BUF_SIZE};
 
 use alloc::{slice, boxed::Box, rc::Rc, vec::Vec};
 use core::ffi::c_void;
 use core::{any::Any, cell::RefCell};
-use core::mem::{self, MaybeUninit};
 use core::cmp::Reverse;
 
 use hashbrown::HashMap;
@@ -74,15 +74,21 @@ pub type LibertasUser = u32;
 /// Action identifier.
 pub type LibertasAction = u32;
 
-/// Transaction identifier for request/response correlation.
+/// Transaction identifier carried by every Libertas interaction.
+///
+/// A `LibertasTransId` is never optional at the runtime boundary. Libertas does
+/// not reserve a universal value to mean "missing" or "ignored"; each
+/// interaction protocol is responsible for designating and documenting such a
+/// value when needed.
 pub type LibertasTransId = u32;
+
+/// Transaction ID that the built-in endpoint protocol designates as ignored
+/// when an interaction does not correlate with a transaction.
+pub const LIBERTAS_ENDPOINT_IGNORED_TRANS_ID: LibertasTransId = 0;
 
 /// Handle for an opened indexed data store, obtained via `libertas_data_open_indexed`.
 /// Valid until closed or the opening task terminates.
 pub type LibertasDataStore = u32;
-
-/// Default stack buffer size in bytes.
-pub const STACK_BUF_SIZE: usize = 1000;
 
 /// Broadcast destination for sending to all peers.
 pub const LIBERTAS_BROADCAST_DEST: u32 = 0xffffffff;
@@ -119,39 +125,11 @@ const OP_SYSTEM_DATABASE_REMOVE_RECORD: u8 = 0xf5;
 const CURRENT_VERSION: u32 = 0x000204;     // Version 0.2.4, 1.0 shall be 0x10000, each sub version must be within [0,255]
 
 type LibertasTimerCallback = dyn FnMut(u32, u64, &mut Box<dyn Any>);
-type LibertasDeviceCallback = dyn FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, Option<LibertasTransId>, u32);
+type LibertasDeviceCallback = dyn FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, LibertasTransId, u32);
 type LibertasWakeupCallback = dyn FnMut(&mut Box<dyn Any>);
 
 #[doc(hidden)]
 pub trait LibertasExport {
-}
-
-/// Currently a fixed size (1000 bytes) uninitialized stack buffer for message construction.
-/// Will switch to [MaybeUninit::array_assume_init](https://doc.rust-lang.org/beta/std/mem/union.MaybeUninit.html#method.array_assume_init) in the future.
-/// 
-pub struct LibertasUninitStackbuf {
-    data: [u8; STACK_BUF_SIZE],
-}
-
-impl LibertasUninitStackbuf {
-    /// Creates a new uninitialized stack buffer
-    pub fn new() -> Self {
-        Self {
-            data: {
-                let data: [MaybeUninit<u8>; STACK_BUF_SIZE] = [const { MaybeUninit::uninit() }; STACK_BUF_SIZE];
-                unsafe { mem::transmute::<_, [u8; STACK_BUF_SIZE]>(data) }
-            },
-        }
-    }
-
-    /// Returns a slice to the underlying byte data
-    pub fn as_slice(&self) -> &[u8] {
-        &self.data
-    }
-
-    pub fn as_mut_slice(&mut self) -> &mut [u8] {
-        &mut self.data
-    }
 }
 
 // A count down timer
@@ -202,7 +180,7 @@ struct LibertasRuntimeApi {
     get_utc_time: extern "C" fn() -> u64,
     utc_to_local: extern "C" fn(i64) -> i64,
     local_to_utc: extern "C" fn(i64) -> i64,
-    device_send: extern "C" fn(u16, u32, u32, u8, *const u8, usize, u32),           // Protocol, device (virtual device src), trans_id, op_code, data, data_len, ack_dest (virtual device & endpoint)
+    device_send: extern "C" fn(u16, u32, LibertasTransId, u8, *const u8, usize, u32),           // Protocol, device (virtual device src), trans_id, op_code, data, data_len, ack_dest (virtual device & endpoint)
     device_read: extern "C" fn(u16, u32, u8, *const u8, usize) -> ReadResult,       // Synchronous kernel operation for current task. protocol, device, op_code, data, data_len
 }
 
@@ -214,7 +192,7 @@ pub struct LibertasPackageCallback {
     init_task: extern "C" fn(u32),
     remove_task: extern "C" fn(u32),
     timer_driver: extern "C" fn(u64, u64)->TimerDriverResult,
-    device_callback: extern "C" fn(u32, u32, u8, *const u32, *const c_void, usize, u32),       // task, device (virtual device dst), op_code, trans_id, data, data_len, source (virtual device & endpoint)
+    device_callback: extern "C" fn(u32, u32, u8, LibertasTransId, *const c_void, usize, u32),       // task, device (virtual device dst), op_code, trans_id, data, data_len, source (virtual device & endpoint)
 }
 
 struct Context {
@@ -245,14 +223,14 @@ extern "C" fn libertas_impl_remove_task(task_id: u32) {
     }
 }
 
-extern "C" fn libertas_impl_device_callback(task: u32, device: u32, op_code: u8, trans_id: *const u32, data: *const c_void, data_len: usize, peer: u32) {
+extern "C" fn libertas_impl_device_callback(task: u32, device: u32, op_code: u8, trans_id: LibertasTransId, data: *const c_void, data_len: usize, peer: u32) {
     unsafe {
         match ENV {
             Some(ref mut env) => {
                 if let Some(context) = env.contexts.get_mut(&task) {
                     if let Some(dcb) = context.device_callbacks.get_mut(&device) {
                         let d = slice::from_raw_parts(data as *const u8, data_len);
-                        (dcb.cb.borrow_mut())(device, op_code, d, &mut *dcb.context.borrow_mut(), if trans_id.is_null() { None } else { Some(*trans_id) }, peer);
+                        (dcb.cb.borrow_mut())(device, op_code, d, &mut *dcb.context.borrow_mut(), trans_id, peer);
                     }
                 }
             }
@@ -324,7 +302,7 @@ extern "C" fn libertas_impl_timer_driver(monotonic: u64, utc: u64) -> TimerDrive
 
 struct LibertasPackageEnv {
     timer_id: u32,
-    trans_id: u32,
+    trans_id: LibertasTransId,
     timers: HashMap<u32, Timer>,
     timers_active_interval: PriorityQueue<u32, Reverse<u64>, DefaultHashBuilder>,
     timers_active_deadline: PriorityQueue<u32, Reverse<u64>, DefaultHashBuilder>,
@@ -384,11 +362,13 @@ impl LibertasPackageEnv{
         }
     }
 
-    /**
-     * Must be non-zero. Zero value i None.
-     */
+    /// Allocates a nonzero transaction ID for SDK-originated requests.
+    ///
+    /// Skipping zero is an allocator policy, not a universal sentinel rule for
+    /// `LibertasTransId`. Protocol-specific APIs decide whether any value means
+    /// "ignored."
     #[inline(always)]
-    fn new_trans_id(&mut self) -> u32 {
+    fn new_trans_id(&mut self) -> LibertasTransId {
         self.trans_id += 1;
         if self.trans_id == 0 {
             self.trans_id = 1;
@@ -809,10 +789,14 @@ fn libertas_register_device_listener_impl(device: LibertasDevice, callback: Box<
 ///
 /// # Arguments
 /// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasEndpoint`.
-/// * `callback` - Closure called when device events occur. Receives device ID, operation code, event data, mutable context, and optional transaction ID.
+/// * `callback` - Closure called when device events occur. Receives device ID, operation code, event data, mutable context, transaction ID, and peer ID.
 /// * `context` - Developer-defined data passed to the callback function
 /// 
 /// # Remarks
+/// The transaction ID is always supplied. Libertas does not interpret any
+/// transaction ID as absent; the interaction protocol may designate and
+/// document a value that applications should ignore.
+///
 /// Only one callback can be registered per device. Registering a new callback for the same device will cause panic. For devices that the task doesn't
 /// have "read access", only responses to its own requests will trigger the callback. App can not subscribe from "write-only" devices.
 /// 
@@ -820,7 +804,7 @@ fn libertas_register_device_listener_impl(device: LibertasDevice, callback: Box<
 /// 
 #[doc(hidden)]
 #[inline(always)]
-pub fn libertas_register_device_listener<F>(device: LibertasDevice, callback: F, context: Box<dyn Any>) where F: FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, Option<LibertasTransId>, u32) + Sized + 'static {
+pub fn libertas_register_device_listener<F>(device: LibertasDevice, callback: F, context: Box<dyn Any>) where F: FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, LibertasTransId, u32) + Sized + 'static {
     libertas_register_device_listener_impl(device, Box::new(callback), context);
 }
 
@@ -848,7 +832,7 @@ pub fn libertas_register_wakeup_callback<F>(callback: F, context: Box<dyn Any>) 
     }
 }
 
-type EndpointCallback<T> = dyn FnMut(LibertasEndpoint, u8, Option<T>, &mut Box<dyn Any>, Option<LibertasTransId>, u32);
+type EndpointCallback<T> = dyn FnMut(LibertasEndpoint, u8, Option<T>, &mut Box<dyn Any>, LibertasTransId, u32);
 struct EndpointListener<T> {
     callback: Box<EndpointCallback<T>>,
     context: Box<dyn Any>,
@@ -861,11 +845,15 @@ struct EndpointListener<T> {
 /// * `callback` - Called with (device, opcode, decoded_data, context, trans_id, peer).
 /// * `context` - User data.
 /// 
+/// The endpoint protocol always supplies `trans_id` and designates
+/// [`LIBERTAS_ENDPOINT_IGNORED_TRANS_ID`] for interactions that do not correlate
+/// with a transaction.
+///
 /// Data is decoded from Avro based on type T.
 pub fn libertas_register_endpoint_listener<T, F>(id: LibertasEndpoint, callback: F, context: Box<dyn Any>)
         where 
             T: AvroDecode + 'static,
-            F: FnMut(LibertasEndpoint, u8, Option<T>, &mut Box<dyn Any>, Option<LibertasTransId>, u32) + Sized + 'static {
+            F: FnMut(LibertasEndpoint, u8, Option<T>, &mut Box<dyn Any>, LibertasTransId, u32) + Sized + 'static {
     let listener = Box::new(EndpointListener {
         callback: Box::new(callback),
         context,
@@ -881,7 +869,7 @@ pub fn libertas_register_endpoint_listener<T, F>(id: LibertasEndpoint, callback:
     }, listener);
 }
 
-fn __libertas_device_send_raw(protocol: u16, device: LibertasDevice, op: u8, peer: u32, trans_id: u32, data: *const u8, data_len: usize) {
+fn __libertas_device_send_raw(protocol: u16, device: LibertasDevice, op: u8, peer: u32, trans_id: LibertasTransId, data: *const u8, data_len: usize) {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
             (runtime_api.device_send)(protocol, device, trans_id, op, data, data_len, peer);
@@ -902,7 +890,7 @@ fn __libertas_device_read_raw(protocol: u16, device: LibertasDevice, op: u8, dat
 }
 
 #[doc(hidden)]
-pub fn __libertas_device_send_raw_req(protocol: u16, device: LibertasDevice, op: u8, peer: u32, data: *const u8, data_len: usize) -> u32 {
+pub fn __libertas_device_send_raw_req(protocol: u16, device: LibertasDevice, op: u8, peer: u32, data: *const u8, data_len: usize) -> LibertasTransId {
     unsafe {
         match ENV {
             Some(ref mut env) => {
@@ -935,7 +923,7 @@ pub fn __libertas_device_send_raw_req(protocol: u16, device: LibertasDevice, op:
 /// 
 #[doc(hidden)]
 #[inline(always)]
-pub fn libertas_device_send_request(protocol: u16, device: LibertasDevice, op: u8, data: &[u8]) -> u32 {
+pub fn libertas_device_send_request(protocol: u16, device: LibertasDevice, op: u8, data: &[u8]) -> LibertasTransId {
     __libertas_device_send_raw_req(protocol, device, op, 0, data.as_ptr(), data.len())
 }
 
@@ -954,7 +942,7 @@ pub fn libertas_device_send_request(protocol: u16, device: LibertasDevice, op: u
 /// 
 #[doc(hidden)]
 #[inline(always)]
-pub fn libertas_device_send_response(protocol: u16, device: LibertasDevice, op: u8, data: &[u8], trans_id: u32, peer: u32) {
+pub fn libertas_device_send_response(protocol: u16, device: LibertasDevice, op: u8, data: &[u8], trans_id: LibertasTransId, peer: u32) {
     __libertas_device_send_raw(protocol, device, op, peer, trans_id, data.as_ptr(), data.len());
 }
 
@@ -968,13 +956,15 @@ pub fn libertas_device_send_response(protocol: u16, device: LibertasDevice, op: 
 /// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasEndpoint`.
 /// * `op` - Operation code for the report. This is an application defined.
 /// * `data` - Binary blob containing the report data.
+/// * `trans_id` - Transaction ID required by the interaction protocol. The
+///   protocol may designate a special value as ignored for unsolicited reports.
 /// * `peer` - The peer that sent the original request.
 /// 
 #[doc(hidden)]
-pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8, data: &[u8], peer: u32) {
+pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8, data: &[u8], trans_id: LibertasTransId, peer: u32) {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
-            (runtime_api.device_send)(protocol, device, 0, op, data.as_ptr(), data.len(), peer);
+            (runtime_api.device_send)(protocol, device, trans_id, op, data.as_ptr(), data.len(), peer);
         } else {
             unreachable!();
         }
@@ -998,7 +988,7 @@ pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8
 /// We don't need any other Matter interactions. For example, Read and Write can all be implemented as InvokeRequest with custom data. We 
 /// even included default request in the standard like in HTTP.
 #[inline(always)]
-pub fn libertas_endpoint_request<T>(server: LibertasEndpoint, data: &T) -> u32 
+pub fn libertas_endpoint_request<T>(server: LibertasEndpoint, data: &T) -> LibertasTransId
     where 
         T: AvroEncode + 'static {
     let mut bytes: Vec<_> = Vec::new();
@@ -1024,7 +1014,7 @@ pub fn libertas_endpoint_request<T>(server: LibertasEndpoint, data: &T) -> u32
 /// We don't need any other Matter interactions. For example, Read and Write can all be implemented as InvokeRequest with custom data. We 
 /// even included default request in the standard like in HTTP.
 #[inline(always)]
-pub fn libertas_endpoint_subscribe_request<T>(server: LibertasEndpoint, data: &T) -> u32 
+pub fn libertas_endpoint_subscribe_request<T>(server: LibertasEndpoint, data: &T) -> LibertasTransId
     where 
         T: AvroEncode + 'static {
     let mut bytes: Vec<_> = Vec::new();
@@ -1047,7 +1037,7 @@ pub fn libertas_endpoint_subscribe_request<T>(server: LibertasEndpoint, data: &T
 /// # Note
 /// Unlike Matter protocol, the data can be any data structure defined and published by the server developer, encoded with Apache Avro format.
 #[inline(always)]
-pub fn libertas_endpoint_response<T>(server: LibertasEndpoint, data: &T, trans_id: u32, dest: u32) 
+pub fn libertas_endpoint_response<T>(server: LibertasEndpoint, data: &T, trans_id: LibertasTransId, dest: u32)
     where 
         T: AvroEncode + 'static {
     let mut bytes: Vec<_> = Vec::new();
@@ -1069,6 +1059,8 @@ pub fn libertas_endpoint_response<T>(server: LibertasEndpoint, data: &T, trans_i
 /// # Note
 /// Unlike Matter protocol, the data can be any data structure defined and published by the server developer, encoded with Apache Avro format.
 /// This function is used to fulfill subscription requests that expect `OpCode::ReportData` messages.
+/// The endpoint protocol uses [`LIBERTAS_ENDPOINT_IGNORED_TRANS_ID`] because
+/// unsolicited reports do not correlate with a transaction.
 #[inline(always)]
 pub fn libertas_endpoint_report<T>(server: LibertasEndpoint, data: &T, peer: Option<LibertasEndpoint>) 
     where 
@@ -1077,7 +1069,7 @@ pub fn libertas_endpoint_report<T>(server: LibertasEndpoint, data: &T, peer: Opt
     let mut bytes: Vec<_> = Vec::new();
     bytes.push(0u8);
     data.avro_encode(&mut bytes);
-    libertas_device_send_report(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_DATA, &bytes, peer_id);
+    libertas_device_send_report(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_DATA, &bytes, LIBERTAS_ENDPOINT_IGNORED_TRANS_ID, peer_id);
 }
 
 /// Remove a subscriber. 
@@ -1096,5 +1088,5 @@ pub fn libertas_endpoint_report<T>(server: LibertasEndpoint, data: &T, peer: Opt
 #[inline(always)]
 pub fn libertas_endpoint_remove_subscriber(server: LibertasEndpoint, peer: u32) {
     let empty_slice: &[u8] = &[];
-    libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_REMOVE_PEER, empty_slice, 0, peer);
+    libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_REMOVE_PEER, empty_slice, LIBERTAS_ENDPOINT_IGNORED_TRANS_ID, peer);
 }
