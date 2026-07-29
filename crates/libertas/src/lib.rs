@@ -104,8 +104,21 @@ pub const OP_ENDPOINT_REQ: u8 = 8;
 /// Endpoint response opcode.
 pub const OP_ENDPOINT_RSP: u8 = 9;
 /// Endpoint peer down notification opcode.
+/// It is sent by the Libertas OS to notify that the peer process is down.
+/// The host shall stop any protocol retrying because when the peer process
+/// is up agina it will restart request and subscription.
+/// This status won't be possible without a Libertas platform as authorative agent
+/// manager that provides ground truth.
+/// Note that his status is different than OP_ENDPOINT_PEER_TIMEOUT, which is caused by network
+/// failure and the peer status is uncertain with a broken network. In that case most likely
+/// a retry shall be scheduled.
 pub const OP_ENDPOINT_PEER_DOWN: u8 = 20;
-const OP_ENDPOINT_REMOVE_PEER: u8 = 21;    // device_send
+/// It is sent by the Libertas OS to notify that the network to peer is down.
+/// Peer status is unknown.
+pub const OP_ENDPOINT_PEER_TIMEOUT: u8 = 21;
+/// Send by endpoint server to notify underlying Libertas OS to remove the peer
+/// from subscription list. Future broadcasts will not include that peer.
+const OP_ENDPOINT_REMOVE_PEER: u8 = 22;
 
 const OP_SYSTEM_WAKE_UP: u8 = 255;         // See 
 const PROTOCOL_LIBERTAS: u16 = 0;
