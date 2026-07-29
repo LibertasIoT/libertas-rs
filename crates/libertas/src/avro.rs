@@ -2,6 +2,18 @@ use alloc::vec::Vec;
 use alloc::string::String;
 use alloc::boxed::Box;
 
+fn take_bytes<'a>(
+    buffer: &'a [u8],
+    offset: &mut usize,
+    len: usize,
+    eof_error: &'static str,
+) -> Result<&'a [u8], &'static str> {
+    let end = offset.checked_add(len).ok_or(eof_error)?;
+    let bytes = buffer.get(*offset..end).ok_or(eof_error)?;
+    *offset = end;
+    Ok(bytes)
+}
+
 /// A trait for encoding Rust data types into Avro format, which is a compact binary serialization format. Types that implement the `AvroEncode` trait can be encoded into a byte buffer in Avro format using the `avro_encode` method. This trait is essential for converting Rust data structures into a format that can be stored or transmitted efficiently, especially when working with indexed data in the indexed database. The `avro_encode` method takes a mutable reference to a `Vec<u8>` buffer, where the encoded bytes will be appended. Implementing this trait for your custom data types allows you to easily serialize them into Avro format for storage or communication purposes.
 pub trait AvroEncode {
     /// Encode the implementing type into Avro format and append the encoded bytes to the provided buffer. The `avro_encode` method is responsible for converting the data of the implementing type into a compact binary representation according to the Avro specification. The encoded bytes are appended to the `buffer`, which is a mutable reference to a `Vec<u8>`. This allows you to build up a byte buffer containing the Avro-encoded data, which can then be stored in the indexed database or transmitted over a network. When implementing this method for your custom types, you should ensure that the encoding follows the Avro format correctly so that it can be decoded later using the corresponding `AvroDecode` trait.
@@ -11,6 +23,10 @@ pub trait AvroEncode {
 /// A trait for decoding Rust data types from Avro format, which is a compact binary serialization format. Types that implement the `AvroDecode` trait can be decoded from a byte buffer in Avro format using the `avro_decode` method. This trait is essential for converting Avro-encoded byte data back into usable Rust data structures, especially when working with indexed data read from the indexed database. The `avro_decode` method takes a byte slice (`&[u8]`) containing the Avro-encoded data and a mutable reference to an offset (`&mut usize`) that tracks the current position in the buffer. The method returns a `Result<Self, &'static str>`, where `Self` is the type being decoded, and the error string provides information about any decoding issues that may arise, such as unexpected end of buffer or invalid data formats. When implementing this method for your custom types, you should ensure that the decoding logic correctly interprets the Avro format and updates the offset accordingly as bytes are read from the buffer.
 pub trait AvroDecode: Sized {
     /// Decode an instance of the implementing type from Avro format using the provided byte buffer and offset. The `avro_decode` method is responsible for reading bytes from the `buffer` starting at the position indicated by `offset`, interpreting those bytes according to the Avro specification, and constructing an instance of the implementing type. The method returns a `Result<Self, &'static str>`, where `Self` is the type being decoded, and the error string provides information about any issues that may arise during decoding, such as reaching the end of the buffer unexpectedly or encountering invalid data formats. When implementing this method for your custom types, you should ensure that the decoding logic correctly follows the Avro format and updates the offset as bytes are consumed from the buffer to allow for sequential decoding of multiple values. 
+    ///
+    /// The input may come from an untrusted peer. Implementations must return
+    /// `Err` for invalid input and must not panic because endpoint listeners
+    /// convert decode errors into the platform `InvalidRequest` status.
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str>;
 }
 
@@ -86,6 +102,9 @@ impl AvroDecode for i32 {
             if *offset >= buffer.len() { return Err("EOF while reading i32"); }
             let byte = buffer[*offset];
             *offset += 1;
+            if shift == 28 && byte & 0xf0 != 0 {
+                return Err("Invalid terminal byte for i32");
+            }
             result |= ((byte & 0x7F) as u32) << shift;
             if byte & 0x80 == 0 { break; }
             shift += 7;
@@ -122,6 +141,9 @@ impl AvroDecode for i64 {
             if *offset >= buffer.len() { return Err("EOF while reading i64"); }
             let byte = buffer[*offset];
             *offset += 1;
+            if shift == 63 && byte & 0xfe != 0 {
+                return Err("Invalid terminal byte for i64");
+            }
             result |= ((byte & 0x7F) as u64) << shift;
             if byte & 0x80 == 0 { break; }
             shift += 7;
@@ -142,10 +164,8 @@ impl AvroEncode for f32 {
 
 impl AvroDecode for f32 {
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
-        if *offset + 4 > buffer.len() { return Err("EOF while reading f32"); }
         let mut bytes = [0u8; 4];
-        bytes.copy_from_slice(&buffer[*offset..*offset + 4]);
-        *offset += 4;
+        bytes.copy_from_slice(take_bytes(buffer, offset, 4, "EOF while reading f32")?);
         Ok(f32::from_le_bytes(bytes))
     }
 }
@@ -160,10 +180,8 @@ impl AvroEncode for f64 {
 
 impl AvroDecode for f64 {
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
-        if *offset + 8 > buffer.len() { return Err("EOF while reading f64"); }
         let mut bytes = [0u8; 8];
-        bytes.copy_from_slice(&buffer[*offset..*offset + 8]);
-        *offset += 8;
+        bytes.copy_from_slice(take_bytes(buffer, offset, 8, "EOF while reading f64")?);
         Ok(f64::from_le_bytes(bytes))
     }
 }
@@ -181,10 +199,8 @@ impl AvroDecode for String {
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         let len = i64::avro_decode(buffer, offset)?;
         if len < 0 { return Err("Negative length for string"); }
-        let len = len as usize;
-        if *offset + len > buffer.len() { return Err("EOF while reading string"); }
-        let bytes = &buffer[*offset..*offset + len];
-        *offset += len;
+        let len = usize::try_from(len).map_err(|_| "String length is too large")?;
+        let bytes = take_bytes(buffer, offset, len, "EOF while reading string")?;
         String::from_utf8(bytes.to_vec()).map_err(|_| "Invalid UTF-8 in string")
     }
 }
@@ -630,28 +646,28 @@ impl<A, B, C, D, E, F, G, H, I, J, K, L, M> NotBytesEncode for (A, B, C, D, E, F
 impl<A, B, C, D, E, F, G, H, I, J, K, L, M> NotBytesDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M) {}
 
 impl AvroEncode for u8 { fn avro_encode(&self, buffer: &mut Vec<u8>) { (*self as i32).avro_encode(buffer); } }
-impl AvroDecode for u8 { fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> { Ok(i32::avro_decode(buffer, offset)? as u8) } }
+impl AvroDecode for u8 { fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> { u8::try_from(i32::avro_decode(buffer, offset)?).map_err(|_| "Decoded value does not fit u8") } }
 
 impl AvroEncode for i8 { fn avro_encode(&self, buffer: &mut Vec<u8>) { (*self as i32).avro_encode(buffer); } }
-impl AvroDecode for i8 { fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> { Ok(i32::avro_decode(buffer, offset)? as i8) } }
+impl AvroDecode for i8 { fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> { i8::try_from(i32::avro_decode(buffer, offset)?).map_err(|_| "Decoded value does not fit i8") } }
 
 impl AvroEncode for i16 { fn avro_encode(&self, buffer: &mut Vec<u8>) { (*self as i32).avro_encode(buffer); } }
-impl AvroDecode for i16 { fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> { Ok(i32::avro_decode(buffer, offset)? as i16) } }
+impl AvroDecode for i16 { fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> { i16::try_from(i32::avro_decode(buffer, offset)?).map_err(|_| "Decoded value does not fit i16") } }
 impl NotBytesEncode for i16 {}
 impl NotBytesDecode for i16 {}
 
 impl AvroEncode for u16 { fn avro_encode(&self, buffer: &mut Vec<u8>) { (*self as i32).avro_encode(buffer); } }
-impl AvroDecode for u16 { fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> { Ok(i32::avro_decode(buffer, offset)? as u16) } }
+impl AvroDecode for u16 { fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> { u16::try_from(i32::avro_decode(buffer, offset)?).map_err(|_| "Decoded value does not fit u16") } }
 impl NotBytesEncode for u16 {}
 impl NotBytesDecode for u16 {}
 
 impl AvroEncode for u32 { fn avro_encode(&self, buffer: &mut Vec<u8>) { (*self as i64).avro_encode(buffer); } }
-impl AvroDecode for u32 { fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> { Ok(i64::avro_decode(buffer, offset)? as u32) } }
+impl AvroDecode for u32 { fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> { u32::try_from(i64::avro_decode(buffer, offset)?).map_err(|_| "Decoded value does not fit u32") } }
 impl NotBytesEncode for u32 {}
 impl NotBytesDecode for u32 {}
 
 impl AvroEncode for u64 { fn avro_encode(&self, buffer: &mut Vec<u8>) { (*self as i64).avro_encode(buffer); } }
-impl AvroDecode for u64 { fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> { Ok(i64::avro_decode(buffer, offset)? as u64) } }
+impl AvroDecode for u64 { fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> { u64::try_from(i64::avro_decode(buffer, offset)?).map_err(|_| "Decoded value does not fit u64") } }
 impl NotBytesEncode for u64 {}
 impl NotBytesDecode for u64 {}
 
@@ -670,10 +686,8 @@ impl AvroDecode for Vec<i8> {
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         let len = i64::avro_decode(buffer, offset)?;
         if len < 0 { return Err("Negative length for bytes"); }
-        let len = len as usize;
-        if *offset + len > buffer.len() { return Err("EOF while reading bytes"); }
-        let bytes = &buffer[*offset..*offset + len];
-        *offset += len;
+        let len = usize::try_from(len).map_err(|_| "Bytes length is too large")?;
+        let bytes = take_bytes(buffer, offset, len, "EOF while reading bytes")?;
         Ok(bytes.iter().map(|&b| b as i8).collect())
     }
 }
@@ -692,10 +706,8 @@ impl AvroDecode for Vec<u8> {
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         let len = i64::avro_decode(buffer, offset)?;
         if len < 0 { return Err("Negative length for bytes"); }
-        let len = len as usize;
-        if *offset + len > buffer.len() { return Err("EOF while reading bytes"); }
-        let bytes = &buffer[*offset..*offset + len];
-        *offset += len;
+        let len = usize::try_from(len).map_err(|_| "Bytes length is too large")?;
+        let bytes = take_bytes(buffer, offset, len, "EOF while reading bytes")?;
         Ok(bytes.to_vec())
     }
 }
@@ -723,14 +735,39 @@ impl<T: AvroDecode + NotBytesDecode> AvroDecode for Vec<T> {
             if block_count == 0 {
                 break;
             }
-            let count = if block_count < 0 {
-                let _byte_count = i64::avro_decode(buffer, offset)?;
-                -block_count
+            let (count, block_end) = if block_count < 0 {
+                let count = block_count.checked_neg()
+                    .ok_or("Invalid Avro array block count")?;
+                let byte_count = i64::avro_decode(buffer, offset)?;
+                if byte_count < 0 {
+                    return Err("Negative Avro array block size");
+                }
+                let byte_count = usize::try_from(byte_count)
+                    .map_err(|_| "Avro array block is too large")?;
+                let block_end = offset.checked_add(byte_count)
+                    .filter(|end| *end <= buffer.len())
+                    .ok_or("EOF while reading Avro array block")?;
+                (count, Some(block_end))
             } else {
-                block_count
+                (block_count, None)
             };
+            let count = usize::try_from(count)
+                .map_err(|_| "Avro array item count is too large")?;
+            result.try_reserve(count)
+                .map_err(|_| "Avro array item count is too large")?;
             for _ in 0..count {
-                result.push(T::avro_decode(buffer, offset)?);
+                let item_offset = *offset;
+                let item = T::avro_decode(buffer, offset)?;
+                if *offset <= item_offset {
+                    return Err("Avro array item consumed no bytes");
+                }
+                if block_end.is_some_and(|end| *offset > end) {
+                    return Err("Avro array item exceeds its block");
+                }
+                result.push(item);
+            }
+            if block_end.is_some_and(|end| *offset != end) {
+                return Err("Avro array block size mismatch");
             }
         }
         Ok(result)
@@ -815,6 +852,56 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, 
             M::avro_decode(buffer, offset)?,
             N::avro_decode(buffer, offset)?,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate std;
+
+    use super::*;
+    use std::panic::{catch_unwind, AssertUnwindSafe};
+
+    #[test]
+    fn malformed_lengths_and_array_blocks_return_errors_without_panicking() {
+        let mut offset = usize::MAX;
+        assert!(f64::avro_decode(&[], &mut offset).is_err());
+
+        let mut minimum_block = Vec::new();
+        i64::MIN.avro_encode(&mut minimum_block);
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            let mut offset = 0;
+            Vec::<bool>::avro_decode(&minimum_block, &mut offset)
+        }));
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_err());
+
+        let mut mismatched_block = Vec::new();
+        (-1i64).avro_encode(&mut mismatched_block);
+        2i64.avro_encode(&mut mismatched_block);
+        true.avro_encode(&mut mismatched_block);
+        0i64.avro_encode(&mut mismatched_block);
+        let mut offset = 0;
+        assert!(Vec::<bool>::avro_decode(&mismatched_block, &mut offset).is_err());
+
+        let mut impossible_count = Vec::new();
+        i64::MAX.avro_encode(&mut impossible_count);
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            let mut offset = 0;
+            Vec::<bool>::avro_decode(&impossible_count, &mut offset)
+        }));
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_err());
+
+        let mut negative_unsigned = Vec::new();
+        (-1i32).avro_encode(&mut negative_unsigned);
+        let mut offset = 0;
+        assert!(u8::avro_decode(&negative_unsigned, &mut offset).is_err());
+
+        let mut overlong_i32 = [0x80; 6];
+        overlong_i32[5] = 0;
+        let mut offset = 0;
+        assert!(i32::avro_decode(&overlong_i32, &mut offset).is_err());
     }
 }
 

@@ -104,6 +104,19 @@ pub const OP_ENDPOINT_DATA: u8 = 5;
 pub const OP_ENDPOINT_REQ: u8 = 8;
 /// Endpoint response opcode.
 pub const OP_ENDPOINT_RSP: u8 = 9;
+/// Endpoint message status carried in the first payload byte.
+///
+/// `Success` is followed by exactly one Avro datum. `InvalidRequest` has no
+/// Avro body. A listener may return `InvalidRequest` for a decoded request or
+/// subscription request that is semantically invalid; the runtime then sends
+/// the corresponding status response. Peer-status notifications have no
+/// payload and therefore do not carry this status byte.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u8)]
+pub enum LibertasEndpointStatus {
+    Success = 0,
+    InvalidRequest = 1,
+}
 /// Endpoint peer down notification opcode.
 /// It is sent by the Libertas OS to notify that the peer process is down.
 /// The host shall stop any protocol retrying because when the peer process
@@ -141,7 +154,7 @@ const OP_SYSTEM_DATABASE_READ_DATA: u8 = 0xf3;
 const OP_SYSTEM_DATABASE_REMOVE_DATA: u8 = 0xf4;
 const OP_SYSTEM_DATABASE_REMOVE_RECORD: u8 = 0xf5;
 
-const CURRENT_VERSION: u32 = 0x000205;     // Version 0.2.5, 1.0 shall be 0x10000, each sub version must be within [0,255]
+const CURRENT_VERSION: u32 = 0x000206;     // Version 0.2.6, 1.0 shall be 0x10000, each sub version must be within [0,255]
 
 type LibertasTimerCallback = dyn FnMut(u32, u64, &mut Box<dyn Any>);
 type LibertasDeviceCallback = dyn FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, LibertasTransId, u32);
@@ -292,7 +305,14 @@ extern "C" fn libertas_impl_device_callback(task: u32, device: u32, op_code: u8,
             Some(ref mut env) => {
                 if let Some(context) = env.contexts.get_mut(&task) {
                     if let Some(dcb) = context.device_callbacks.get_mut(&device) {
-                        let d = slice::from_raw_parts(data as *const u8, data_len);
+                        let d = if data_len == 0 {
+                            &[]
+                        } else {
+                            if data.is_null() {
+                                return;
+                            }
+                            slice::from_raw_parts(data as *const u8, data_len)
+                        };
                         (dcb.cb.borrow_mut())(device, op_code, d, &mut *dcb.context.borrow_mut(), trans_id, peer);
                     }
                 }
@@ -996,10 +1016,37 @@ pub fn libertas_register_wakeup_callback<F>(callback: F, context: Box<dyn Any>) 
     }
 }
 
-type EndpointCallback<T> = dyn FnMut(LibertasEndpoint, u8, Option<T>, &mut Box<dyn Any>, LibertasTransId, u32);
+type EndpointCallback<T> = dyn FnMut(
+    LibertasEndpoint,
+    u8,
+    Option<T>,
+    &mut Box<dyn Any>,
+    LibertasTransId,
+    u32,
+) -> LibertasEndpointStatus;
 struct EndpointListener<T> {
     callback: Box<EndpointCallback<T>>,
     context: Box<dyn Any>,
+}
+
+fn libertas_endpoint_send_invalid_request(
+    server: LibertasEndpoint,
+    opcode: u8,
+    trans_id: LibertasTransId,
+    peer: u32,
+) {
+    let status = [LibertasEndpointStatus::InvalidRequest as u8];
+    libertas_device_send_response(
+        PROTOCOL_LIBERTAS,
+        server,
+        OP_ENDPOINT_RSP,
+        &status,
+        trans_id,
+        peer,
+    );
+    if opcode == OP_ENDPOINT_SUB_REQ {
+        libertas_endpoint_remove_subscriber(server, peer);
+    }
 }
 
 /// Registers a callback for endpoint events.
@@ -1007,29 +1054,72 @@ struct EndpointListener<T> {
 /// # Arguments
 /// * `id` - Endpoint device ID.
 /// * `callback` - Called with (device, opcode, decoded_data, context, trans_id, peer).
+///   It must return [`LibertasEndpointStatus::Success`] after handling the
+///   message, or [`LibertasEndpointStatus::InvalidRequest`] to reject a decoded
+///   request or subscription request.
 /// * `context` - User data.
 /// 
 /// The endpoint protocol always supplies `trans_id` and designates
 /// [`LIBERTAS_ENDPOINT_IGNORED_TRANS_ID`] for interactions that do not correlate
 /// with a transaction.
 ///
-/// Data is decoded from Avro based on type T.
+/// Payload byte zero is the platform status. A `Success` status must be
+/// followed by exactly one Avro value of type `T`; malformed, truncated, or
+/// trailing data never reaches the callback. Invalid requests are answered
+/// automatically with `InvalidRequest`. Invalid responses and reports are
+/// surfaced as `None` without sending another message, which prevents response
+/// loops. Peer-down and peer-timeout notifications also carry `None`.
 pub fn libertas_register_endpoint_listener<T, F>(id: LibertasEndpoint, callback: F, context: Box<dyn Any>)
         where 
             T: AvroDecode + 'static,
-            F: FnMut(LibertasEndpoint, u8, Option<T>, &mut Box<dyn Any>, LibertasTransId, u32) + Sized + 'static {
+            F: FnMut(
+                LibertasEndpoint,
+                u8,
+                Option<T>,
+                &mut Box<dyn Any>,
+                LibertasTransId,
+                u32,
+            ) -> LibertasEndpointStatus + Sized + 'static {
     let listener = Box::new(EndpointListener {
         callback: Box::new(callback),
         context,
     });
     libertas_register_device_listener(id, |device, opcode, data, tag_any, trans_id, peer| {
         let tag = tag_any.downcast_mut::<EndpointListener<T>>().unwrap();
-        let mut protocol_obj: Option<T> = None;
-        if opcode != OP_ENDPOINT_PEER_DOWN {
-            let mut offset: usize = 1;
-            protocol_obj = Some(T::avro_decode(data, &mut offset).unwrap());  //  serde_avro_fast::from_datum_slice::<T>(&data[1..], &tag.protocol_schema).unwrap();
+
+        if opcode == OP_ENDPOINT_PEER_DOWN || opcode == OP_ENDPOINT_PEER_TIMEOUT {
+            (tag.callback)(device, opcode, None, &mut tag.context, trans_id, peer);
+            return;
         }
-        (tag.callback)(device, opcode, protocol_obj, &mut tag.context, trans_id, peer);
+
+        let protocol_obj = if data.first().copied()
+                == Some(LibertasEndpointStatus::Success as u8) {
+            let mut offset = 1;
+            match T::avro_decode(data, &mut offset) {
+                Ok(value) if offset == data.len() => Some(value),
+                _ => None,
+            }
+        } else {
+            None
+        };
+
+        if protocol_obj.is_none() && (opcode == OP_ENDPOINT_REQ || opcode == OP_ENDPOINT_SUB_REQ) {
+            libertas_endpoint_send_invalid_request(device, opcode, trans_id, peer);
+            return;
+        }
+
+        let status = (tag.callback)(
+            device,
+            opcode,
+            protocol_obj,
+            &mut tag.context,
+            trans_id,
+            peer,
+        );
+        if status == LibertasEndpointStatus::InvalidRequest &&
+                (opcode == OP_ENDPOINT_REQ || opcode == OP_ENDPOINT_SUB_REQ) {
+            libertas_endpoint_send_invalid_request(device, opcode, trans_id, peer);
+        }
     }, listener);
 }
 
@@ -1156,7 +1246,7 @@ pub fn libertas_endpoint_request<T>(server: LibertasEndpoint, data: &T) -> Liber
     where 
         T: AvroEncode + 'static {
     let mut bytes: Vec<_> = Vec::new();
-    bytes.push(0u8);
+    bytes.push(LibertasEndpointStatus::Success as u8);
     data.avro_encode(&mut bytes);
     libertas_device_send_request(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_REQ, &bytes)
 }
@@ -1182,7 +1272,7 @@ pub fn libertas_endpoint_subscribe_request<T>(server: LibertasEndpoint, data: &T
     where 
         T: AvroEncode + 'static {
     let mut bytes: Vec<_> = Vec::new();
-    bytes.push(0u8);
+    bytes.push(LibertasEndpointStatus::Success as u8);
     data.avro_encode(&mut bytes);
     libertas_device_send_request(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_SUB_REQ, &bytes)
 }
@@ -1205,7 +1295,7 @@ pub fn libertas_endpoint_response<T>(server: LibertasEndpoint, data: &T, trans_i
     where 
         T: AvroEncode + 'static {
     let mut bytes: Vec<_> = Vec::new();
-    bytes.push(0u8);
+    bytes.push(LibertasEndpointStatus::Success as u8);
     data.avro_encode(&mut bytes);
     libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_RSP, &bytes, trans_id, dest);
 }
@@ -1231,7 +1321,7 @@ pub fn libertas_endpoint_report<T>(server: LibertasEndpoint, data: &T, peer: Opt
         T: AvroEncode + 'static {
     let peer_id = peer.unwrap_or(LIBERTAS_BROADCAST_DEST);
     let mut bytes: Vec<_> = Vec::new();
-    bytes.push(0u8);
+    bytes.push(LibertasEndpointStatus::Success as u8);
     data.avro_encode(&mut bytes);
     libertas_device_send_report(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_DATA, &bytes, LIBERTAS_ENDPOINT_IGNORED_TRANS_ID, peer_id);
 }
@@ -1261,10 +1351,18 @@ mod tests {
 
     use super::*;
     use core::sync::atomic::{AtomicUsize, Ordering};
-    use std::thread;
+    use std::{sync::Mutex, thread};
 
+    static TEST_LOCK: Mutex<()> = Mutex::new(());
     static SHUTDOWN_SENDS: AtomicUsize = AtomicUsize::new(0);
     static SHUTDOWN_HANDLERS: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_CALLBACKS_WITH_DATA: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_CALLBACKS_WITHOUT_DATA: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_INVALID_RESPONSES: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_REMOVALS: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_LAST_DEVICE: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_LAST_TRANS_ID: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_LAST_PEER: AtomicUsize = AtomicUsize::new(0);
 
     extern "C" fn fake_get_random(_: u8) -> u64 { 0 }
     extern "C" fn fake_get_task_id() -> u32 { 7 }
@@ -1274,16 +1372,26 @@ mod tests {
     extern "C" fn fake_device_send(
         protocol: u16,
         device: u32,
-        _: LibertasTransId,
+        trans_id: LibertasTransId,
         op_code: u8,
-        _: *const u8,
-        _: usize,
-        _: u32,
+        data: *const u8,
+        data_len: usize,
+        peer: u32,
     ) {
         if protocol == PROTOCOL_LIBERTAS &&
                 device == DEVICE_SYSTEM &&
                 op_code == OP_APP_SHUT_DOWN {
             SHUTDOWN_SENDS.fetch_add(1, Ordering::AcqRel);
+        } else if protocol == PROTOCOL_LIBERTAS && op_code == OP_ENDPOINT_RSP {
+            if data_len == 1 && !data.is_null() &&
+                    unsafe { *data } == LibertasEndpointStatus::InvalidRequest as u8 {
+                ENDPOINT_INVALID_RESPONSES.fetch_add(1, Ordering::AcqRel);
+                ENDPOINT_LAST_DEVICE.store(device as usize, Ordering::Release);
+                ENDPOINT_LAST_TRANS_ID.store(trans_id as usize, Ordering::Release);
+                ENDPOINT_LAST_PEER.store(peer as usize, Ordering::Release);
+            }
+        } else if protocol == PROTOCOL_LIBERTAS && op_code == OP_ENDPOINT_REMOVE_PEER {
+            ENDPOINT_REMOVALS.fetch_add(1, Ordering::AcqRel);
         }
     }
     extern "C" fn fake_device_read(
@@ -1317,6 +1425,7 @@ mod tests {
 
     #[test]
     fn shutdown_defaults_to_immediate_and_supports_async_completion() {
+        let _guard = TEST_LOCK.lock().unwrap();
         SHUTDOWN_SENDS.store(0, Ordering::Release);
         SHUTDOWN_HANDLERS.store(0, Ordering::Release);
 
@@ -1385,6 +1494,108 @@ mod tests {
         };
         assert_eq!(timer_result.next_monotonic, u64::MAX);
         assert_eq!(timer_result.next_utc, u64::MAX);
+        __libertas_release_package();
+    }
+
+    #[test]
+    fn endpoint_listener_rejects_invalid_requests_without_panicking_or_looping() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        const ENDPOINT: LibertasEndpoint = 41;
+        const PEER: u32 = 73;
+
+        ENDPOINT_CALLBACKS_WITH_DATA.store(0, Ordering::Release);
+        ENDPOINT_CALLBACKS_WITHOUT_DATA.store(0, Ordering::Release);
+        ENDPOINT_INVALID_RESPONSES.store(0, Ordering::Release);
+        ENDPOINT_REMOVALS.store(0, Ordering::Release);
+
+        let mut runtime_api = fake_runtime_api();
+        let callbacks = __libertas_init_package(
+            &raw mut runtime_api as *mut LibertasRuntimeApi as *mut c_void);
+        unsafe {
+            ((*callbacks).init_task)(7);
+        }
+        libertas_register_endpoint_listener::<bool, _>(
+            ENDPOINT,
+            |_, _, data, _, _, _| {
+                match data {
+                    Some(true) => {
+                        ENDPOINT_CALLBACKS_WITH_DATA.fetch_add(1, Ordering::AcqRel);
+                        LibertasEndpointStatus::Success
+                    }
+                    Some(false) => {
+                        ENDPOINT_CALLBACKS_WITH_DATA.fetch_add(1, Ordering::AcqRel);
+                        LibertasEndpointStatus::InvalidRequest
+                    }
+                    None => {
+                        ENDPOINT_CALLBACKS_WITHOUT_DATA.fetch_add(1, Ordering::AcqRel);
+                        LibertasEndpointStatus::Success
+                    }
+                }
+            },
+            Box::new(()),
+        );
+
+        let deliver = |opcode: u8, trans_id: LibertasTransId, data: &[u8]| unsafe {
+            ((*callbacks).device_callback)(
+                7,
+                ENDPOINT,
+                opcode,
+                trans_id,
+                data.as_ptr() as *const c_void,
+                data.len(),
+                PEER,
+            );
+        };
+
+        // Invalid Avro and semantic rejection both produce InvalidRequest.
+        deliver(OP_ENDPOINT_REQ, 101, &[LibertasEndpointStatus::Success as u8, 2]);
+        deliver(OP_ENDPOINT_REQ, 102, &[LibertasEndpointStatus::Success as u8, 0]);
+        assert_eq!(ENDPOINT_INVALID_RESPONSES.load(Ordering::Acquire), 2);
+        assert_eq!(ENDPOINT_CALLBACKS_WITH_DATA.load(Ordering::Acquire), 1);
+
+        // A rejected subscription is also removed from the host subscriber set.
+        deliver(OP_ENDPOINT_SUB_REQ, 103, &[LibertasEndpointStatus::Success as u8]);
+        assert_eq!(ENDPOINT_INVALID_RESPONSES.load(Ordering::Acquire), 3);
+        assert_eq!(ENDPOINT_REMOVALS.load(Ordering::Acquire), 1);
+        assert_eq!(ENDPOINT_LAST_DEVICE.load(Ordering::Acquire), ENDPOINT as usize);
+        assert_eq!(ENDPOINT_LAST_TRANS_ID.load(Ordering::Acquire), 103);
+        assert_eq!(ENDPOINT_LAST_PEER.load(Ordering::Acquire), PEER as usize);
+
+        // Invalid responses and reports are surfaced without answering the peer.
+        deliver(
+            OP_ENDPOINT_RSP,
+            104,
+            &[LibertasEndpointStatus::InvalidRequest as u8],
+        );
+        deliver(OP_ENDPOINT_DATA, 0, &[LibertasEndpointStatus::Success as u8, 2]);
+        assert_eq!(ENDPOINT_CALLBACKS_WITHOUT_DATA.load(Ordering::Acquire), 2);
+        assert_eq!(ENDPOINT_INVALID_RESPONSES.load(Ordering::Acquire), 3);
+
+        // Peer status has no Avro body, including an empty/null FFI payload.
+        unsafe {
+            ((*callbacks).device_callback)(
+                7,
+                ENDPOINT,
+                OP_ENDPOINT_PEER_TIMEOUT,
+                0,
+                core::ptr::null(),
+                0,
+                PEER,
+            );
+        }
+        assert_eq!(ENDPOINT_CALLBACKS_WITHOUT_DATA.load(Ordering::Acquire), 3);
+
+        // Valid data is decoded, while trailing bytes and unknown statuses reject.
+        deliver(OP_ENDPOINT_RSP, 105, &[LibertasEndpointStatus::Success as u8, 1]);
+        deliver(
+            OP_ENDPOINT_REQ,
+            106,
+            &[LibertasEndpointStatus::Success as u8, 1, 0],
+        );
+        deliver(OP_ENDPOINT_REQ, 107, &[2]);
+        assert_eq!(ENDPOINT_CALLBACKS_WITH_DATA.load(Ordering::Acquire), 2);
+        assert_eq!(ENDPOINT_INVALID_RESPONSES.load(Ordering::Acquire), 5);
+
         __libertas_release_package();
     }
 }
