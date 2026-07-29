@@ -62,6 +62,15 @@ pub fn libertas_string_resources(_attr: TokenStream, item: TokenStream) -> Token
     })
 }
 
+/// Declares the compile-time permission list required by a Libertas function.
+#[proc_macro_attribute]
+pub fn libertas_permissions(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as ItemFn);
+    TokenStream::from(quote! {
+        #input
+    })
+}
+
 #[proc_macro_attribute]
 pub fn libertas_data_schema(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);
@@ -328,4 +337,3 @@ pub fn libertas_avro_decode_derive(input: TokenStream) -> TokenStream {
     };
     TokenStream::from(expanded)
 }
-
