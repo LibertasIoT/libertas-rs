@@ -42,6 +42,7 @@ use alloc::{slice, boxed::Box, rc::Rc, vec::Vec};
 use core::ffi::c_void;
 use core::{any::Any, cell::RefCell};
 use core::cmp::Reverse;
+use core::sync::atomic::{AtomicPtr, AtomicU8, Ordering};
 
 use hashbrown::HashMap;
 use hashbrown::DefaultHashBuilder;
@@ -120,6 +121,11 @@ pub const OP_ENDPOINT_PEER_TIMEOUT: u8 = 21;
 /// from subscription list. Future broadcasts will not include that peer.
 const OP_ENDPOINT_REMOVE_PEER: u8 = 22;
 
+// Internal App lifecycle opcode. It is delivered Host -> App through
+// LibertasPackageCallback::device_callback and acknowledged App -> Host through
+// LibertasRuntimeApi::device_send. App code uses the shutdown APIs below and
+// never handles the opcode directly.
+const OP_APP_SHUT_DOWN: u8 = 0xfd;
 const OP_SYSTEM_WAKE_UP: u8 = 255;         // See 
 const PROTOCOL_LIBERTAS: u16 = 0;
 
@@ -135,11 +141,16 @@ const OP_SYSTEM_DATABASE_READ_DATA: u8 = 0xf3;
 const OP_SYSTEM_DATABASE_REMOVE_DATA: u8 = 0xf4;
 const OP_SYSTEM_DATABASE_REMOVE_RECORD: u8 = 0xf5;
 
-const CURRENT_VERSION: u32 = 0x000204;     // Version 0.2.4, 1.0 shall be 0x10000, each sub version must be within [0,255]
+const CURRENT_VERSION: u32 = 0x000205;     // Version 0.2.5, 1.0 shall be 0x10000, each sub version must be within [0,255]
 
 type LibertasTimerCallback = dyn FnMut(u32, u64, &mut Box<dyn Any>);
 type LibertasDeviceCallback = dyn FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, LibertasTransId, u32);
 type LibertasWakeupCallback = dyn FnMut(&mut Box<dyn Any>);
+type LibertasShutdownHandler = dyn FnMut(&mut Box<dyn Any>);
+
+const SHUTDOWN_RUNNING: u8 = 0;
+const SHUTDOWN_REQUESTED: u8 = 1;
+const SHUTDOWN_COMPLETED: u8 = 2;
 
 #[doc(hidden)]
 pub trait LibertasExport {
@@ -165,6 +176,11 @@ struct DeviceCallback {
 
 struct WakeupCallback {
     cb: Rc<RefCell<Box<LibertasWakeupCallback>>>,
+    context: Rc<RefCell<Box<dyn Any>>>,
+}
+
+struct ShutdownHandler {
+    cb: Rc<RefCell<Box<LibertasShutdownHandler>>>,
     context: Rc<RefCell<Box<dyn Any>>>,
 }
 
@@ -210,11 +226,15 @@ pub struct LibertasPackageCallback {
 
 struct Context {
     device_callbacks: HashMap<u32, DeviceCallback>,
+    shutdown_handler: Option<ShutdownHandler>,
 }
 
 impl Context {
     fn new() -> Self {
-        Self {device_callbacks: HashMap::new()}
+        Self {
+            device_callbacks: HashMap::new(),
+            shutdown_handler: None,
+        }
     }
 }
 
@@ -237,6 +257,36 @@ extern "C" fn libertas_impl_remove_task(task_id: u32) {
 }
 
 extern "C" fn libertas_impl_device_callback(task: u32, device: u32, op_code: u8, trans_id: LibertasTransId, data: *const c_void, data_len: usize, peer: u32) {
+    if device == DEVICE_SYSTEM && op_code == OP_APP_SHUT_DOWN {
+        if SHUTDOWN_STATE.compare_exchange(
+                SHUTDOWN_RUNNING,
+                SHUTDOWN_REQUESTED,
+                Ordering::AcqRel,
+                Ordering::Acquire).is_err() {
+            return;
+        }
+
+        let handler = unsafe {
+            let env_ptr = &raw mut ENV;
+            match *env_ptr {
+                Some(ref mut env) => env.contexts.get_mut(&task)
+                    .and_then(|context| context.shutdown_handler.as_ref())
+                    .map(|handler| (Rc::clone(&handler.cb), Rc::clone(&handler.context))),
+                None => None,
+            }
+        };
+        if let Some((callback, context)) = handler {
+            (callback.borrow_mut())(&mut *context.borrow_mut());
+        } else {
+            libertas_shutdown_complete();
+        }
+        return;
+    }
+
+    if SHUTDOWN_STATE.load(Ordering::Acquire) == SHUTDOWN_COMPLETED {
+        return;
+    }
+
     unsafe {
         match ENV {
             Some(ref mut env) => {
@@ -253,6 +303,12 @@ extern "C" fn libertas_impl_device_callback(task: u32, device: u32, op_code: u8,
 }
 
 extern "C" fn libertas_impl_timer_driver(monotonic: u64, utc: u64) -> TimerDriverResult {
+    if SHUTDOWN_STATE.load(Ordering::Acquire) == SHUTDOWN_COMPLETED {
+        return TimerDriverResult {
+            next_monotonic: u64::MAX,
+            next_utc: u64::MAX,
+        };
+    }
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
             match ENV {
@@ -260,6 +316,14 @@ extern "C" fn libertas_impl_timer_driver(monotonic: u64, utc: u64) -> TimerDrive
                     // Process wakeup callback first if exists.
                     if let Some(ref wakeup_callback) = env.wakeup_callbacks {
                         (wakeup_callback.cb.borrow_mut())(&mut *wakeup_callback.context.borrow_mut());
+                    }
+                    // A wakeup callback may complete asynchronous shutdown.
+                    // Once completed, no timer or other App callback may start.
+                    if SHUTDOWN_STATE.load(Ordering::Acquire) == SHUTDOWN_COMPLETED {
+                        return TimerDriverResult {
+                            next_monotonic: u64::MAX,
+                            next_utc: u64::MAX,
+                        };
                     }
                     let mut next_mono = u64::MAX;
                     let mut next_time = u64::MAX;
@@ -272,6 +336,12 @@ extern "C" fn libertas_impl_timer_driver(monotonic: u64, utc: u64) -> TimerDrive
                                     env.timers_active_interval.pop();
                                     (runtime_api.set_task_id)(t.task);
                                     (t.cb.borrow_mut())(timer, monotonic, &mut *t.context.borrow_mut());
+                                    if SHUTDOWN_STATE.load(Ordering::Acquire) == SHUTDOWN_COMPLETED {
+                                        return TimerDriverResult {
+                                            next_monotonic: u64::MAX,
+                                            next_utc: u64::MAX,
+                                        };
+                                    }
                                 }
                             } else {
                                 next_mono = mono.1.0;
@@ -290,6 +360,12 @@ extern "C" fn libertas_impl_timer_driver(monotonic: u64, utc: u64) -> TimerDrive
                                     env.timers_active_deadline.pop();
                                     (runtime_api.set_task_id)(t.task);
                                     (t.cb.borrow_mut())(timer, utc, &mut *t.context.borrow_mut());
+                                    if SHUTDOWN_STATE.load(Ordering::Acquire) == SHUTDOWN_COMPLETED {
+                                        return TimerDriverResult {
+                                            next_monotonic: u64::MAX,
+                                            next_utc: u64::MAX,
+                                        };
+                                    }
                                 }
                             } else {
                                 next_time = time.1.0;
@@ -391,6 +467,11 @@ impl LibertasPackageEnv{
 }
 
 static mut RUNTIME_API: *mut LibertasRuntimeApi = core::ptr::null_mut();
+// The runtime API is initialized before App code starts and remains valid for
+// the lifetime of the host process. Async shutdown completion reads it without
+// touching the main-thread-only package environment.
+static ASYNC_RUNTIME_API: AtomicPtr<LibertasRuntimeApi> = AtomicPtr::new(core::ptr::null_mut());
+static SHUTDOWN_STATE: AtomicU8 = AtomicU8::new(SHUTDOWN_RUNNING);
 static mut ENV: Option<LibertasPackageEnv> = None;
 
 /**
@@ -403,6 +484,8 @@ static mut ENV: Option<LibertasPackageEnv> = None;
 pub fn __libertas_init_package(runtime_api:*mut c_void) -> *const LibertasPackageCallback {
     unsafe {
         RUNTIME_API = runtime_api as *mut LibertasRuntimeApi;
+        ASYNC_RUNTIME_API.store(RUNTIME_API, Ordering::Release);
+        SHUTDOWN_STATE.store(SHUTDOWN_RUNNING, Ordering::Release);
         ENV = Some(LibertasPackageEnv::new());
         let env_ptr = &raw mut ENV;
         // We use .as_ref() on the *pointer* dereference, or better yet:
@@ -424,6 +507,74 @@ pub fn __libertas_init_package(runtime_api:*mut c_void) -> *const LibertasPackag
 pub fn __libertas_release_package() {
     unsafe {
         ENV = None;     // Drop all memory
+    }
+}
+
+/// Registers the task's shutdown handler.
+///
+/// The host calls this handler on the App main thread when shutdown is
+/// requested. The handler may finish synchronously by calling
+/// [`libertas_shutdown_complete`], or it may start asynchronous cleanup and
+/// return. During asynchronous cleanup the App continues to operate normally.
+///
+/// Only one shutdown handler may be registered for a task.
+pub fn libertas_register_shutdown_handler<F>(callback: F, context: Box<dyn Any>)
+where
+    F: FnMut(&mut Box<dyn Any>) + Sized + 'static,
+{
+    unsafe {
+        match ENV {
+            Some(ref mut env) => {
+                let task_id = libertas_get_task_id();
+                let task_context = env.contexts.get_mut(&task_id).unwrap_or_else(|| {
+                    panic!("libertas_register_shutdown_handler invalid task")
+                });
+                if task_context.shutdown_handler.is_some() {
+                    panic!("Duplicate shutdown handler registered");
+                }
+                task_context.shutdown_handler = Some(ShutdownHandler {
+                    cb: Rc::new(RefCell::new(Box::new(callback))),
+                    context: Rc::new(RefCell::new(context)),
+                });
+            }
+            _ => {
+                unreachable!();
+            }
+        }
+    }
+}
+
+/// Completes an App shutdown request.
+///
+/// This function may be called from any App thread. Before calling it, the App
+/// must stop all other work that could call a Libertas API. The calling thread
+/// must make no further Libertas API calls and return immediately after this
+/// function returns.
+///
+/// The first call made after the host's shutdown request notifies the host.
+/// Calls made before a request or duplicate completion calls are ignored.
+pub fn libertas_shutdown_complete() {
+    if SHUTDOWN_STATE.compare_exchange(
+            SHUTDOWN_REQUESTED,
+            SHUTDOWN_COMPLETED,
+            Ordering::AcqRel,
+            Ordering::Acquire).is_err() {
+        return;
+    }
+
+    let runtime_api = ASYNC_RUNTIME_API.load(Ordering::Acquire);
+    if runtime_api.is_null() {
+        return;
+    }
+    unsafe {
+        ((*runtime_api).device_send)(
+            PROTOCOL_LIBERTAS,
+            DEVICE_SYSTEM,
+            0,
+            OP_APP_SHUT_DOWN,
+            core::ptr::null(),
+            0,
+            0);
     }
 }
 
@@ -1102,4 +1253,138 @@ pub fn libertas_endpoint_report<T>(server: LibertasEndpoint, data: &T, peer: Opt
 pub fn libertas_endpoint_remove_subscriber(server: LibertasEndpoint, peer: u32) {
     let empty_slice: &[u8] = &[];
     libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_REMOVE_PEER, empty_slice, LIBERTAS_ENDPOINT_IGNORED_TRANS_ID, peer);
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate std;
+
+    use super::*;
+    use core::sync::atomic::{AtomicUsize, Ordering};
+    use std::thread;
+
+    static SHUTDOWN_SENDS: AtomicUsize = AtomicUsize::new(0);
+    static SHUTDOWN_HANDLERS: AtomicUsize = AtomicUsize::new(0);
+
+    extern "C" fn fake_get_random(_: u8) -> u64 { 0 }
+    extern "C" fn fake_get_task_id() -> u32 { 7 }
+    extern "C" fn fake_set_task_id(_: u32) {}
+    extern "C" fn fake_get_time() -> u64 { 0 }
+    extern "C" fn fake_convert_time(value: i64) -> i64 { value }
+    extern "C" fn fake_device_send(
+        protocol: u16,
+        device: u32,
+        _: LibertasTransId,
+        op_code: u8,
+        _: *const u8,
+        _: usize,
+        _: u32,
+    ) {
+        if protocol == PROTOCOL_LIBERTAS &&
+                device == DEVICE_SYSTEM &&
+                op_code == OP_APP_SHUT_DOWN {
+            SHUTDOWN_SENDS.fetch_add(1, Ordering::AcqRel);
+        }
+    }
+    extern "C" fn fake_device_read(
+        _: u16,
+        _: u32,
+        _: u8,
+        _: *const u8,
+        _: usize,
+    ) -> ReadResult {
+        ReadResult {
+            success: false,
+            data: core::ptr::null(),
+            data_len: 0,
+        }
+    }
+
+    fn fake_runtime_api() -> LibertasRuntimeApi {
+        LibertasRuntimeApi {
+            version: CURRENT_VERSION,
+            get_random: fake_get_random,
+            get_task_id: fake_get_task_id,
+            set_task_id: fake_set_task_id,
+            get_sys_ticks: fake_get_time,
+            get_utc_time: fake_get_time,
+            utc_to_local: fake_convert_time,
+            local_to_utc: fake_convert_time,
+            device_send: fake_device_send,
+            device_read: fake_device_read,
+        }
+    }
+
+    #[test]
+    fn shutdown_defaults_to_immediate_and_supports_async_completion() {
+        SHUTDOWN_SENDS.store(0, Ordering::Release);
+        SHUTDOWN_HANDLERS.store(0, Ordering::Release);
+
+        let mut runtime_api = fake_runtime_api();
+        let callbacks = __libertas_init_package(
+            &raw mut runtime_api as *mut LibertasRuntimeApi as *mut c_void);
+        unsafe {
+            ((*callbacks).init_task)(7);
+            ((*callbacks).device_callback)(
+                7,
+                DEVICE_SYSTEM,
+                OP_APP_SHUT_DOWN,
+                0,
+                core::ptr::null(),
+                0,
+                0);
+        }
+        assert_eq!(SHUTDOWN_SENDS.load(Ordering::Acquire), 1);
+        assert_eq!(SHUTDOWN_STATE.load(Ordering::Acquire), SHUTDOWN_COMPLETED);
+
+        // Duplicate Host requests and App completions are idempotent.
+        unsafe {
+            ((*callbacks).device_callback)(
+                7,
+                DEVICE_SYSTEM,
+                OP_APP_SHUT_DOWN,
+                0,
+                core::ptr::null(),
+                0,
+                0);
+        }
+        libertas_shutdown_complete();
+        assert_eq!(SHUTDOWN_SENDS.load(Ordering::Acquire), 1);
+        __libertas_release_package();
+
+        let callbacks = __libertas_init_package(
+            &raw mut runtime_api as *mut LibertasRuntimeApi as *mut c_void);
+        unsafe {
+            ((*callbacks).init_task)(7);
+        }
+        libertas_register_shutdown_handler(
+            |_| {
+                SHUTDOWN_HANDLERS.fetch_add(1, Ordering::AcqRel);
+            },
+            Box::new(()));
+        unsafe {
+            ((*callbacks).device_callback)(
+                7,
+                DEVICE_SYSTEM,
+                OP_APP_SHUT_DOWN,
+                0,
+                core::ptr::null(),
+                0,
+                0);
+        }
+        assert_eq!(SHUTDOWN_HANDLERS.load(Ordering::Acquire), 1);
+        assert_eq!(SHUTDOWN_SENDS.load(Ordering::Acquire), 1);
+        assert_eq!(SHUTDOWN_STATE.load(Ordering::Acquire), SHUTDOWN_REQUESTED);
+
+        thread::spawn(libertas_shutdown_complete).join().unwrap();
+        assert_eq!(SHUTDOWN_SENDS.load(Ordering::Acquire), 2);
+        assert_eq!(SHUTDOWN_STATE.load(Ordering::Acquire), SHUTDOWN_COMPLETED);
+
+        let timer_result = unsafe {
+            ((*callbacks).timer_driver)(0, 0)
+        };
+        assert_eq!(timer_result.next_monotonic, u64::MAX);
+        assert_eq!(timer_result.next_utc, u64::MAX);
+        __libertas_release_package();
+    }
 }
