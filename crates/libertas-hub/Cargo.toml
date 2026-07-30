@@ -8,6 +8,10 @@ homepage.workspace = true
 description = "Shared message definitions for Libertas Hub"
 repository = "https://github.com/LibertasIoT/libertas-rs"
 
+[dependencies]
+libertas = { path = "../libertas", version = "0.2.10" }
+libertas_macros = { path = "../libertas_macros", version = "0.2.10" }
+
 [lib]
 name = "libertas_hub"
 crate-type = ["rlib"]
