@@ -26,6 +26,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                    attr.path().is_ident("libertas_read_only") || 
                    attr.path().is_ident("libertas_hidden") || 
                    attr.path().is_ident("libertas_number") || 
+                   attr.path().is_ident("libertas_size") ||
                    attr.path().is_ident("libertas_time_interval") || 
                    attr.path().is_ident("libertas_string") || 
                    attr.path().is_ident("libertas_enum") || 
@@ -99,6 +100,7 @@ pub fn libertas_data_schema(_attr: TokenStream, item: TokenStream) -> TokenStrea
     libertas_read_only,
     libertas_hidden,
     libertas_number,
+    libertas_size,
     libertas_time_interval,
     libertas_string,
     libertas_enum,
