@@ -26,7 +26,7 @@ pub trait AvroDecode: Sized {
     ///
     /// The input may come from an untrusted peer. Implementations must return
     /// `Err` for invalid input and must not panic because endpoint listeners
-    /// convert decode errors into the platform `InvalidRequest` status.
+    /// convert decode errors into the platform `InvalidMessage` status.
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str>;
 }
 

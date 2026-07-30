@@ -106,8 +106,8 @@ pub const OP_ENDPOINT_REQ: u8 = 8;
 pub const OP_ENDPOINT_RSP: u8 = 9;
 /// Endpoint message status carried in the first payload byte.
 ///
-/// `Success` is followed by exactly one Avro datum. `InvalidRequest` has no
-/// Avro body. A listener may return `InvalidRequest` for a decoded request or
+/// `Success` is followed by exactly one Avro datum. `InvalidMessage` has no
+/// Avro body. A listener may return `InvalidMessage` for a decoded request or
 /// subscription request that is semantically invalid; the runtime then sends
 /// the corresponding status response. Peer-status notifications have no
 /// payload and therefore do not carry this status byte.
@@ -115,7 +115,7 @@ pub const OP_ENDPOINT_RSP: u8 = 9;
 #[repr(u8)]
 pub enum LibertasEndpointStatus {
     Success = 0,
-    InvalidRequest = 1,
+    InvalidMessage = 1,
 }
 /// Endpoint peer down notification opcode.
 /// It is sent by the Libertas OS to notify that the peer process is down.
@@ -1029,13 +1029,13 @@ struct EndpointListener<T> {
     context: Box<dyn Any>,
 }
 
-fn libertas_endpoint_send_invalid_request(
+fn libertas_endpoint_send_invalid_message(
     server: LibertasEndpoint,
     opcode: u8,
     trans_id: LibertasTransId,
     peer: u32,
 ) {
-    let status = [LibertasEndpointStatus::InvalidRequest as u8];
+    let status = [LibertasEndpointStatus::InvalidMessage as u8];
     libertas_device_send_response(
         PROTOCOL_LIBERTAS,
         server,
@@ -1055,7 +1055,7 @@ fn libertas_endpoint_send_invalid_request(
 /// * `id` - Endpoint device ID.
 /// * `callback` - Called with (device, opcode, decoded_data, context, trans_id, peer).
 ///   It must return [`LibertasEndpointStatus::Success`] after handling the
-///   message, or [`LibertasEndpointStatus::InvalidRequest`] to reject a decoded
+///   message, or [`LibertasEndpointStatus::InvalidMessage`] to reject a decoded
 ///   request or subscription request.
 /// * `context` - User data.
 /// 
@@ -1066,7 +1066,7 @@ fn libertas_endpoint_send_invalid_request(
 /// Payload byte zero is the platform status. A `Success` status must be
 /// followed by exactly one Avro value of type `T`; malformed, truncated, or
 /// trailing data never reaches the callback. Invalid requests are answered
-/// automatically with `InvalidRequest`. Invalid responses and reports are
+/// automatically with `InvalidMessage`. Invalid responses and reports are
 /// surfaced as `None` without sending another message, which prevents response
 /// loops. Peer-down and peer-timeout notifications also carry `None`.
 pub fn libertas_register_endpoint_listener<T, F>(id: LibertasEndpoint, callback: F, context: Box<dyn Any>)
@@ -1104,7 +1104,7 @@ pub fn libertas_register_endpoint_listener<T, F>(id: LibertasEndpoint, callback:
         };
 
         if protocol_obj.is_none() && (opcode == OP_ENDPOINT_REQ || opcode == OP_ENDPOINT_SUB_REQ) {
-            libertas_endpoint_send_invalid_request(device, opcode, trans_id, peer);
+            libertas_endpoint_send_invalid_message(device, opcode, trans_id, peer);
             return;
         }
 
@@ -1116,9 +1116,9 @@ pub fn libertas_register_endpoint_listener<T, F>(id: LibertasEndpoint, callback:
             trans_id,
             peer,
         );
-        if status == LibertasEndpointStatus::InvalidRequest &&
+        if status == LibertasEndpointStatus::InvalidMessage &&
                 (opcode == OP_ENDPOINT_REQ || opcode == OP_ENDPOINT_SUB_REQ) {
-            libertas_endpoint_send_invalid_request(device, opcode, trans_id, peer);
+            libertas_endpoint_send_invalid_message(device, opcode, trans_id, peer);
         }
     }, listener);
 }
@@ -1384,7 +1384,7 @@ mod tests {
             SHUTDOWN_SENDS.fetch_add(1, Ordering::AcqRel);
         } else if protocol == PROTOCOL_LIBERTAS && op_code == OP_ENDPOINT_RSP {
             if data_len == 1 && !data.is_null() &&
-                    unsafe { *data } == LibertasEndpointStatus::InvalidRequest as u8 {
+                    unsafe { *data } == LibertasEndpointStatus::InvalidMessage as u8 {
                 ENDPOINT_INVALID_RESPONSES.fetch_add(1, Ordering::AcqRel);
                 ENDPOINT_LAST_DEVICE.store(device as usize, Ordering::Release);
                 ENDPOINT_LAST_TRANS_ID.store(trans_id as usize, Ordering::Release);
@@ -1498,7 +1498,7 @@ mod tests {
     }
 
     #[test]
-    fn endpoint_listener_rejects_invalid_requests_without_panicking_or_looping() {
+    fn endpoint_listener_rejects_invalid_messages_without_panicking_or_looping() {
         let _guard = TEST_LOCK.lock().unwrap();
         const ENDPOINT: LibertasEndpoint = 41;
         const PEER: u32 = 73;
@@ -1524,7 +1524,7 @@ mod tests {
                     }
                     Some(false) => {
                         ENDPOINT_CALLBACKS_WITH_DATA.fetch_add(1, Ordering::AcqRel);
-                        LibertasEndpointStatus::InvalidRequest
+                        LibertasEndpointStatus::InvalidMessage
                     }
                     None => {
                         ENDPOINT_CALLBACKS_WITHOUT_DATA.fetch_add(1, Ordering::AcqRel);
@@ -1547,7 +1547,7 @@ mod tests {
             );
         };
 
-        // Invalid Avro and semantic rejection both produce InvalidRequest.
+        // Invalid Avro and semantic rejection both produce InvalidMessage.
         deliver(OP_ENDPOINT_REQ, 101, &[LibertasEndpointStatus::Success as u8, 2]);
         deliver(OP_ENDPOINT_REQ, 102, &[LibertasEndpointStatus::Success as u8, 0]);
         assert_eq!(ENDPOINT_INVALID_RESPONSES.load(Ordering::Acquire), 2);
@@ -1565,7 +1565,7 @@ mod tests {
         deliver(
             OP_ENDPOINT_RSP,
             104,
-            &[LibertasEndpointStatus::InvalidRequest as u8],
+            &[LibertasEndpointStatus::InvalidMessage as u8],
         );
         deliver(OP_ENDPOINT_DATA, 0, &[LibertasEndpointStatus::Success as u8, 2]);
         assert_eq!(ENDPOINT_CALLBACKS_WITHOUT_DATA.load(Ordering::Acquire), 2);
