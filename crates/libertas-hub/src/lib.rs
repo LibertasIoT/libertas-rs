@@ -16,9 +16,15 @@ pub enum HubProtocol {
     /// Requests the Hub's current location.
     ///
     /// This message may be sent as either a request or a subscription request.
+    /// `max_report_interval_seconds` is ignored for a one-shot request. For a
+    /// subscription it must be greater than zero and limits the time between
+    /// location reports.
     #[libertas_request]
     #[libertas_subscription_request]
-    LocationReq,
+    LocationReq {
+        /// Maximum interval between subscription reports, in seconds.
+        max_report_interval_seconds: u32,
+    },
 
     /// Returns the Hub's current location.
     ///
@@ -39,11 +45,12 @@ mod tests {
 
     #[test]
     fn location_request_round_trips_through_avro() {
-        let encoded = HubProtocol::LocationReq.to_avro();
-        assert_eq!(
-            HubProtocol::from_avro(&encoded),
-            Ok(HubProtocol::LocationReq)
-        );
+        let request = HubProtocol::LocationReq {
+            max_report_interval_seconds: 300,
+        };
+        let encoded = request.to_avro();
+        assert_eq!(encoded.as_slice(), &[0, 0xd8, 0x04]);
+        assert_eq!(HubProtocol::from_avro(&encoded), Ok(request));
     }
 
     #[test]

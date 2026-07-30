@@ -60,6 +60,9 @@ pub type LibertasVirtualDevice = LibertasDevice;
 /// Data schema must be predefined and published by the server developer.
 pub type LibertasEndpoint = LibertasVirtualDevice;
 
+/// Built-in Libertas Hub endpoint.
+pub const LIBERTAS_HUB_ENDPOINT: LibertasEndpoint = 0;
+
 /// Timestamp in seconds since Unix epoch (full date and time).
 pub type LibertasDateTime = u64;
 
@@ -104,18 +107,121 @@ pub const OP_ENDPOINT_DATA: u8 = 5;
 pub const OP_ENDPOINT_REQ: u8 = 8;
 /// Endpoint response opcode.
 pub const OP_ENDPOINT_RSP: u8 = 9;
-/// Endpoint message status carried in the first payload byte.
+/// Endpoint message envelope carried in the first payload byte.
 ///
 /// `Success` is followed by exactly one Avro datum. `InvalidMessage` has no
-/// Avro body. A listener may return `InvalidMessage` for a decoded request or
-/// subscription request that is semantically invalid; the runtime then sends
-/// the corresponding status response. Peer-status notifications have no
-/// payload and therefore do not carry this status byte.
+/// Avro body. `StandardStatus` is followed by exactly one canonical status
+/// byte. Peer-status notifications have no payload and therefore do not carry
+/// this envelope byte.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u8)]
 pub enum LibertasEndpointStatus {
     Success = 0,
     InvalidMessage = 1,
+    StandardStatus = 2,
+}
+
+/// Canonical failure status returned by a Libertas endpoint.
+///
+/// The numeric values follow the canonical Google RPC status codes. A standard
+/// status frame never carries `OK`; successful endpoint messages use
+/// [`LibertasEndpointStatus::Success`] followed by their Avro datum.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum LibertasEndpointStandardStatus {
+    Cancelled,
+    Unknown,
+    InvalidArgument,
+    DeadlineExceeded,
+    NotFound,
+    AlreadyExists,
+    PermissionDenied,
+    ResourceExhausted,
+    FailedPrecondition,
+    Aborted,
+    OutOfRange,
+    Unimplemented,
+    Internal,
+    Unavailable,
+    DataLoss,
+    Unauthenticated,
+    /// A status added by a newer runtime. Nonzero wire values are retained;
+    /// zero is normalized to `Unknown` when sent because canonical `OK` is not
+    /// a failure status.
+    Unrecognized(u8),
+}
+
+impl LibertasEndpointStandardStatus {
+    /// Returns the canonical status code carried on the wire.
+    pub const fn code(self) -> u8 {
+        match self {
+            Self::Cancelled => 1,
+            Self::Unknown => 2,
+            Self::InvalidArgument => 3,
+            Self::DeadlineExceeded => 4,
+            Self::NotFound => 5,
+            Self::AlreadyExists => 6,
+            Self::PermissionDenied => 7,
+            Self::ResourceExhausted => 8,
+            Self::FailedPrecondition => 9,
+            Self::Aborted => 10,
+            Self::OutOfRange => 11,
+            Self::Unimplemented => 12,
+            Self::Internal => 13,
+            Self::Unavailable => 14,
+            Self::DataLoss => 15,
+            Self::Unauthenticated => 16,
+            Self::Unrecognized(0) => Self::Unknown.code(),
+            Self::Unrecognized(code) => code,
+        }
+    }
+
+    fn from_code(code: u8) -> Option<Self> {
+        Some(match code {
+            0 => return None,
+            1 => Self::Cancelled,
+            2 => Self::Unknown,
+            3 => Self::InvalidArgument,
+            4 => Self::DeadlineExceeded,
+            5 => Self::NotFound,
+            6 => Self::AlreadyExists,
+            7 => Self::PermissionDenied,
+            8 => Self::ResourceExhausted,
+            9 => Self::FailedPrecondition,
+            10 => Self::Aborted,
+            11 => Self::OutOfRange,
+            12 => Self::Unimplemented,
+            13 => Self::Internal,
+            14 => Self::Unavailable,
+            15 => Self::DataLoss,
+            16 => Self::Unauthenticated,
+            code => Self::Unrecognized(code),
+        })
+    }
+}
+
+/// Decoded endpoint message delivered by a status-aware endpoint listener.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum LibertasEndpointMessage<T> {
+    /// A successfully decoded endpoint protocol value.
+    Data(T),
+    /// The peer rejected or could not decode the endpoint message.
+    InvalidMessage,
+    /// The endpoint returned a canonical failure status.
+    Status(LibertasEndpointStandardStatus),
+    /// A peer-down or peer-timeout notification, identified by its opcode.
+    NoPayload,
+}
+
+/// Result returned by a status-aware endpoint handler.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LibertasEndpointHandlerResult {
+    /// The callback handled the message. It may already have sent a response.
+    Handled,
+    /// Reject a request because its endpoint envelope or Avro value is invalid.
+    InvalidMessage,
+    /// Complete a request with the supplied canonical failure status.
+    Status(LibertasEndpointStandardStatus),
 }
 /// Endpoint peer down notification opcode.
 /// It is sent by the Libertas OS to notify that the peer process is down.
@@ -1012,17 +1118,51 @@ pub fn libertas_register_wakeup_callback<F>(callback: F, context: Box<dyn Any>) 
     }
 }
 
-type EndpointCallback<T> = dyn FnMut(
+type EndpointStatusCallback<T> = dyn FnMut(
     LibertasEndpoint,
     u8,
-    Option<T>,
+    LibertasEndpointMessage<T>,
     &mut Box<dyn Any>,
     LibertasTransId,
     u32,
-) -> LibertasEndpointStatus;
-struct EndpointListener<T> {
-    callback: Box<EndpointCallback<T>>,
+) -> LibertasEndpointHandlerResult;
+struct EndpointStatusListener<T> {
+    callback: Box<EndpointStatusCallback<T>>,
     context: Box<dyn Any>,
+}
+
+fn libertas_endpoint_send_handler_result(
+    server: LibertasEndpoint,
+    opcode: u8,
+    trans_id: LibertasTransId,
+    peer: u32,
+    result: LibertasEndpointHandlerResult,
+) {
+    let status = match result {
+        LibertasEndpointHandlerResult::Handled => return,
+        LibertasEndpointHandlerResult::InvalidMessage => {
+            [LibertasEndpointStatus::InvalidMessage as u8, 0]
+        }
+        LibertasEndpointHandlerResult::Status(status) => {
+            [LibertasEndpointStatus::StandardStatus as u8, status.code()]
+        }
+    };
+    let status_len = if result == LibertasEndpointHandlerResult::InvalidMessage {
+        1
+    } else {
+        2
+    };
+    libertas_device_send_response(
+        PROTOCOL_LIBERTAS,
+        server,
+        OP_ENDPOINT_RSP,
+        &status[..status_len],
+        trans_id,
+        peer,
+    );
+    if opcode == OP_ENDPOINT_SUB_REQ {
+        libertas_endpoint_remove_subscriber(server, peer);
+    }
 }
 
 fn libertas_endpoint_send_invalid_message(
@@ -1031,18 +1171,13 @@ fn libertas_endpoint_send_invalid_message(
     trans_id: LibertasTransId,
     peer: u32,
 ) {
-    let status = [LibertasEndpointStatus::InvalidMessage as u8];
-    libertas_device_send_response(
-        PROTOCOL_LIBERTAS,
+    libertas_endpoint_send_handler_result(
         server,
-        OP_ENDPOINT_RSP,
-        &status,
+        opcode,
         trans_id,
         peer,
+        LibertasEndpointHandlerResult::InvalidMessage,
     );
-    if opcode == OP_ENDPOINT_SUB_REQ {
-        libertas_endpoint_remove_subscriber(server, peer);
-    }
 }
 
 /// Registers a callback for endpoint events.
@@ -1064,8 +1199,14 @@ fn libertas_endpoint_send_invalid_message(
 /// trailing data never reaches the callback. Invalid requests are answered
 /// automatically with `InvalidMessage`. Invalid responses and reports are
 /// surfaced as `None` without sending another message, which prevents response
-/// loops. Peer-down and peer-timeout notifications also carry `None`.
-pub fn libertas_register_endpoint_listener<T, F>(id: LibertasEndpoint, callback: F, context: Box<dyn Any>)
+/// loops. Standard statuses and peer-down or peer-timeout notifications also
+/// carry `None`. Use [`libertas_register_endpoint_status_listener`] when the
+/// callback needs to distinguish those cases.
+pub fn libertas_register_endpoint_listener<T, F>(
+    id: LibertasEndpoint,
+    mut callback: F,
+    context: Box<dyn Any>,
+)
         where 
             T: AvroDecode + 'static,
             F: FnMut(
@@ -1076,45 +1217,134 @@ pub fn libertas_register_endpoint_listener<T, F>(id: LibertasEndpoint, callback:
                 LibertasTransId,
                 u32,
             ) -> LibertasEndpointStatus + Sized + 'static {
-    let listener = Box::new(EndpointListener {
+    libertas_register_endpoint_status_listener(
+        id,
+        move |device, opcode, message, context, trans_id, peer| {
+            let data = match message {
+                LibertasEndpointMessage::Data(value) => Some(value),
+                LibertasEndpointMessage::InvalidMessage |
+                LibertasEndpointMessage::Status(_) |
+                LibertasEndpointMessage::NoPayload => None,
+            };
+            match callback(device, opcode, data, context, trans_id, peer) {
+                LibertasEndpointStatus::Success => {
+                    LibertasEndpointHandlerResult::Handled
+                }
+                LibertasEndpointStatus::InvalidMessage => {
+                    LibertasEndpointHandlerResult::InvalidMessage
+                }
+                LibertasEndpointStatus::StandardStatus => {
+                    // The compatibility listener has no associated canonical
+                    // code. Use the status-aware listener to return one.
+                    LibertasEndpointHandlerResult::InvalidMessage
+                }
+            }
+        },
+        context,
+    );
+}
+
+/// Registers a callback that receives endpoint data and standard statuses
+/// without collapsing them into an absent decoded value.
+///
+/// Returning [`LibertasEndpointHandlerResult::Status`] for a request or
+/// subscription request automatically sends a correlated standard-status
+/// response. A failed subscription is removed from the runtime subscriber set.
+pub fn libertas_register_endpoint_status_listener<T, F>(
+    id: LibertasEndpoint,
+    callback: F,
+    context: Box<dyn Any>,
+)
+        where
+            T: AvroDecode + 'static,
+            F: FnMut(
+                LibertasEndpoint,
+                u8,
+                LibertasEndpointMessage<T>,
+                &mut Box<dyn Any>,
+                LibertasTransId,
+                u32,
+            ) -> LibertasEndpointHandlerResult + Sized + 'static {
+    let listener = Box::new(EndpointStatusListener {
         callback: Box::new(callback),
         context,
     });
     libertas_register_device_listener(id, |device, opcode, data, tag_any, trans_id, peer| {
-        let tag = tag_any.downcast_mut::<EndpointListener<T>>().unwrap();
+        let tag = tag_any.downcast_mut::<EndpointStatusListener<T>>().unwrap();
 
         if opcode == OP_ENDPOINT_PEER_DOWN || opcode == OP_ENDPOINT_PEER_TIMEOUT {
-            (tag.callback)(device, opcode, None, &mut tag.context, trans_id, peer);
+            (tag.callback)(
+                device,
+                opcode,
+                LibertasEndpointMessage::NoPayload,
+                &mut tag.context,
+                trans_id,
+                peer,
+            );
             return;
         }
 
-        let protocol_obj = if data.first().copied()
-                == Some(LibertasEndpointStatus::Success as u8) {
-            let mut offset = 1;
-            match T::avro_decode(data, &mut offset) {
-                Ok(value) if offset == data.len() => Some(value),
-                _ => None,
+        let message = match data.first().copied() {
+            Some(status) if status == LibertasEndpointStatus::Success as u8 => {
+                let mut offset = 1;
+                match T::avro_decode(data, &mut offset) {
+                    Ok(value) if offset == data.len() => {
+                        Some(LibertasEndpointMessage::Data(value))
+                    }
+                    _ => None,
+                }
             }
-        } else {
-            None
+            Some(status)
+                if status == LibertasEndpointStatus::InvalidMessage as u8 &&
+                    data.len() == 1 &&
+                    opcode != OP_ENDPOINT_REQ &&
+                    opcode != OP_ENDPOINT_SUB_REQ =>
+            {
+                Some(LibertasEndpointMessage::InvalidMessage)
+            }
+            Some(status)
+                if status == LibertasEndpointStatus::StandardStatus as u8 &&
+                    data.len() == 2 &&
+                    opcode == OP_ENDPOINT_RSP =>
+            {
+                LibertasEndpointStandardStatus::from_code(data[1])
+                    .map(LibertasEndpointMessage::Status)
+            }
+            _ => None,
         };
 
-        if protocol_obj.is_none() && (opcode == OP_ENDPOINT_REQ || opcode == OP_ENDPOINT_SUB_REQ) {
-            libertas_endpoint_send_invalid_message(device, opcode, trans_id, peer);
+        let Some(message) = message else {
+            if opcode == OP_ENDPOINT_REQ || opcode == OP_ENDPOINT_SUB_REQ {
+                libertas_endpoint_send_invalid_message(device, opcode, trans_id, peer);
+            } else {
+                (tag.callback)(
+                    device,
+                    opcode,
+                    LibertasEndpointMessage::InvalidMessage,
+                    &mut tag.context,
+                    trans_id,
+                    peer,
+                );
+            }
             return;
-        }
+        };
 
-        let status = (tag.callback)(
+        let result = (tag.callback)(
             device,
             opcode,
-            protocol_obj,
+            message,
             &mut tag.context,
             trans_id,
             peer,
         );
-        if status == LibertasEndpointStatus::InvalidMessage &&
-                (opcode == OP_ENDPOINT_REQ || opcode == OP_ENDPOINT_SUB_REQ) {
-            libertas_endpoint_send_invalid_message(device, opcode, trans_id, peer);
+        if opcode == OP_ENDPOINT_REQ || opcode == OP_ENDPOINT_SUB_REQ {
+            libertas_endpoint_send_handler_result(
+                device,
+                opcode,
+                trans_id,
+                peer,
+                result,
+            );
         }
     }, listener);
 }
@@ -1296,6 +1526,33 @@ pub fn libertas_endpoint_response<T>(server: LibertasEndpoint, data: &T, trans_i
     libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_RSP, &bytes, trans_id, dest);
 }
 
+/// Sends a canonical failure status for an endpoint request.
+///
+/// This is the deferred/asynchronous counterpart to returning
+/// [`LibertasEndpointHandlerResult::Status`] from a status-aware listener. When
+/// rejecting a subscription asynchronously, also call
+/// [`libertas_endpoint_remove_subscriber`] after sending the response.
+#[inline(always)]
+pub fn libertas_endpoint_status_response(
+    server: LibertasEndpoint,
+    status: LibertasEndpointStandardStatus,
+    trans_id: LibertasTransId,
+    dest: u32,
+) {
+    let bytes = [
+        LibertasEndpointStatus::StandardStatus as u8,
+        status.code(),
+    ];
+    libertas_device_send_response(
+        PROTOCOL_LIBERTAS,
+        server,
+        OP_ENDPOINT_RSP,
+        &bytes,
+        trans_id,
+        dest,
+    );
+}
+
 /// Sends a endpoint report to subscribers
 ///
 /// Sends report data to all subscribers of a endpoint point or to a specific device.
@@ -1355,6 +1612,10 @@ mod tests {
     static ENDPOINT_CALLBACKS_WITH_DATA: AtomicUsize = AtomicUsize::new(0);
     static ENDPOINT_CALLBACKS_WITHOUT_DATA: AtomicUsize = AtomicUsize::new(0);
     static ENDPOINT_INVALID_RESPONSES: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_STANDARD_RESPONSES: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_RECEIVED_STATUSES: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_RECEIVED_INVALID_MESSAGES: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_LAST_STATUS: AtomicUsize = AtomicUsize::new(0);
     static ENDPOINT_REMOVALS: AtomicUsize = AtomicUsize::new(0);
     static ENDPOINT_LAST_DEVICE: AtomicUsize = AtomicUsize::new(0);
     static ENDPOINT_LAST_TRANS_ID: AtomicUsize = AtomicUsize::new(0);
@@ -1385,6 +1646,15 @@ mod tests {
                 ENDPOINT_LAST_DEVICE.store(device as usize, Ordering::Release);
                 ENDPOINT_LAST_TRANS_ID.store(trans_id as usize, Ordering::Release);
                 ENDPOINT_LAST_PEER.store(peer as usize, Ordering::Release);
+            } else if data_len == 2 && !data.is_null() {
+                let response = unsafe { slice::from_raw_parts(data, data_len) };
+                if response[0] == LibertasEndpointStatus::StandardStatus as u8 {
+                    ENDPOINT_STANDARD_RESPONSES.fetch_add(1, Ordering::AcqRel);
+                    ENDPOINT_LAST_STATUS.store(response[1] as usize, Ordering::Release);
+                    ENDPOINT_LAST_DEVICE.store(device as usize, Ordering::Release);
+                    ENDPOINT_LAST_TRANS_ID.store(trans_id as usize, Ordering::Release);
+                    ENDPOINT_LAST_PEER.store(peer as usize, Ordering::Release);
+                }
             }
         } else if protocol == PROTOCOL_LIBERTAS && op_code == OP_ENDPOINT_REMOVE_PEER {
             ENDPOINT_REMOVALS.fetch_add(1, Ordering::AcqRel);
@@ -1591,6 +1861,135 @@ mod tests {
         deliver(OP_ENDPOINT_REQ, 107, &[2]);
         assert_eq!(ENDPOINT_CALLBACKS_WITH_DATA.load(Ordering::Acquire), 2);
         assert_eq!(ENDPOINT_INVALID_RESPONSES.load(Ordering::Acquire), 5);
+
+        __libertas_release_package();
+    }
+
+    #[test]
+    fn endpoint_status_listener_round_trips_permission_denied() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        const ENDPOINT: LibertasEndpoint = 42;
+        const PEER: u32 = 74;
+
+        ENDPOINT_STANDARD_RESPONSES.store(0, Ordering::Release);
+        ENDPOINT_RECEIVED_STATUSES.store(0, Ordering::Release);
+        ENDPOINT_RECEIVED_INVALID_MESSAGES.store(0, Ordering::Release);
+        ENDPOINT_LAST_STATUS.store(0, Ordering::Release);
+        ENDPOINT_REMOVALS.store(0, Ordering::Release);
+
+        let mut runtime_api = fake_runtime_api();
+        let callbacks = __libertas_init_package(
+            &raw mut runtime_api as *mut LibertasRuntimeApi as *mut c_void);
+        unsafe {
+            ((*callbacks).init_task)(7);
+        }
+        libertas_register_endpoint_status_listener::<bool, _>(
+            ENDPOINT,
+            |_, opcode, message, _, _, _| {
+                match message {
+                    LibertasEndpointMessage::Data(false)
+                        if opcode == OP_ENDPOINT_REQ ||
+                            opcode == OP_ENDPOINT_SUB_REQ =>
+                    {
+                        LibertasEndpointHandlerResult::Status(
+                            LibertasEndpointStandardStatus::PermissionDenied,
+                        )
+                    }
+                    LibertasEndpointMessage::Status(status) => {
+                        ENDPOINT_RECEIVED_STATUSES.fetch_add(1, Ordering::AcqRel);
+                        ENDPOINT_LAST_STATUS.store(
+                            status.code() as usize,
+                            Ordering::Release,
+                        );
+                        LibertasEndpointHandlerResult::Handled
+                    }
+                    LibertasEndpointMessage::InvalidMessage => {
+                        ENDPOINT_RECEIVED_INVALID_MESSAGES.fetch_add(
+                            1,
+                            Ordering::AcqRel,
+                        );
+                        LibertasEndpointHandlerResult::Handled
+                    }
+                    _ => LibertasEndpointHandlerResult::Handled,
+                }
+            },
+            Box::new(()),
+        );
+
+        let deliver = |opcode: u8, trans_id: LibertasTransId, data: &[u8]| unsafe {
+            ((*callbacks).device_callback)(
+                7,
+                ENDPOINT,
+                opcode,
+                trans_id,
+                data.as_ptr() as *const c_void,
+                data.len(),
+                PEER,
+            );
+        };
+
+        deliver(
+            OP_ENDPOINT_REQ,
+            201,
+            &[LibertasEndpointStatus::Success as u8, 0],
+        );
+        assert_eq!(ENDPOINT_STANDARD_RESPONSES.load(Ordering::Acquire), 1);
+        assert_eq!(
+            ENDPOINT_LAST_STATUS.load(Ordering::Acquire),
+            LibertasEndpointStandardStatus::PermissionDenied.code() as usize,
+        );
+        assert_eq!(ENDPOINT_LAST_TRANS_ID.load(Ordering::Acquire), 201);
+        assert_eq!(ENDPOINT_LAST_PEER.load(Ordering::Acquire), PEER as usize);
+
+        deliver(
+            OP_ENDPOINT_SUB_REQ,
+            202,
+            &[LibertasEndpointStatus::Success as u8, 0],
+        );
+        assert_eq!(ENDPOINT_STANDARD_RESPONSES.load(Ordering::Acquire), 2);
+        assert_eq!(ENDPOINT_REMOVALS.load(Ordering::Acquire), 1);
+
+        deliver(
+            OP_ENDPOINT_RSP,
+            203,
+            &[
+                LibertasEndpointStatus::StandardStatus as u8,
+                LibertasEndpointStandardStatus::PermissionDenied.code(),
+            ],
+        );
+        assert_eq!(ENDPOINT_RECEIVED_STATUSES.load(Ordering::Acquire), 1);
+
+        // Future status values are preserved, while canonical OK is not a
+        // valid failure-status frame.
+        deliver(
+            OP_ENDPOINT_RSP,
+            204,
+            &[LibertasEndpointStatus::StandardStatus as u8, 200],
+        );
+        assert_eq!(ENDPOINT_RECEIVED_STATUSES.load(Ordering::Acquire), 2);
+        assert_eq!(ENDPOINT_LAST_STATUS.load(Ordering::Acquire), 200);
+        deliver(
+            OP_ENDPOINT_RSP,
+            205,
+            &[LibertasEndpointStatus::StandardStatus as u8, 0],
+        );
+        assert_eq!(
+            ENDPOINT_RECEIVED_INVALID_MESSAGES.load(Ordering::Acquire),
+            1,
+        );
+        assert_eq!(
+            LibertasEndpointStandardStatus::Unrecognized(0).code(),
+            LibertasEndpointStandardStatus::Unknown.code(),
+        );
+
+        libertas_endpoint_status_response(
+            ENDPOINT,
+            LibertasEndpointStandardStatus::PermissionDenied,
+            206,
+            PEER,
+        );
+        assert_eq!(ENDPOINT_STANDARD_RESPONSES.load(Ordering::Acquire), 3);
+        assert_eq!(ENDPOINT_LAST_TRANS_ID.load(Ordering::Acquire), 206);
 
         __libertas_release_package();
     }
