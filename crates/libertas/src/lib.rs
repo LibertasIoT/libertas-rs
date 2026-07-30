@@ -36,6 +36,17 @@ pub use avro::{AvroDecode, AvroEncode, NotBytesDecode, NotBytesEncode};
 pub use notification::{NotificationImportance, NotificationArgument, libertas_notification_send, libertas_notification_send_literal};
 pub use data::{DataName, IndexedData, IndexDirection, IndexedDataStat, libertas_data_get_names, libertas_data_get_indexed_names, libertas_data_write, libertas_data_write_indexed, libertas_data_read, libertas_data_read_indexed, libertas_data_read_indexed_range, libertas_data_remove, libertas_data_remove_indexed, libertas_data_remove_indexed_records, libertas_data_open_indexed};
 pub use log::{LogLevel, libertas_log};
+pub use libertas_hub::{
+    EndpointMessageStatus,
+    EndpointMessageStatus as LibertasEndpointStatus,
+    EndpointOperation,
+    OP_ENDPOINT_DATA,
+    OP_ENDPOINT_PEER_DOWN,
+    OP_ENDPOINT_PEER_TIMEOUT,
+    OP_ENDPOINT_REQ,
+    OP_ENDPOINT_RSP,
+    OP_ENDPOINT_SUB_REQ,
+};
 pub use libertas_utils::{InlineByteBuffer, STACK_BUF_SIZE};
 
 use alloc::{slice, boxed::Box, rc::Rc, vec::Vec};
@@ -96,40 +107,6 @@ pub const LIBERTAS_BROADCAST_DEST: u32 = 0xffffffff;
 
 const OP_SYSTEM_LOG: u8 = 0xe0;
 
-/// Endpoint subscription request opcode.
-pub const OP_ENDPOINT_SUB_REQ: u8 = 3;
-/// Endpoint data message opcode.
-pub const OP_ENDPOINT_DATA: u8 = 5;
-/// Endpoint request opcode (expects response).
-pub const OP_ENDPOINT_REQ: u8 = 8;
-/// Endpoint response opcode.
-pub const OP_ENDPOINT_RSP: u8 = 9;
-/// Endpoint message status carried in the first payload byte.
-///
-/// `Success` is followed by exactly one Avro datum. `InvalidMessage` has no
-/// Avro body. A listener may return `InvalidMessage` for a decoded request or
-/// subscription request that is semantically invalid; the runtime then sends
-/// the corresponding status response. Peer-status notifications have no
-/// payload and therefore do not carry this status byte.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[repr(u8)]
-pub enum LibertasEndpointStatus {
-    Success = 0,
-    InvalidMessage = 1,
-}
-/// Endpoint peer down notification opcode.
-/// It is sent by the Libertas OS to notify that the peer process is down.
-/// The host shall stop any protocol retrying because when the peer process
-/// is up agina it will restart request and subscription.
-/// This status won't be possible without a Libertas platform as authorative agent
-/// manager that provides ground truth.
-/// Note that his status is different than OP_ENDPOINT_PEER_TIMEOUT, which is caused by network
-/// failure and the peer status is uncertain with a broken network. In that case most likely
-/// a retry shall be scheduled.
-pub const OP_ENDPOINT_PEER_DOWN: u8 = 20;
-/// It is sent by the Libertas OS to notify that the network to peer is down.
-/// Peer status is unknown.
-pub const OP_ENDPOINT_PEER_TIMEOUT: u8 = 21;
 /// Send by endpoint server to notify underlying Libertas OS to remove the peer
 /// from subscription list. Future broadcasts will not include that peer.
 const OP_ENDPOINT_REMOVE_PEER: u8 = 22;

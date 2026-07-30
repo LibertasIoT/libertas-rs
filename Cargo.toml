@@ -1,6 +1,9 @@
 [workspace]
 members = [
-    "crates/libertas_macros", "crates/libertas_utils", "crates/libertas"
+    "crates/libertas-hub",
+    "crates/libertas_macros",
+    "crates/libertas_utils",
+    "crates/libertas",
 ]
 resolver = "2" # Use the modern feature resolver
 
