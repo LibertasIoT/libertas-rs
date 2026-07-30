@@ -33,7 +33,10 @@ mod data;
 mod log;
 
 pub use avro::{AvroDecode, AvroEncode, NotBytesDecode, NotBytesEncode};
-pub use notification::{NotificationImportance, NotificationArgument, libertas_notification_send, libertas_notification_send_literal};
+pub use notification::{
+    FormattedText, NotificationArgument, NotificationImportance, libertas_formatted_text,
+    libertas_formatted_text_decode, libertas_notification_send, libertas_notification_send_literal,
+};
 pub use data::{DataName, IndexedData, IndexDirection, IndexedDataStat, libertas_data_get_names, libertas_data_get_indexed_names, libertas_data_write, libertas_data_write_indexed, libertas_data_read, libertas_data_read_indexed, libertas_data_read_indexed_range, libertas_data_remove, libertas_data_remove_indexed, libertas_data_remove_indexed_records, libertas_data_open_indexed};
 pub use log::{LogLevel, libertas_log};
 pub use libertas_utils::{InlineByteBuffer, STACK_BUF_SIZE};

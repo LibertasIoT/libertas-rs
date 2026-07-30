@@ -119,6 +119,51 @@ impl PartialEq<NotificationArgument<'_>> for NotificationArgumentDecode {
     }
 }
 
+/// Decoded localized formatted text.
+///
+/// A FormattedText runtime byte array uses the same resource name and typed
+/// printf-style arguments as the notification framework, without notification
+/// delivery metadata such as importance, source, or recipients.
+#[derive(LibertasAvroEncode, LibertasAvroDecode, PartialEq, Debug, Clone)]
+pub struct FormattedText {
+    pub resource_name: String,
+    pub arguments: Vec<NotificationArgumentDecode>,
+}
+
+#[derive(LibertasAvroEncode)]
+struct FormattedTextRef<'a> {
+    resource_name: &'a str,
+    arguments: &'a [NotificationArgument<'a>],
+}
+
+/// Encodes localized formatted text for a FormattedText runtime byte array.
+///
+/// The returned bytes are an Avro record containing the string-resource name
+/// followed by the same typed printf-style argument array used by Libertas
+/// notifications. Runtime clients localize and render the value; applications
+/// must not Base64-wrap it when the schema host is a byte array.
+pub fn libertas_formatted_text(
+    resource_name: &str,
+    arguments: &[NotificationArgument<'_>],
+) -> Vec<u8> {
+    let value = FormattedTextRef {
+        resource_name,
+        arguments,
+    };
+    let mut encoded = Vec::new();
+    value.avro_encode(&mut encoded);
+    encoded
+}
+
+/// Decodes and validates one localized FormattedText byte array.
+///
+/// Returns `None` for malformed data or trailing bytes.
+pub fn libertas_formatted_text_decode(encoded: &[u8]) -> Option<FormattedText> {
+    let mut offset = 0;
+    let value = FormattedText::avro_decode(encoded, &mut offset).ok()?;
+    (offset == encoded.len()).then_some(value)
+}
+
 #[derive(LibertasAvroEncode)]
 struct LibertasNotification<'a> {
     level: NotificationImportance,
@@ -177,4 +222,37 @@ pub fn libertas_notification_send(recipients: &[u32], level: NotificationImporta
 pub fn libertas_notification_send_literal(recipients: &[u32], level: NotificationImportance, text: &str) {
     let arg = NotificationArgument::LiteralText(text);
     libertas_notification_send(recipients, level, None, "SYS_LITERAL", &[arg]);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn formatted_text_round_trips_notification_arguments_without_base64() {
+        let arguments = [
+            NotificationArgument::Object(42),
+            NotificationArgument::UnitFloat {
+                unit_type: "temperature-celsius",
+                value: 22.5,
+            },
+            NotificationArgument::ResourceText("HVAC_IDLE"),
+        ];
+
+        let encoded = libertas_formatted_text("HVAC_ROOM_STATUS", &arguments);
+        let decoded = libertas_formatted_text_decode(&encoded).unwrap();
+
+        assert_eq!(decoded.resource_name, "HVAC_ROOM_STATUS");
+        assert_eq!(decoded.arguments.len(), arguments.len());
+        for (decoded, expected) in decoded.arguments.iter().zip(arguments.iter()) {
+            assert_eq!(decoded, expected);
+        }
+    }
+
+    #[test]
+    fn formatted_text_decoder_rejects_trailing_bytes() {
+        let mut encoded = libertas_formatted_text("HVAC_IDLE", &[]);
+        encoded.push(0);
+        assert_eq!(libertas_formatted_text_decode(&encoded), None);
+    }
 }
