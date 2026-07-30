@@ -165,10 +165,6 @@ const SHUTDOWN_RUNNING: u8 = 0;
 const SHUTDOWN_REQUESTED: u8 = 1;
 const SHUTDOWN_COMPLETED: u8 = 2;
 
-#[doc(hidden)]
-pub trait LibertasExport {
-}
-
 // A count down timer
 enum TimerState {
     Idle,
