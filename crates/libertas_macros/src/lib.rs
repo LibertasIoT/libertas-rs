@@ -23,7 +23,6 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                    attr.path().is_ident("libertas_data_schema") || 
                    attr.path().is_ident("libertas_default") || 
                    attr.path().is_ident("libertas_device_type") || 
-                   attr.path().is_ident("libertas_foreign_type") || 
                    attr.path().is_ident("libertas_ui_header") || 
                    attr.path().is_ident("libertas_read_only") || 
                    attr.path().is_ident("libertas_hidden") || 
@@ -83,8 +82,21 @@ pub fn libertas_data_schema(_attr: TokenStream, item: TokenStream) -> TokenStrea
     })
 }
 
-/// This macro is used on structs and enums.
-/// 
+/// Declares the direct official App type for a published compatible type.
+///
+/// Structs and enums may also use this spelling as a `LibertasExport` helper
+/// attribute. The standalone attribute form keeps compatible type aliases valid
+/// Rust source; placement and FQN validation belong to the schema parser.
+#[proc_macro_attribute]
+pub fn libertas_foreign_type(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+/// Enables parser-only attributes on published structs and enums.
+///
+/// `libertas_foreign_type` is accepted by Rust through this derive because it
+/// declares compatibility for the published named type itself. The schema
+/// parser rejects it on fields, variants, and references.
 #[proc_macro_derive(LibertasExport, attributes(
     libertas_copy_from,
     libertas_enum_source,
