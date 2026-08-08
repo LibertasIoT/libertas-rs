@@ -1,4 +1,5 @@
 //! Shared message definitions for Libertas Hub.
+//! #[libertas_types_only]
 //!
 //! This crate contains definitions only. It does not implement Hub operations
 //! or transport behavior.
