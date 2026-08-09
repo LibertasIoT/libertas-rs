@@ -233,8 +233,9 @@ pub enum LibertasEndpointHandlerResult {
 /// message cannot be delivered. Clients suspend subscription retries until
 /// [`OP_ENDPOINT_PEER_UP`] arrives.
 pub const OP_ENDPOINT_PEER_DOWN: u8 = 20;
-/// It is sent by the Libertas OS to notify that the network to peer is down.
-/// Peer status is unknown.
+/// Legacy peer-timeout opcode retained for source compatibility. Current
+/// Libertas infrastructure never emits it: missing expected protocol traffic
+/// is an application-level timeout and does not prove that a peer is down.
 pub const OP_ENDPOINT_PEER_TIMEOUT: u8 = 21;
 /// Sent by an endpoint server to notify the Libertas host to remove the peer
 /// from subscription list. Future broadcasts will not include that peer.
@@ -1203,9 +1204,10 @@ fn libertas_endpoint_send_invalid_message(
 /// trailing data never reaches the callback. Invalid requests are answered
 /// automatically with `InvalidMessage`. Invalid responses and reports are
 /// surfaced as `None` without sending another message, which prevents response
-/// loops. Standard statuses and peer-up, peer-down, or peer-timeout notifications
-/// also carry `None`. Use [`libertas_register_endpoint_status_listener`] when the
-/// callback needs to distinguish those cases.
+/// loops. Standard statuses and peer-up or peer-down notifications also carry
+/// `None`. Use [`libertas_register_endpoint_status_listener`] when the callback
+/// needs to distinguish those cases. The legacy peer-timeout opcode is decoded
+/// as `None` for compatibility, but current infrastructure never emits it.
 pub fn libertas_register_endpoint_listener<T, F>(
     id: LibertasEndpoint,
     mut callback: F,
@@ -1257,7 +1259,14 @@ pub fn libertas_register_endpoint_listener<T, F>(
 /// Lifecycle actions carry [`LibertasEndpointMessage::NoPayload`]. Clients
 /// receive server Up and Down. Servers may receive an opportunistic client Down
 /// after failed delivery, but never receive client Up and must not infer a
-/// complete client roster from these callbacks.
+/// complete client roster from these callbacks. Current Hub-local App-task
+/// delivery is guaranteed. A future remote transport must retain the newest
+/// unacknowledged server Up/Down and retry it with backoff until its separate,
+/// out-of-band acknowledgement arrives; this adds no Libertas SDK message. The
+/// infrastructure suppresses stale and duplicate events before App delivery,
+/// so every delivered Up is newer and requires resubscription even when Down
+/// was not observed. Infrastructure never reports peer timeout; clients infer
+/// timeout from missing expected protocol traffic.
 pub fn libertas_register_endpoint_status_listener<T, F>(
     id: LibertasEndpoint,
     callback: F,
