@@ -8,7 +8,7 @@
 //! - **Timers**: Create interval and deadline timers for periodic or delayed tasks.
 //! - **Peer Communication**: Send/receive messages via developer-defined protocols with peers (humans, LLMs, or other apps).
 //! - **Logging and Notifications**: Log messages and send notifications with configurable importance.
-//! - **Persistent Data**: Store/retrieve data in standalone or indexed databases using Avro encoding.
+//! - **Persistent Data**: Store and retrieve single records or indexed data using Avro encoding.
 //!
 //! # Example
 //!
@@ -37,7 +37,7 @@ pub use notification::{
     FormattedText, NotificationArgument, NotificationImportance, libertas_formatted_text,
     libertas_formatted_text_decode, libertas_notification_send, libertas_notification_send_literal,
 };
-pub use data::{DataName, IndexedData, IndexDirection, IndexedDataStat, libertas_data_get_names, libertas_data_get_indexed_names, libertas_data_write, libertas_data_write_indexed, libertas_data_read, libertas_data_read_indexed, libertas_data_read_indexed_range, libertas_data_remove, libertas_data_remove_indexed, libertas_data_remove_indexed_records, libertas_data_open_indexed};
+pub use data::{DataName, IndexedData, IndexDirection, IndexedDataStat, libertas_data_get_single_names, libertas_data_get_indexed_names, libertas_data_write_single, libertas_data_write_indexed, libertas_data_read_single, libertas_data_read_indexed, libertas_data_read_indexed_range, libertas_data_remove_single, libertas_data_remove_indexed, libertas_data_remove_indexed_records, libertas_data_open_indexed};
 pub use log::{LogLevel, libertas_log};
 pub use libertas_utils::{InlineByteBuffer, STACK_BUF_SIZE};
 
@@ -254,7 +254,7 @@ const OP_SYSTEM_WAKE_UP: u8 = 255;         // See
 const PROTOCOL_LIBERTAS: u16 = 0;
 
 const DEVICE_SYSTEM: u32 = 0;
-const DEVICE_SYSTEM_DATABASE_STADNALONE: u32 = 0;
+const DEVICE_SYSTEM_DATABASE_SINGLE: u32 = 0;
 const DEVICE_SYSTEM_DATABASE_INDEXED: u32 = 1;
 
 const OP_SYSTEM_MESSAGE: u8 = 0xfe;

@@ -1,6 +1,6 @@
 /// Libertas Rust SDK - Data API
 /// 
-/// Functions for standalone and indexed database operations with Avro encoding.
+/// Functions for single-record and indexed data operations with Avro encoding.
 
 use alloc::vec::Vec;
 use alloc::string::String;
@@ -24,8 +24,9 @@ pub struct IndexedData<T> where T: AvroDecode {
 }
 
 /// Data name with resource and arguments.
-/// Used for identifying standalone and indexed data in the database.
-/// printf style localized template shall be supplied in APp documents to render the resource name into natural language with arguments.
+/// Used for identifying single records and indexed data in the database.
+/// A printf-style localized template shall be supplied in App documents to
+/// render the resource name into natural language with arguments.
 /// 
 #[derive(LibertasAvroDecode)]
 pub struct DataName {
@@ -40,7 +41,7 @@ struct DataNameInternal<'a> {
 }
 
 #[repr(C)]
-struct DataInternal {
+struct DataSingleInternal {
     name: *const u8,
     name_len: usize,
     value: *const u8,
@@ -88,12 +89,12 @@ pub struct IndexedDataStat {
     pub max_index: i64,
 }
 
-/// Returns all standalone data names.
+/// Returns all single-record data names.
 /// 
 /// # Returns
 /// Vector of data names with resource and arguments.
-pub fn libertas_data_get_names() -> Vec<DataName> {
-    let result = __libertas_device_read_raw(PROTOCOL_LIBERTAS, DEVICE_SYSTEM_DATABASE_STADNALONE, OP_SYSTEM_DATABASE_GET_NAMES, core::ptr::null(), 0);
+pub fn libertas_data_get_single_names() -> Vec<DataName> {
+    let result = __libertas_device_read_raw(PROTOCOL_LIBERTAS, DEVICE_SYSTEM_DATABASE_SINGLE, OP_SYSTEM_DATABASE_GET_NAMES, core::ptr::null(), 0);
     let mut names = Vec::new();
     if result.success {
         let data_slice = unsafe { core::slice::from_raw_parts(result.data, result.data_len) };
@@ -124,15 +125,15 @@ pub fn libertas_data_get_indexed_names() -> Vec<DataName> {
     names
 }
 
-/// Removes standalone data by resource name and arguments.
-pub fn libertas_data_remove(resource_name: &str, arguments: &[NotificationArgument]) {
+/// Removes a single record by resource name and arguments.
+pub fn libertas_data_remove_single(resource_name: &str, arguments: &[NotificationArgument]) {
     let data_name = DataNameInternal {
         resource_name,
         arguments,
     };
     let mut serialized = Vec::new();
     data_name.avro_encode(&mut serialized);
-    __libertas_device_send_raw(PROTOCOL_LIBERTAS, DEVICE_SYSTEM_DATABASE_STADNALONE, OP_SYSTEM_DATABASE_REMOVE_DATA, 0, 0, serialized.as_ptr(), serialized.len());
+    __libertas_device_send_raw(PROTOCOL_LIBERTAS, DEVICE_SYSTEM_DATABASE_SINGLE, OP_SYSTEM_DATABASE_REMOVE_DATA, 0, 0, serialized.as_ptr(), serialized.len());
 }
 
 /// Removes a piece of indexed data from the indexed database. The data to remove is identified by the resource name and arguments.
@@ -141,7 +142,9 @@ pub fn libertas_data_remove(resource_name: &str, arguments: &[NotificationArgume
 /// # Arguments
 /// * `resource_name` - The resource name of the indexed data to remove. This is a string that identifies the type of indexed data, such as "player_score_history" or "enemy_spawn_events".
 /// * `arguments` - The arguments that further specify the indexed data to remove. The arguments are an array of `NotificationArgument` structs, which can include various types of data such as integers, strings, or booleans. The specific arguments needed to identify the indexed data will depend on how the indexed data was originally written to the database.
-/// Note that indexed data is different from standalone data in that it is organized by an index value, which allows for efficient querying of data based on that index. When you remove indexed data using this function, you are removing all records that match the specified resource name and arguments, regardless of their index values.
+/// Unlike a single record, indexed data is organized by an index value for
+/// ordered lookup. This operation removes the complete indexed database named
+/// by the resource and arguments, regardless of its records' index values.
 ///
 pub fn libertas_data_remove_indexed(resource_name: &str, arguments: &[NotificationArgument]) {
     let data_name = DataNameInternal {
@@ -197,13 +200,13 @@ pub fn libertas_data_open_indexed(resource_name: &str, arguments: &[Notification
     }
 }
 
-/// Writes data to standalone database.
+/// Writes a single record.
 /// 
 /// # Arguments
 /// * `resource_name` - Resource identifier.
 /// * `arguments` - Resource arguments.
 /// * `data` - Encodable data.
-pub fn libertas_data_write(resource_name: &str, arguments: &[NotificationArgument], data: &dyn AvroEncode) {
+pub fn libertas_data_write_single(resource_name: &str, arguments: &[NotificationArgument], data: &dyn AvroEncode) {
     let data_name = DataNameInternal {
         resource_name,
         arguments,
@@ -217,13 +220,13 @@ pub fn libertas_data_write(resource_name: &str, arguments: &[NotificationArgumen
     let name_ptr = serialized.as_ptr();
     let value_ptr = unsafe { name_ptr.add(name_len) };
 
-    let data_internal = DataInternal {
+    let data_internal = DataSingleInternal {
         name: name_ptr,
         name_len: name_len,
         value: value_ptr,
         value_len: total_len - name_len,
     };
-    __libertas_device_send_raw(PROTOCOL_LIBERTAS, DEVICE_SYSTEM_DATABASE_STADNALONE, OP_SYSTEM_DATABASE_WRITE_DATA, 0, 0, &data_internal as *const DataInternal as *const u8, core::mem::size_of::<DataInternal>());
+    __libertas_device_send_raw(PROTOCOL_LIBERTAS, DEVICE_SYSTEM_DATABASE_SINGLE, OP_SYSTEM_DATABASE_WRITE_DATA, 0, 0, &data_internal as *const DataSingleInternal as *const u8, core::mem::size_of::<DataSingleInternal>());
 }
 
 /// Writes indexed data.
@@ -245,7 +248,7 @@ pub fn libertas_data_write_indexed(db: LibertasDataStore, index: i64, data: &dyn
     __libertas_device_send_raw(PROTOCOL_LIBERTAS, DEVICE_SYSTEM_DATABASE_INDEXED, OP_SYSTEM_DATABASE_WRITE_DATA, 0, 0, &data_internal as *const DataWriteIndexedReq as *const u8, core::mem::size_of::<DataWriteIndexedReq>());
 }
 
-/// Reads standalone data.
+/// Reads a single record.
 /// 
 /// # Arguments
 /// * `resource_name` - Resource identifier.
@@ -253,14 +256,14 @@ pub fn libertas_data_write_indexed(db: LibertasDataStore, index: i64, data: &dyn
 /// 
 /// # Returns
 /// Decoded data or None if not found.
-pub fn libertas_data_read<T>(resource_name: &str, arguments: &[NotificationArgument]) -> Option<T> where T: AvroDecode {
+pub fn libertas_data_read_single<T>(resource_name: &str, arguments: &[NotificationArgument]) -> Option<T> where T: AvroDecode {
     let data_name = DataNameInternal {
         resource_name,
         arguments,
     };
     let mut name = Vec::new();
     data_name.avro_encode(&mut name);
-    let result = __libertas_device_read_raw(PROTOCOL_LIBERTAS, DEVICE_SYSTEM_DATABASE_STADNALONE, OP_SYSTEM_DATABASE_READ_DATA, name.as_ptr(), name.len());
+    let result = __libertas_device_read_raw(PROTOCOL_LIBERTAS, DEVICE_SYSTEM_DATABASE_SINGLE, OP_SYSTEM_DATABASE_READ_DATA, name.as_ptr(), name.len());
     return if result.success {
         let data_slice = unsafe { core::slice::from_raw_parts(result.data, result.data_len) };
         let mut index = 0;
