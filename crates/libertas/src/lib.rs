@@ -97,7 +97,9 @@ pub const LIBERTAS_ENDPOINT_IGNORED_TRANS_ID: LibertasTransId = 0;
 /// Valid until closed or the opening task terminates.
 pub type LibertasDataStore = u32;
 
-/// Broadcast destination for sending to all peers.
+/// Low-level broadcast destination used by APIs that require an explicit peer.
+/// Endpoint servers normally call [`libertas_endpoint_report`] with `None` so
+/// the host performs client fan-out without exposing this value to App logic.
 pub const LIBERTAS_BROADCAST_DEST: u32 = 0xffffffff;
 
 const OP_SYSTEM_LOG: u8 = 0xe0;
@@ -212,7 +214,7 @@ pub enum LibertasEndpointMessage<T> {
     InvalidMessage,
     /// The endpoint returned a canonical failure status.
     Status(LibertasEndpointStandardStatus),
-    /// A peer-down or peer-timeout notification, identified by its opcode.
+    /// A peer-up, peer-down, or peer-timeout notification, identified by its opcode.
     NoPayload,
 }
 
@@ -226,22 +228,21 @@ pub enum LibertasEndpointHandlerResult {
     /// Complete a request with the supplied canonical failure status.
     Status(LibertasEndpointStandardStatus),
 }
-/// Endpoint peer down notification opcode.
-/// It is sent by the Libertas OS to notify that the peer process is down.
-/// The host shall stop any protocol retrying because when the peer process
-/// is up agina it will restart request and subscription.
-/// This status won't be possible without a Libertas platform as authorative agent
-/// manager that provides ground truth.
-/// Note that his status is different than OP_ENDPOINT_PEER_TIMEOUT, which is caused by network
-/// failure and the peer status is uncertain with a broken network. In that case most likely
-/// a retry shall be scheduled.
+/// Confirmed peer-down notification. The host sends server Down to retained
+/// clients and may report client Down to a server when a server-to-client
+/// message cannot be delivered. Clients suspend subscription retries until
+/// [`OP_ENDPOINT_PEER_UP`] arrives.
 pub const OP_ENDPOINT_PEER_DOWN: u8 = 20;
 /// It is sent by the Libertas OS to notify that the network to peer is down.
 /// Peer status is unknown.
 pub const OP_ENDPOINT_PEER_TIMEOUT: u8 = 21;
-/// Send by endpoint server to notify underlying Libertas OS to remove the peer
+/// Sent by an endpoint server to notify the Libertas host to remove the peer
 /// from subscription list. Future broadcasts will not include that peer.
 const OP_ENDPOINT_REMOVE_PEER: u8 = 22;
+/// Endpoint server-up notification sent by the Libertas host to clients.
+/// Resume subscription work suspended by [`OP_ENDPOINT_PEER_DOWN`]. Servers
+/// never receive client Up.
+pub const OP_ENDPOINT_PEER_UP: u8 = 23;
 
 // Internal App lifecycle opcode. It is delivered Host -> App through
 // LibertasPackageCallback::device_callback and acknowledged App -> Host through
@@ -1202,8 +1203,8 @@ fn libertas_endpoint_send_invalid_message(
 /// trailing data never reaches the callback. Invalid requests are answered
 /// automatically with `InvalidMessage`. Invalid responses and reports are
 /// surfaced as `None` without sending another message, which prevents response
-/// loops. Standard statuses and peer-down or peer-timeout notifications also
-/// carry `None`. Use [`libertas_register_endpoint_status_listener`] when the
+/// loops. Standard statuses and peer-up, peer-down, or peer-timeout notifications
+/// also carry `None`. Use [`libertas_register_endpoint_status_listener`] when the
 /// callback needs to distinguish those cases.
 pub fn libertas_register_endpoint_listener<T, F>(
     id: LibertasEndpoint,
@@ -1252,7 +1253,11 @@ pub fn libertas_register_endpoint_listener<T, F>(
 ///
 /// Returning [`LibertasEndpointHandlerResult::Status`] for a request or
 /// subscription request automatically sends a correlated standard-status
-/// response. A failed subscription is removed from the runtime subscriber set.
+/// response. A failed subscription is removed from the host-owned client set.
+/// Lifecycle actions carry [`LibertasEndpointMessage::NoPayload`]. Clients
+/// receive server Up and Down. Servers may receive an opportunistic client Down
+/// after failed delivery, but never receive client Up and must not infer a
+/// complete client roster from these callbacks.
 pub fn libertas_register_endpoint_status_listener<T, F>(
     id: LibertasEndpoint,
     callback: F,
@@ -1275,7 +1280,9 @@ pub fn libertas_register_endpoint_status_listener<T, F>(
     libertas_register_device_listener(id, |device, opcode, data, tag_any, trans_id, peer| {
         let tag = tag_any.downcast_mut::<EndpointStatusListener<T>>().unwrap();
 
-        if opcode == OP_ENDPOINT_PEER_DOWN || opcode == OP_ENDPOINT_PEER_TIMEOUT {
+        if opcode == OP_ENDPOINT_PEER_DOWN ||
+                opcode == OP_ENDPOINT_PEER_UP ||
+                opcode == OP_ENDPOINT_PEER_TIMEOUT {
             (tag.callback)(
                 device,
                 opcode,
@@ -1556,15 +1563,17 @@ pub fn libertas_endpoint_status_response(
     );
 }
 
-/// Sends a endpoint report to subscribers
+/// Sends an endpoint report to subscribers.
 ///
-/// Sends report data to all subscribers of a endpoint point or to a specific device.
-/// This is typically used to push data updates to clients that have subscribed to data changes.
+/// With `peer: None`, the host fans the report out through its authoritative,
+/// permanent-until-changed client set. This is the normal form for common
+/// updates and heartbeats; App code does not use the broadcast peer ID.
+/// `Some(peer)` sends only to one peer, normally for peer-specific protocol data.
 ///
 /// # Arguments
 /// * `server` - A endpoint server id. The link created when a Libertas machine is created.
 /// * `data` - The data payload to send in the report
-/// * `peer` - Optional specific device ID to send the report to. If None, broadcasts to all subscribers.
+/// * `peer` - Optional peer task ID. `None` broadcasts to all host-retained clients.
 ///
 /// # Note
 /// Unlike Matter protocol, the data can be any data structure defined and published by the server developer, encoded with Apache Avro format.
@@ -1582,13 +1591,13 @@ pub fn libertas_endpoint_report<T>(server: LibertasEndpoint, data: &T, peer: Opt
     libertas_device_send_report(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_DATA, &bytes, LIBERTAS_ENDPOINT_IGNORED_TRANS_ID, peer_id);
 }
 
-/// Remove a subscriber. 
+/// Remove a subscriber.
 /// 
 /// Because the protocol can be anything designed by the developer. There is
 /// no way for Libertas OS runtime to know whether a subscribe request has failed. After the 
-/// task sends back a reject response, it has to notify the OS runtime to remove the subscriber
-/// from the OS maintained list.
-/// * A broadcast data report will nopt be send to this peer.
+/// task sends back a reject response, it has to notify the host to remove the
+/// subscriber from the host-owned permanent-until-changed client set.
+/// * A broadcast data report will not be sent to this peer.
 /// * OS will not try to maintain the session to keep it alive.
 /// 
 /// # Arguments
@@ -1853,6 +1862,19 @@ mod tests {
             );
         }
         assert_eq!(ENDPOINT_CALLBACKS_WITHOUT_DATA.load(Ordering::Acquire), 3);
+
+        unsafe {
+            ((*callbacks).device_callback)(
+                7,
+                ENDPOINT,
+                OP_ENDPOINT_PEER_UP,
+                0,
+                core::ptr::null(),
+                0,
+                PEER,
+            );
+        }
+        assert_eq!(ENDPOINT_CALLBACKS_WITHOUT_DATA.load(Ordering::Acquire), 4);
 
         // Valid data is decoded, while trailing bytes and unknown statuses reject.
         deliver(OP_ENDPOINT_RSP, 105, &[LibertasEndpointStatus::Success as u8, 1]);
