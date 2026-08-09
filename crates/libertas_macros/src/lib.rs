@@ -20,6 +20,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                    attr.path().is_ident("libertas_endpoint_schema") ||
                    attr.path().is_ident("libertas_endpoint_base_objects") || 
                    attr.path().is_ident("libertas_endpoint_server") || 
+                   attr.path().is_ident("libertas_permissions") ||
                    attr.path().is_ident("libertas_data_schema") || 
                    attr.path().is_ident("libertas_default") || 
                    attr.path().is_ident("libertas_device_type") || 
@@ -104,6 +105,7 @@ pub fn libertas_foreign_type(_attr: TokenStream, item: TokenStream) -> TokenStre
     libertas_endpoint_schema, 
     libertas_endpoint_server, 
     libertas_endpoint_base_objects,
+    libertas_permissions,
     libertas_foreign_type,
     libertas_request, 
     libertas_response, 
