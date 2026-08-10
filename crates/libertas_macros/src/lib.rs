@@ -35,10 +35,8 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                    attr.path().is_ident("libertas_array") || 
                    attr.path().is_ident("libertas_unordered") || 
                    attr.path().is_ident("libertas_unique") || 
-                   attr.path().is_ident("libertas_virtual_device_type") || 
-                   attr.path().is_ident("tag") ||
-                   attr.path().is_ident("content") || 
-                   attr.path().is_ident("untagged") {
+                   attr.path().is_ident("libertas_virtual_device_type") ||
+                   attr.path().is_ident("content") {
                     // Get the parameter name for logging
                     if let Pat::Ident(ref id) = *pat_type.pat {
                         println!("Consuming attr on argument: {}", id.ident);
