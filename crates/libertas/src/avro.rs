@@ -667,7 +667,7 @@ impl NotBytesEncode for u32 {}
 impl NotBytesDecode for u32 {}
 
 impl AvroEncode for u64 { fn avro_encode(&self, buffer: &mut Vec<u8>) { (*self as i64).avro_encode(buffer); } }
-impl AvroDecode for u64 { fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> { u64::try_from(i64::avro_decode(buffer, offset)?).map_err(|_| "Decoded value does not fit u64") } }
+impl AvroDecode for u64 { fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> { Ok(i64::avro_decode(buffer, offset)? as u64) } }
 impl NotBytesEncode for u64 {}
 impl NotBytesDecode for u64 {}
 
@@ -861,6 +861,24 @@ mod tests {
 
     use super::*;
     use std::panic::{catch_unwind, AssertUnwindSafe};
+
+    #[test]
+    fn f32_and_u64_round_trip_with_libertas_wire_widths() {
+        let mut encoded = Vec::new();
+        24.5f32.avro_encode(&mut encoded);
+        assert_eq!(encoded, [0x00, 0x00, 0xc4, 0x41]);
+        let mut offset = 0;
+        assert_eq!(f32::avro_decode(&encoded, &mut offset).unwrap(), 24.5);
+        assert_eq!(offset, 4);
+
+        for value in [0u64, i64::MAX as u64, i64::MAX as u64 + 1, u64::MAX] {
+            encoded.clear();
+            value.avro_encode(&mut encoded);
+            offset = 0;
+            assert_eq!(u64::avro_decode(&encoded, &mut offset).unwrap(), value);
+            assert_eq!(offset, encoded.len());
+        }
+    }
 
     #[test]
     fn malformed_lengths_and_array_blocks_return_errors_without_panicking() {
