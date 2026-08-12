@@ -60,7 +60,196 @@ pub type LibertasDevice = u32;
 pub type LibertasVirtualDevice = LibertasDevice;
 
 /// Specialized virtual device for endpoint interactions.
-/// Data schema must be predefined and published by the server developer.
+///
+/// Endpoint application data has a schema predefined and published by the
+/// server developer. Endpoint subscription membership and signaling are instead
+/// standardized by Libertas and remain outside that application schema.
+///
+/// # Normative endpoint subscription and signaling contract
+///
+/// This contiguous SDK comment is the sole ground truth for the endpoint
+/// subscription/signaling behavior exposed to Rust Apps. Manuals, examples,
+/// tests, and implementation notes are summaries or derived material; if they
+/// disagree with this contract, this contract wins.
+///
+/// ## Host-mediated membership and opaque peer handles
+///
+/// - Every [`OP_ENDPOINT_SUB_REQ`] is routed through the host before it reaches
+///   the endpoint server App, including when both Apps are local. There is no
+///   direct App-to-App subscription path. As it routes the request, the host
+///   records subscription membership as the pair `(server endpoint, opaque peer
+///   handle)` in its in-memory map. That map belongs only to the current host
+///   process: it is never persisted to a database or disk and is never restored.
+///   A host restart clears every pair.
+/// - The server may begin subscription work only after its listener receives
+///   that subscription request for the current server incarnation. After host
+///   restart, only a fresh host-routed request recreates the pair. After server
+///   App restart within the same host uptime, a retained pair is inactive for
+///   the new incarnation until a fresh host-routed request reactivates it and
+///   reaches the listener. A configured relationship, previous incarnation,
+///   retained pair, or guessed handle is not permission to start sending. If
+///   the server rejects or later ends the subscription, it must use
+///   [`libertas_endpoint_remove_subscriber`] so the host removes the pair.
+/// - Immediately before invoking the registered server listener for that
+///   subscription request, the serving runtime emits a private delivery
+///   acknowledgement to the host. The host activates the pair for the current
+///   server incarnation only after validating that acknowledgement. This
+///   pre-callback boundary permits the listener to synchronously emit Data or
+///   Alive: runtime-to-host FIFO ordering makes the host observe activation
+///   first. The acknowledgement is runtime-private; the App neither receives
+///   nor sends it.
+/// - If no server endpoint listener is registered, or validation fails before
+///   listener dispatch, the runtime emits a private negative completion rather
+///   than a positive acknowledgement. It retires only that exact pending SUB
+///   and correlation; another pending SUB or an already-active stream is not
+///   revoked. In particular, a same-transaction renewal leaves the established
+///   subscription correlation usable until the renewal reaches its positive
+///   callback boundary; a negative renewal removes only its new private
+///   correlation. A positive renewal atomically supersedes the established
+///   same-transaction correlation. Such a renewal is allowed at the normal
+///   concurrent-subscription limit because it replaces rather than adds an
+///   established stream. A correlated invalid-message response, when
+///   applicable, is put on the runtime FIFO before the negative completion. A
+///   route with no other active or pending SUB is removed. An undispatched
+///   request therefore never grants Data or Alive authority.
+/// - A peer handle received by a server is an arbitrary, opaque routing token.
+///   Its numeric value has no App-visible identity semantics and may resemble a
+///   task, object, endpoint, or other ID by accident. The server may retain the
+///   token for that endpoint relationship and pass it back unchanged to a
+///   response, targeted report, targeted Alive, or removal API. It must never
+///   construct, modify, resolve, compare it with an App-visible identity,
+///   display it as an identity, or otherwise interpret the token.
+///
+/// ## Authorized Data and Alive routing
+///
+/// - [`libertas_endpoint_report`] and [`libertas_endpoint_peer_alive`] with
+///   `None` request host fan-out. The private broadcast sentinel is not a peer
+///   identity. The host expands the operation exclusively through pairs in its
+///   current in-memory map that a host-routed subscription request activated for
+///   the current server incarnation.
+/// - The same APIs with `Some(peer)` request targeted routing. The host accepts
+///   the operation only when the exact `(server endpoint, opaque peer handle)`
+///   pair is currently recorded and active for that server incarnation. A
+///   targeted operation cannot create, restore, or reactivate a pair. A handle
+///   from another endpoint, a stale/removed handle, or a value constructed by
+///   the App is not authorized.
+/// - Only the App that owns the server endpoint may originate its Data or Alive.
+///   An ownership or membership violation is a rogue-App protocol violation:
+///   the host terminates the offending App and reports the violation. It does
+///   not reinterpret or best-effort route the value.
+/// - Once a membership pair is removed, host fan-out excludes it and no targeted
+///   Data or Alive may be delivered through it. The server must discard the
+///   handle; attempting to reuse it is an unauthorized targeted send.
+///
+/// ## Peer Down and removal completion
+///
+/// - When the host has a Down observation for a recorded subscriber, it delivers
+///   [`OP_ENDPOINT_PEER_DOWN`] to the endpoint server while that membership pair
+///   still exists. The callback carries the same opaque peer handle so the
+///   server can discard its route-specific application state without learning
+///   any client identity.
+/// - The serving runtime emits a private delivery acknowledgement only after
+///   the registered server listener returns normally. Until the host validates
+///   that post-callback acknowledgement, it retains the pair as authorized and
+///   retries the applicable Down delivery.
+///   Once listener entry is armed, later client-observation changes or duplicate
+///   Down requests cannot replace that close generation or invalidate its
+///   eventual post-listener acknowledgement.
+/// - Merely queuing a later SUB does not cancel an older Down. A positive
+///   pre-listener acknowledgement supersedes that Down only if it has not yet
+///   entered the server listener. If the Down listener has already begun, its
+///   post-listener acknowledgement first closes the old pair while preserving
+///   the later SUB token and response correlation; that SUB's later positive
+///   acknowledgement then reactivates the pair. A negative or absent SUB
+///   completion never cancels the Down. Observation revision advanced by that
+///   later request does not stale the older Down while its private SUB boundary
+///   is unresolved; on negative completion the host resumes that exact Down
+///   against the current observation.
+/// - The host completes the Down path by removing the exact pair only after
+///   validating that private acknowledgement. It is a runtime-private protocol
+///   message; the App neither receives nor sends it, and there is no public SDK
+///   acknowledgement. After removal, the no-Data/no-Alive rule above applies.
+///   A host restart instead discards the entire volatile map and does not
+///   restore either the pair or historical pending Down work.
+/// - A public remove issued inside the Down listener cannot bypass this
+///   boundary: it is redundant until the private post-listener acknowledgement
+///   completes removal. Before a Down enters the listener, an explicit server
+///   removal closes the active pair immediately and cancels that pending Down,
+///   while preserving any separately pending later SUB boundary. If an opaque
+///   route becomes unresolvable, the host uses the ordered Down/removal path
+///   rather than silently retaining it.
+/// - A fresh subscription request does not erase a Down that already reached
+///   the server listener. The host first completes that Down after its
+///   post-callback acknowledgement while preserving the later request's private
+///   delivery token; only the later request's positive pre-callback
+///   acknowledgement may reactivate the pair. If that later request cannot be
+///   dispatched, the pair remains removed. The host also suppresses Down retries
+///   behind that unresolved later request so the listener cannot observe stale
+///   Down after the new subscription callback.
+///
+/// ## Server lifecycle and client recovery
+///
+/// - Within one host uptime, subscription membership may remain recorded across
+///   a server App process Down/Up cycle unless explicitly removed or the
+///   configured relationship ceases to exist. The host sends authoritative
+///   server [`OP_ENDPOINT_PEER_DOWN`] and [`OP_ENDPOINT_PEER_UP`] signaling to
+///   those retained clients, but the pair is inactive for the replacement
+///   server incarnation.
+/// - On server Down, a client marks the stream unavailable and suspends its
+///   subscription retry and receive-watchdog work. Every delivered server Up is
+///   newer and requires one new subscription request plus reconstruction of
+///   server-process protocol state, even if that client did not observe the
+///   preceding Down. Only after the host routes that request and the replacement
+///   server receives its listener callback may the server recreate application
+///   state and emit Data or Alive.
+/// - Host delivery of server Down/Up is a continuing infrastructure obligation:
+///   obsolete or duplicate lifecycle work is suppressed, and the newest
+///   unacknowledged state is retried with backoff until delivered or superseded.
+///   There is no SDK acknowledgement message. A server never receives client Up;
+///   subsequent client interaction shows only that the client is interacting
+///   again, not that the server owns an authoritative client roster.
+/// - A host restart clears the process-memory subscription map and pending
+///   lifecycle work. Nothing is persisted or restored. Restarted clients must
+///   send a fresh subscription request; routing it creates a new pair before the
+///   server listener callback permits the new stream to start.
+/// - [`OP_ENDPOINT_PEER_TIMEOUT`] is a local application inference from missing
+///   expected traffic. Infrastructure does not emit it, and Timeout is uncertain
+///   reachability rather than authoritative Down.
+///
+/// ## Response correlation is separate
+///
+/// - A response is correlated independently of subscription membership. The
+///   server echoes the request's [`LibertasTransId`] and opaque callback peer
+///   handle unchanged through [`libertas_endpoint_response`] or
+///   [`libertas_endpoint_status_response`]. A response neither creates nor
+///   renews subscription membership, and membership does not permit an App to
+///   invent a response correlation.
+///
+/// ## Peer Alive and client-visible identity
+///
+/// - [`OP_ENDPOINT_PEER_ALIVE`] is application-originated but
+///   Libertas-standardized signaling. It has an empty body (no status-envelope
+///   byte and no Avro datum) and uses
+///   [`LIBERTAS_ENDPOINT_IGNORED_TRANS_ID`], value `0`.
+/// - When liveness is needed without changed application data, the server must
+///   use Alive. It must not fabricate a schema-level "no change" Data value or
+///   resend unchanged application data solely as a liveness signal; decoders,
+///   caches, observers, and GUIs correctly treat every Data message as
+///   application data.
+/// - The host validates and fences Alive to the current server App incarnation.
+///   A client may use it only to rearm the applicable receive watchdog for an
+///   active subscription, then return. Alive never enters schema decoding,
+///   changes application/cache/UI state, notifies a data observer, advances a
+///   cursor, or triggers resubscription.
+/// - Alive is an unreliable same-incarnation observation, not the inverse of
+///   Down. It cannot resurrect a Down stream; only a later authoritative
+///   [`OP_ENDPOINT_PEER_UP`] permits resubscription. It does not mean data is
+///   unchanged, prove delivery or synchronization, or detect a lost report.
+///   Protocols that require loss detection must carry their own sequence,
+///   revision, cursor, snapshot, or equivalent recovery data in real Data.
+/// - A client receives Data and Alive against its configured serving endpoint:
+///   that endpoint is the public device/source identity. The owning server App
+///   task and its private incarnation metadata are never exposed to the client.
 pub type LibertasEndpoint = LibertasVirtualDevice;
 
 /// Built-in Libertas Hub endpoint.
@@ -97,9 +286,11 @@ pub const LIBERTAS_ENDPOINT_IGNORED_TRANS_ID: LibertasTransId = 0;
 /// Valid until closed or the opening task terminates.
 pub type LibertasDataStore = u32;
 
-/// Low-level broadcast destination used by APIs that require an explicit peer.
-/// Endpoint servers normally call [`libertas_endpoint_report`] with `None` so
-/// the host performs client fan-out without exposing this value to App logic.
+/// Low-level broadcast destination used by APIs that require an explicit peer
+/// route handle.
+/// Endpoint servers normally call [`libertas_endpoint_report`] or
+/// [`libertas_endpoint_peer_alive`] with `None` so the host performs client
+/// fan-out without exposing this value to App logic.
 pub const LIBERTAS_BROADCAST_DEST: u32 = 0xffffffff;
 
 const OP_SYSTEM_LOG: u8 = 0xe0;
@@ -116,8 +307,8 @@ pub const OP_ENDPOINT_RSP: u8 = 9;
 ///
 /// `Success` is followed by exactly one Avro datum. `InvalidMessage` has no
 /// Avro body. `StandardStatus` is followed by exactly one canonical status
-/// byte. Peer-status notifications have no payload and therefore do not carry
-/// this envelope byte.
+/// byte. Standardized endpoint signaling actions have no payload and therefore
+/// do not carry this envelope byte.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u8)]
 pub enum LibertasEndpointStatus {
@@ -214,7 +405,7 @@ pub enum LibertasEndpointMessage<T> {
     InvalidMessage,
     /// The endpoint returned a canonical failure status.
     Status(LibertasEndpointStandardStatus),
-    /// A peer-up, peer-down, or peer-timeout notification, identified by its opcode.
+    /// A standardized endpoint signaling action, identified by its opcode.
     NoPayload,
 }
 
@@ -244,6 +435,16 @@ const OP_ENDPOINT_REMOVE_PEER: u8 = 22;
 /// Resume subscription work suspended by [`OP_ENDPOINT_PEER_DOWN`]. Servers
 /// never receive client Up.
 pub const OP_ENDPOINT_PEER_UP: u8 = 23;
+/// Application-originated, Libertas-standardized endpoint liveness signal.
+///
+/// An endpoint server sends this payloadless action to retained subscribers on
+/// an application-chosen schedule. Clients refresh the applicable liveness
+/// watchdog and return without decoding application data, updating cached/UI
+/// state, or resubscribing. It does not mean that no data changed or that no
+/// report was lost, and it is not a lifecycle transition like peer Up or Down.
+/// On client receipt, the callback `device` and source/`peer` identify the
+/// configured serving endpoint; the owning App task is never exposed.
+pub const OP_ENDPOINT_PEER_ALIVE: u8 = 24;
 
 // Internal App lifecycle opcode. It is delivered Host -> App through
 // LibertasPackageCallback::device_callback and acknowledged App -> Host through
@@ -265,7 +466,7 @@ const OP_SYSTEM_DATABASE_READ_DATA: u8 = 0xf3;
 const OP_SYSTEM_DATABASE_REMOVE_DATA: u8 = 0xf4;
 const OP_SYSTEM_DATABASE_REMOVE_RECORD: u8 = 0xf5;
 
-const CURRENT_VERSION: u32 = 0x000206;     // Version 0.2.6, 1.0 shall be 0x10000, each sub version must be within [0,255]
+const CURRENT_VERSION: u32 = 0x000207;     // Version 0.2.7, 1.0 shall be 0x10000, each sub version must be within [0,255]
 
 type LibertasTimerCallback = dyn FnMut(u32, u64, &mut Box<dyn Any>);
 type LibertasDeviceCallback = dyn FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, LibertasTransId, u32);
@@ -292,6 +493,10 @@ struct Timer {
 struct DeviceCallback {
     cb: Rc<RefCell<Box<LibertasDeviceCallback>>>,
     context: Rc<RefCell<Box<dyn Any>>>,
+    // Endpoint wrappers decide positive/negative only after schema decoding.
+    // A raw registered listener has no such decode layer, so the package emits
+    // its positive result immediately before invoking that callback instead.
+    handles_endpoint_subscription_delivery: bool,
 }
 
 struct WakeupCallback {
@@ -321,7 +526,7 @@ struct ReadResult {
 /// initialization and contains function pointers for all interactions with the system.
 #[repr(C)]
 struct LibertasRuntimeApi {
-    version: u32,                       // Version of runtime. For compatibility check. Currently not used
+    version: u32,                       // Runtime ABI/API version identifier.
     get_random: extern "C" fn(u8) -> u64,
     get_task_id: extern "C" fn() -> u32,
     set_task_id: extern "C" fn(u32),    // Used internally in callback driver. Only useful if we are driving multiple tasks within one thread.
@@ -329,8 +534,11 @@ struct LibertasRuntimeApi {
     get_utc_time: extern "C" fn() -> u64,
     utc_to_local: extern "C" fn(i64) -> i64,
     local_to_utc: extern "C" fn(i64) -> i64,
-    device_send: extern "C" fn(u16, u32, LibertasTransId, u8, *const u8, usize, u32),           // Protocol, device (virtual device src), trans_id, op_code, data, data_len, ack_dest (virtual device & endpoint)
+    device_send: extern "C" fn(u16, u32, LibertasTransId, u8, *const u8, usize, u32),           // Protocol, device (virtual device src), trans_id, op_code, data, data_len, opaque peer route handle
     device_read: extern "C" fn(u16, u32, u8, *const u8, usize) -> ReadResult,       // Synchronous kernel operation for current task. protocol, device, op_code, data, data_len
+    // Completes only the current host-stamped private SUB delivery boundary.
+    // Endpoint wrappers call it after decoding; Apps never call it.
+    endpoint_subscription_delivery_result: extern "C" fn(u8),
 }
 
 // Use &pt as *const LibertasPackageCallback to pass back to C
@@ -341,7 +549,8 @@ pub struct LibertasPackageCallback {
     init_task: extern "C" fn(u32),
     remove_task: extern "C" fn(u32),
     timer_driver: extern "C" fn(u64, u64)->TimerDriverResult,
-    device_callback: extern "C" fn(u32, u32, u8, LibertasTransId, *const c_void, usize, u32),       // task, device (virtual device dst), op_code, trans_id, data, data_len, source (virtual device & endpoint)
+    // Returns one only when the registered callback was actually invoked.
+    device_callback: extern "C" fn(u32, u32, u8, LibertasTransId, *const c_void, usize, u32) -> u8, // task, device (virtual device dst), op_code, trans_id, data, data_len, source (virtual device & endpoint)
 }
 
 struct Context {
@@ -376,14 +585,14 @@ extern "C" fn libertas_impl_remove_task(task_id: u32) {
     }
 }
 
-extern "C" fn libertas_impl_device_callback(task: u32, device: u32, op_code: u8, trans_id: LibertasTransId, data: *const c_void, data_len: usize, peer: u32) {
+extern "C" fn libertas_impl_device_callback(task: u32, device: u32, op_code: u8, trans_id: LibertasTransId, data: *const c_void, data_len: usize, peer: u32) -> u8 {
     if device == DEVICE_SYSTEM && op_code == OP_APP_SHUT_DOWN {
         if SHUTDOWN_STATE.compare_exchange(
                 SHUTDOWN_RUNNING,
                 SHUTDOWN_REQUESTED,
                 Ordering::AcqRel,
                 Ordering::Acquire).is_err() {
-            return;
+            return 0;
         }
 
         let handler = unsafe {
@@ -400,11 +609,11 @@ extern "C" fn libertas_impl_device_callback(task: u32, device: u32, op_code: u8,
         } else {
             libertas_shutdown_complete();
         }
-        return;
+        return 1;
     }
 
     if SHUTDOWN_STATE.load(Ordering::Acquire) == SHUTDOWN_COMPLETED {
-        return;
+        return 0;
     }
 
     unsafe {
@@ -416,17 +625,23 @@ extern "C" fn libertas_impl_device_callback(task: u32, device: u32, op_code: u8,
                             &[]
                         } else {
                             if data.is_null() {
-                                return;
+                                return 0;
                             }
                             slice::from_raw_parts(data as *const u8, data_len)
                         };
+                        if op_code == OP_ENDPOINT_SUB_REQ &&
+                                !dcb.handles_endpoint_subscription_delivery {
+                            libertas_endpoint_subscription_delivery_result(true);
+                        }
                         (dcb.cb.borrow_mut())(device, op_code, d, &mut *dcb.context.borrow_mut(), trans_id, peer);
+                        return 1;
                     }
                 }
             }
             _ => { unreachable!(); }
         }
-    }   
+    }
+    0
 }
 
 extern "C" fn libertas_impl_timer_driver(monotonic: u64, utc: u64) -> TimerDriverResult {
@@ -1050,7 +1265,12 @@ pub fn libertas_timer_destroy(timer: u32) {
     }    
 }
 
-fn libertas_register_device_listener_impl(device: LibertasDevice, callback: Box<LibertasDeviceCallback>, tag: Box<dyn Any>) {
+fn libertas_register_device_listener_impl(
+    device: LibertasDevice,
+    callback: Box<LibertasDeviceCallback>,
+    tag: Box<dyn Any>,
+    handles_endpoint_subscription_delivery: bool,
+) {
     unsafe {
         match ENV {
             Some(ref mut env) => {
@@ -1058,7 +1278,11 @@ fn libertas_register_device_listener_impl(device: LibertasDevice, callback: Box<
                 let wrapped_cb = Rc::new(RefCell::new(callback));
                 let wrapped_tag = Rc::new(RefCell::new(tag));                
                 if let Some(context) = env.contexts.get_mut(&task_id) {
-                    if let Some(_v) = context.device_callbacks.insert(device, DeviceCallback { cb: wrapped_cb, context: wrapped_tag }) {
+                    if let Some(_v) = context.device_callbacks.insert(device, DeviceCallback {
+                        cb: wrapped_cb,
+                        context: wrapped_tag,
+                        handles_endpoint_subscription_delivery,
+                    }) {
                         panic!("Duplicate device callback registered");
                     }
                 } else {
@@ -1080,7 +1304,11 @@ fn libertas_register_device_listener_impl(device: LibertasDevice, callback: Box<
 ///
 /// # Arguments
 /// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasEndpoint`.
-/// * `callback` - Closure called when device events occur. Receives device ID, operation code, event data, mutable context, transaction ID, and peer ID.
+/// * `callback` - Closure called when device events occur. Receives device ID,
+///   operation code, event data, mutable context, transaction ID, and peer route
+///   handle. For a server callback, the peer value is opaque: retain and pass it
+///   back to the applicable endpoint API, but never construct, inspect, or
+///   interpret it as a task, object, or endpoint ID.
 /// * `context` - Developer-defined data passed to the callback function
 /// 
 /// # Remarks
@@ -1096,7 +1324,7 @@ fn libertas_register_device_listener_impl(device: LibertasDevice, callback: Box<
 #[doc(hidden)]
 #[inline(always)]
 pub fn libertas_register_device_listener<F>(device: LibertasDevice, callback: F, context: Box<dyn Any>) where F: FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, LibertasTransId, u32) + Sized + 'static {
-    libertas_register_device_listener_impl(device, Box::new(callback), context);
+    libertas_register_device_listener_impl(device, Box::new(callback), context, false);
 }
 
 /// Registers a callback function for wakeup events. The callback will be called first thing after the task is waken up before timers are processed.
@@ -1170,6 +1398,18 @@ fn libertas_endpoint_send_handler_result(
     }
 }
 
+#[inline(always)]
+fn libertas_endpoint_subscription_delivery_result(dispatched: bool) {
+    unsafe {
+        match RUNTIME_API.as_ref() {
+            Some(runtime_api) => {
+                (runtime_api.endpoint_subscription_delivery_result)(dispatched as u8)
+            }
+            None => unreachable!(),
+        }
+    }
+}
+
 fn libertas_endpoint_send_invalid_message(
     server: LibertasEndpoint,
     opcode: u8,
@@ -1186,7 +1426,10 @@ fn libertas_endpoint_send_invalid_message(
 }
 
 /// Registers a callback for endpoint events.
-/// 
+///
+/// See [`LibertasEndpoint`] for the normative subscription, opaque-peer,
+/// signaling, and enforcement contract.
+///
 /// # Arguments
 /// * `id` - Endpoint device ID.
 /// * `callback` - Called with (device, opcode, decoded_data, context, trans_id, peer).
@@ -1204,10 +1447,11 @@ fn libertas_endpoint_send_invalid_message(
 /// trailing data never reaches the callback. Invalid requests are answered
 /// automatically with `InvalidMessage`. Invalid responses and reports are
 /// surfaced as `None` without sending another message, which prevents response
-/// loops. Standard statuses and peer-up or peer-down notifications also carry
-/// `None`. Use [`libertas_register_endpoint_status_listener`] when the callback
-/// needs to distinguish those cases. The legacy peer-timeout opcode is decoded
-/// as `None` for compatibility, but current infrastructure never emits it.
+/// loops. Standard statuses and payloadless endpoint signaling actions also
+/// carry `None`. Use [`libertas_register_endpoint_status_listener`] when the
+/// callback needs to distinguish those cases. The legacy peer-timeout opcode is
+/// decoded as `None` for compatibility, but current infrastructure never emits
+/// it.
 pub fn libertas_register_endpoint_listener<T, F>(
     id: LibertasEndpoint,
     mut callback: F,
@@ -1253,20 +1497,18 @@ pub fn libertas_register_endpoint_listener<T, F>(
 /// Registers a callback that receives endpoint data and standard statuses
 /// without collapsing them into an absent decoded value.
 ///
+/// See [`LibertasEndpoint`] for the normative subscription, opaque-peer,
+/// signaling, and enforcement contract.
+///
 /// Returning [`LibertasEndpointHandlerResult::Status`] for a request or
 /// subscription request automatically sends a correlated standard-status
-/// response. A failed subscription is removed from the host-owned client set.
-/// Lifecycle actions carry [`LibertasEndpointMessage::NoPayload`]. Clients
-/// receive server Up and Down. Servers may receive an opportunistic client Down
-/// after failed delivery, but never receive client Up and must not infer a
-/// complete client roster from these callbacks. Current Hub-local App-task
-/// delivery is guaranteed. A future remote transport must retain the newest
-/// unacknowledged server Up/Down and retry it with backoff until its separate,
-/// out-of-band acknowledgement arrives; this adds no Libertas SDK message. The
-/// infrastructure suppresses stale and duplicate events before App delivery,
-/// so every delivered Up is newer and requires resubscription even when Down
-/// was not observed. Infrastructure never reports peer timeout; clients infer
-/// timeout from missing expected protocol traffic.
+/// response. A failed subscription is removed from the host's process-memory
+/// subscription map.
+/// Standardized endpoint signaling actions carry
+/// [`LibertasEndpointMessage::NoPayload`] and are outside the application Avro
+/// schema even though applications handle them. Their complete identity,
+/// lifecycle, ordering, retry, and application-behavior rules are in the
+/// normative [`LibertasEndpoint`] contract above.
 pub fn libertas_register_endpoint_status_listener<T, F>(
     id: LibertasEndpoint,
     callback: F,
@@ -1286,11 +1528,12 @@ pub fn libertas_register_endpoint_status_listener<T, F>(
         callback: Box::new(callback),
         context,
     });
-    libertas_register_device_listener(id, |device, opcode, data, tag_any, trans_id, peer| {
+    libertas_register_device_listener_impl(id, Box::new(|device, opcode, data, tag_any, trans_id, peer| {
         let tag = tag_any.downcast_mut::<EndpointStatusListener<T>>().unwrap();
 
         if opcode == OP_ENDPOINT_PEER_DOWN ||
                 opcode == OP_ENDPOINT_PEER_UP ||
+                opcode == OP_ENDPOINT_PEER_ALIVE ||
                 opcode == OP_ENDPOINT_PEER_TIMEOUT {
             (tag.callback)(
                 device,
@@ -1334,7 +1577,22 @@ pub fn libertas_register_endpoint_status_listener<T, F>(
 
         let Some(message) = message else {
             if opcode == OP_ENDPOINT_REQ || opcode == OP_ENDPOINT_SUB_REQ {
-                libertas_endpoint_send_invalid_message(device, opcode, trans_id, peer);
+                if opcode == OP_ENDPOINT_SUB_REQ {
+                    let status = [LibertasEndpointStatus::InvalidMessage as u8];
+                    libertas_device_send_response(
+                        PROTOCOL_LIBERTAS,
+                        device,
+                        OP_ENDPOINT_RSP,
+                        &status,
+                        trans_id,
+                        peer,
+                    );
+                    // Keep the correlated rejection ahead of the private
+                    // negative completion on the runtime-to-host FIFO.
+                    libertas_endpoint_subscription_delivery_result(false);
+                } else {
+                    libertas_endpoint_send_invalid_message(device, opcode, trans_id, peer);
+                }
             } else {
                 (tag.callback)(
                     device,
@@ -1348,6 +1606,11 @@ pub fn libertas_register_endpoint_status_listener<T, F>(
             return;
         };
 
+        if opcode == OP_ENDPOINT_SUB_REQ {
+            // The runtime-private positive result must precede synchronous
+            // Data/Alive emitted by the registered App callback.
+            libertas_endpoint_subscription_delivery_result(true);
+        }
         let result = (tag.callback)(
             device,
             opcode,
@@ -1365,7 +1628,7 @@ pub fn libertas_register_endpoint_status_listener<T, F>(
                 result,
             );
         }
-    }, listener);
+    }), listener, true);
 }
 
 fn __libertas_device_send_raw(protocol: u16, device: LibertasDevice, op: u8, peer: u32, trans_id: LibertasTransId, data: *const u8, data_len: usize) {
@@ -1472,6 +1735,9 @@ pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8
 
 /// Sends a endpoint request to a server
 ///
+/// See [`LibertasEndpoint`] for the normative subscription, opaque-peer,
+/// signaling, and enforcement contract.
+///
 /// Sends a endpoint request to the specified server with the given operation code
 /// and data payload. Returns a transaction ID for tracking the response.
 ///
@@ -1497,6 +1763,10 @@ pub fn libertas_endpoint_request<T>(server: LibertasEndpoint, data: &T) -> Liber
 }
 
 /// Sends a endpoint request to a server
+///
+/// See [`LibertasEndpoint`] for the normative subscription, opaque-peer,
+/// signaling, and enforcement contract. In particular, the server begins
+/// subscription work only after this host-routed request reaches its listener.
 ///
 /// Sends a endpoint request to the specified server with the given operation code
 /// and data payload. Returns a transaction ID for tracking the response.
@@ -1524,6 +1794,9 @@ pub fn libertas_endpoint_subscribe_request<T>(server: LibertasEndpoint, data: &T
 
 /// Sends a endpoint response to a device
 ///
+/// See [`LibertasEndpoint`] for the normative subscription, opaque-peer,
+/// response-correlation, signaling, and enforcement contract.
+///
 /// Sends a response to a endpoint request with the specified operation code
 /// and data payload using the provided transaction ID.
 ///
@@ -1531,7 +1804,9 @@ pub fn libertas_endpoint_subscribe_request<T>(server: LibertasEndpoint, data: &T
 /// * `server` - A endpoint server id. The link created when a Libertas machine is created.
 /// * `data` - The data payload to send with the response
 /// * `trans_id` - The transaction ID from the original request
-/// * `dest` - The source of the original request as the destination of the request.
+/// * `dest` - The opaque peer route handle received with the original request.
+///   Pass it through unchanged; do not interpret it as a task, object, or
+///   endpoint ID.
 ///
 /// # Note
 /// Unlike Matter protocol, the data can be any data structure defined and published by the server developer, encoded with Apache Avro format.
@@ -1546,6 +1821,9 @@ pub fn libertas_endpoint_response<T>(server: LibertasEndpoint, data: &T, trans_i
 }
 
 /// Sends a canonical failure status for an endpoint request.
+///
+/// See [`LibertasEndpoint`] for the normative subscription, opaque-peer,
+/// response-correlation, signaling, and enforcement contract.
 ///
 /// This is the deferred/asynchronous counterpart to returning
 /// [`LibertasEndpointHandlerResult::Status`] from a status-aware listener. When
@@ -1574,15 +1852,24 @@ pub fn libertas_endpoint_status_response(
 
 /// Sends an endpoint report to subscribers.
 ///
-/// With `peer: None`, the host fans the report out through its authoritative,
-/// permanent-until-changed client set. This is the normal form for common
-/// updates and heartbeats; App code does not use the broadcast peer ID.
-/// `Some(peer)` sends only to one peer, normally for peer-specific protocol data.
+/// See [`LibertasEndpoint`] for the normative subscription, opaque-peer,
+/// routing, signaling, and rogue-App enforcement contract.
+///
+/// With `peer: None`, the host fans the report out through the active pairs in
+/// its current process-memory subscription map. This is the normal form for
+/// application data updates; App code does not use the low-level broadcast
+/// value. Use
+/// [`libertas_endpoint_peer_alive`] instead of resending unchanged application
+/// data solely to prove liveness.
+/// `Some(peer)` sends only through an opaque peer route handle previously
+/// received by this server; the App must pass it through unchanged.
 ///
 /// # Arguments
 /// * `server` - A endpoint server id. The link created when a Libertas machine is created.
 /// * `data` - The data payload to send in the report
-/// * `peer` - Optional peer task ID. `None` broadcasts to all host-retained clients.
+/// * `peer` - Optional opaque peer route handle from a server callback. `None`
+///   fans out through active pairs in the current host process-memory map.
+///   Never construct or interpret a handle as a task, object, or endpoint ID.
 ///
 /// # Note
 /// Unlike Matter protocol, the data can be any data structure defined and published by the server developer, encoded with Apache Avro format.
@@ -1590,7 +1877,7 @@ pub fn libertas_endpoint_status_response(
 /// The endpoint protocol uses [`LIBERTAS_ENDPOINT_IGNORED_TRANS_ID`] because
 /// unsolicited reports do not correlate with a transaction.
 #[inline(always)]
-pub fn libertas_endpoint_report<T>(server: LibertasEndpoint, data: &T, peer: Option<LibertasEndpoint>) 
+pub fn libertas_endpoint_report<T>(server: LibertasEndpoint, data: &T, peer: Option<u32>)
     where 
         T: AvroEncode + 'static {
     let peer_id = peer.unwrap_or(LIBERTAS_BROADCAST_DEST);
@@ -1600,18 +1887,55 @@ pub fn libertas_endpoint_report<T>(server: LibertasEndpoint, data: &T, peer: Opt
     libertas_device_send_report(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_DATA, &bytes, LIBERTAS_ENDPOINT_IGNORED_TRANS_ID, peer_id);
 }
 
+/// Sends a standardized payloadless endpoint liveness signal.
+///
+/// See [`LibertasEndpoint`] for the normative subscription, opaque-peer,
+/// routing, signaling, incarnation, and rogue-App enforcement contract.
+///
+/// This is endpoint signaling carried through the application callback, not an
+/// application-schema message. The endpoint server chooses when to send it.
+/// With `peer: None`, the host fans it out through the server endpoint's active
+/// pairs in the current process-memory subscription map; `Some(peer)` uses an
+/// opaque peer route handle previously received by this server. A server may
+/// record and pass that handle back, but must never construct, inspect, or
+/// interpret it as a task, object, or endpoint ID.
+/// Receivers refresh their protocol-owned liveness watchdog and return without
+/// decoding data, changing cached/UI state, or resubscribing.
+///
+/// The signal uses [`LIBERTAS_ENDPOINT_IGNORED_TRANS_ID`] and carries neither a
+/// status-envelope byte nor an Avro datum. It proves only recent communication;
+/// it does not promise that data is unchanged or that no report was lost.
+///
+#[inline(always)]
+pub fn libertas_endpoint_peer_alive(server: LibertasEndpoint, peer: Option<u32>) {
+    let peer_id = peer.unwrap_or(LIBERTAS_BROADCAST_DEST);
+    __libertas_device_send_raw(
+        PROTOCOL_LIBERTAS,
+        server,
+        OP_ENDPOINT_PEER_ALIVE,
+        peer_id,
+        LIBERTAS_ENDPOINT_IGNORED_TRANS_ID,
+        core::ptr::null(),
+        0,
+    );
+}
+
 /// Remove a subscriber.
-/// 
+///
+/// See [`LibertasEndpoint`] for the normative subscription, opaque-peer, Down
+/// delivery/removal, routing, and rogue-App enforcement contract.
+///
 /// Because the protocol can be anything designed by the developer. There is
 /// no way for Libertas OS runtime to know whether a subscribe request has failed. After the 
 /// task sends back a reject response, it has to notify the host to remove the
-/// subscriber from the host-owned permanent-until-changed client set.
+/// subscriber from the host-owned process-memory subscription map.
 /// * A broadcast data report will not be sent to this peer.
 /// * OS will not try to maintain the session to keep it alive.
 /// 
 /// # Arguments
 /// * `server` - A endpoint server id. The link created when a Libertas machine is created.
-/// * `peer` - The subscriber peer.
+/// * `peer` - The subscriber's opaque route handle received by the server.
+///   Pass it through unchanged; never construct or interpret it as an ID.
 /// 
 #[inline(always)]
 pub fn libertas_endpoint_remove_subscriber(server: LibertasEndpoint, peer: u32) {
@@ -1636,11 +1960,22 @@ mod tests {
     static ENDPOINT_STANDARD_RESPONSES: AtomicUsize = AtomicUsize::new(0);
     static ENDPOINT_RECEIVED_STATUSES: AtomicUsize = AtomicUsize::new(0);
     static ENDPOINT_RECEIVED_INVALID_MESSAGES: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_RECEIVED_NO_PAYLOAD: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_ALIVE_RECEIVED_DEVICE: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_ALIVE_RECEIVED_TRANS_ID: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_ALIVE_RECEIVED_PEER: AtomicUsize = AtomicUsize::new(0);
     static ENDPOINT_LAST_STATUS: AtomicUsize = AtomicUsize::new(0);
     static ENDPOINT_REMOVALS: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_ALIVE_SENDS: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_ALIVE_NULL_PAYLOADS: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_LAST_DATA_LEN: AtomicUsize = AtomicUsize::new(0);
     static ENDPOINT_LAST_DEVICE: AtomicUsize = AtomicUsize::new(0);
     static ENDPOINT_LAST_TRANS_ID: AtomicUsize = AtomicUsize::new(0);
     static ENDPOINT_LAST_PEER: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_SUB_DELIVERY_POSITIVE: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_SUB_DELIVERY_NEGATIVE: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_SUB_CALLBACKS: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_SUB_ACKS_OBSERVED_BY_CALLBACK: AtomicUsize = AtomicUsize::new(0);
 
     extern "C" fn fake_get_random(_: u8) -> u64 { 0 }
     extern "C" fn fake_get_task_id() -> u32 { 7 }
@@ -1660,6 +1995,16 @@ mod tests {
                 device == DEVICE_SYSTEM &&
                 op_code == OP_APP_SHUT_DOWN {
             SHUTDOWN_SENDS.fetch_add(1, Ordering::AcqRel);
+        } else if protocol == PROTOCOL_LIBERTAS &&
+                op_code == OP_ENDPOINT_PEER_ALIVE {
+            ENDPOINT_ALIVE_SENDS.fetch_add(1, Ordering::AcqRel);
+            if data.is_null() {
+                ENDPOINT_ALIVE_NULL_PAYLOADS.fetch_add(1, Ordering::AcqRel);
+            }
+            ENDPOINT_LAST_DATA_LEN.store(data_len, Ordering::Release);
+            ENDPOINT_LAST_DEVICE.store(device as usize, Ordering::Release);
+            ENDPOINT_LAST_TRANS_ID.store(trans_id as usize, Ordering::Release);
+            ENDPOINT_LAST_PEER.store(peer as usize, Ordering::Release);
         } else if protocol == PROTOCOL_LIBERTAS && op_code == OP_ENDPOINT_RSP {
             if data_len == 1 && !data.is_null() &&
                     unsafe { *data } == LibertasEndpointStatus::InvalidMessage as u8 {
@@ -1694,6 +2039,13 @@ mod tests {
             data_len: 0,
         }
     }
+    extern "C" fn fake_endpoint_subscription_delivery_result(dispatched: u8) {
+        if dispatched == 0 {
+            ENDPOINT_SUB_DELIVERY_NEGATIVE.fetch_add(1, Ordering::AcqRel);
+        } else {
+            ENDPOINT_SUB_DELIVERY_POSITIVE.fetch_add(1, Ordering::AcqRel);
+        }
+    }
 
     fn fake_runtime_api() -> LibertasRuntimeApi {
         LibertasRuntimeApi {
@@ -1707,6 +2059,8 @@ mod tests {
             local_to_utc: fake_convert_time,
             device_send: fake_device_send,
             device_read: fake_device_read,
+            endpoint_subscription_delivery_result:
+                fake_endpoint_subscription_delivery_result,
         }
     }
 
@@ -1721,6 +2075,9 @@ mod tests {
             &raw mut runtime_api as *mut LibertasRuntimeApi as *mut c_void);
         unsafe {
             ((*callbacks).init_task)(7);
+        }
+        libertas_register_device_listener(55, |_, _, _, _, _, _| {}, Box::new(()));
+        let shutdown_callback_invoked = unsafe {
             ((*callbacks).device_callback)(
                 7,
                 DEVICE_SYSTEM,
@@ -1728,10 +2085,22 @@ mod tests {
                 0,
                 core::ptr::null(),
                 0,
-                0);
-        }
+                0)
+        };
+        assert_eq!(shutdown_callback_invoked, 1);
         assert_eq!(SHUTDOWN_SENDS.load(Ordering::Acquire), 1);
         assert_eq!(SHUTDOWN_STATE.load(Ordering::Acquire), SHUTDOWN_COMPLETED);
+        assert_eq!(unsafe {
+            ((*callbacks).device_callback)(
+                7,
+                55,
+                OP_ENDPOINT_DATA,
+                0,
+                core::ptr::null(),
+                0,
+                0,
+            )
+        }, 0);
 
         // Duplicate Host requests and App completions are idempotent.
         unsafe {
@@ -1788,12 +2157,16 @@ mod tests {
     fn endpoint_listener_rejects_invalid_messages_without_panicking_or_looping() {
         let _guard = TEST_LOCK.lock().unwrap();
         const ENDPOINT: LibertasEndpoint = 41;
-        const PEER: u32 = 73;
+        const OPAQUE_PEER_HANDLE: u32 = 73;
 
         ENDPOINT_CALLBACKS_WITH_DATA.store(0, Ordering::Release);
         ENDPOINT_CALLBACKS_WITHOUT_DATA.store(0, Ordering::Release);
         ENDPOINT_INVALID_RESPONSES.store(0, Ordering::Release);
         ENDPOINT_REMOVALS.store(0, Ordering::Release);
+        ENDPOINT_SUB_DELIVERY_POSITIVE.store(0, Ordering::Release);
+        ENDPOINT_SUB_DELIVERY_NEGATIVE.store(0, Ordering::Release);
+        ENDPOINT_SUB_CALLBACKS.store(0, Ordering::Release);
+        ENDPOINT_SUB_ACKS_OBSERVED_BY_CALLBACK.store(0, Ordering::Release);
 
         let mut runtime_api = fake_runtime_api();
         let callbacks = __libertas_init_package(
@@ -1803,7 +2176,14 @@ mod tests {
         }
         libertas_register_endpoint_listener::<bool, _>(
             ENDPOINT,
-            |_, _, data, _, _, _| {
+            |_, opcode, data, _, _, _| {
+                if opcode == OP_ENDPOINT_SUB_REQ {
+                    ENDPOINT_SUB_CALLBACKS.fetch_add(1, Ordering::AcqRel);
+                    ENDPOINT_SUB_ACKS_OBSERVED_BY_CALLBACK.store(
+                        ENDPOINT_SUB_DELIVERY_POSITIVE.load(Ordering::Acquire),
+                        Ordering::Release,
+                    );
+                }
                 match data {
                     Some(true) => {
                         ENDPOINT_CALLBACKS_WITH_DATA.fetch_add(1, Ordering::AcqRel);
@@ -1830,7 +2210,7 @@ mod tests {
                 trans_id,
                 data.as_ptr() as *const c_void,
                 data.len(),
-                PEER,
+                OPAQUE_PEER_HANDLE,
             );
         };
 
@@ -1840,18 +2220,74 @@ mod tests {
         assert_eq!(ENDPOINT_INVALID_RESPONSES.load(Ordering::Acquire), 2);
         assert_eq!(ENDPOINT_CALLBACKS_WITH_DATA.load(Ordering::Acquire), 1);
 
-        // A rejected subscription is also removed from the host subscriber set.
+        // A malformed subscription never reaches the user callback. Its
+        // private negative completion retires the inactive host delivery token;
+        // no public REMOVE is needed for state the App never received.
         deliver(OP_ENDPOINT_SUB_REQ, 103, &[LibertasEndpointStatus::Success as u8]);
         assert_eq!(ENDPOINT_INVALID_RESPONSES.load(Ordering::Acquire), 3);
-        assert_eq!(ENDPOINT_REMOVALS.load(Ordering::Acquire), 1);
+        assert_eq!(ENDPOINT_REMOVALS.load(Ordering::Acquire), 0);
+        assert_eq!(ENDPOINT_SUB_CALLBACKS.load(Ordering::Acquire), 0);
+        assert_eq!(ENDPOINT_SUB_DELIVERY_POSITIVE.load(Ordering::Acquire), 0);
+        assert_eq!(ENDPOINT_SUB_DELIVERY_NEGATIVE.load(Ordering::Acquire), 1);
         assert_eq!(ENDPOINT_LAST_DEVICE.load(Ordering::Acquire), ENDPOINT as usize);
         assert_eq!(ENDPOINT_LAST_TRANS_ID.load(Ordering::Acquire), 103);
-        assert_eq!(ENDPOINT_LAST_PEER.load(Ordering::Acquire), PEER as usize);
+        assert_eq!(
+            ENDPOINT_LAST_PEER.load(Ordering::Acquire),
+            OPAQUE_PEER_HANDLE as usize,
+        );
+
+        // A valid SUB completes positively immediately before the actual
+        // endpoint callback, allowing synchronous callback output to follow
+        // activation on the same runtime-to-host FIFO.
+        deliver(
+            OP_ENDPOINT_SUB_REQ,
+            104,
+            &[LibertasEndpointStatus::Success as u8, 1],
+        );
+        assert_eq!(ENDPOINT_SUB_CALLBACKS.load(Ordering::Acquire), 1);
+        assert_eq!(ENDPOINT_SUB_DELIVERY_POSITIVE.load(Ordering::Acquire), 1);
+        assert_eq!(ENDPOINT_SUB_DELIVERY_NEGATIVE.load(Ordering::Acquire), 1);
+        assert_eq!(
+            ENDPOINT_SUB_ACKS_OBSERVED_BY_CALLBACK.load(Ordering::Acquire),
+            1,
+        );
+
+        // A raw listener has no schema wrapper. Its positive result therefore
+        // sits directly at its own callback boundary.
+        const RAW_ENDPOINT: LibertasEndpoint = 43;
+        libertas_register_device_listener(
+            RAW_ENDPOINT,
+            |_, opcode, _, _, _, _| {
+                if opcode == OP_ENDPOINT_SUB_REQ {
+                    ENDPOINT_SUB_ACKS_OBSERVED_BY_CALLBACK.store(
+                        ENDPOINT_SUB_DELIVERY_POSITIVE.load(Ordering::Acquire),
+                        Ordering::Release,
+                    );
+                }
+            },
+            Box::new(()),
+        );
+        unsafe {
+            ((*callbacks).device_callback)(
+                7,
+                RAW_ENDPOINT,
+                OP_ENDPOINT_SUB_REQ,
+                105,
+                core::ptr::null(),
+                0,
+                OPAQUE_PEER_HANDLE,
+            );
+        }
+        assert_eq!(ENDPOINT_SUB_DELIVERY_POSITIVE.load(Ordering::Acquire), 2);
+        assert_eq!(
+            ENDPOINT_SUB_ACKS_OBSERVED_BY_CALLBACK.load(Ordering::Acquire),
+            2,
+        );
 
         // Invalid responses and reports are surfaced without answering the peer.
         deliver(
             OP_ENDPOINT_RSP,
-            104,
+            105,
             &[LibertasEndpointStatus::InvalidMessage as u8],
         );
         deliver(OP_ENDPOINT_DATA, 0, &[LibertasEndpointStatus::Success as u8, 2]);
@@ -1867,7 +2303,7 @@ mod tests {
                 0,
                 core::ptr::null(),
                 0,
-                PEER,
+                OPAQUE_PEER_HANDLE,
             );
         }
         assert_eq!(ENDPOINT_CALLBACKS_WITHOUT_DATA.load(Ordering::Acquire), 3);
@@ -1880,10 +2316,23 @@ mod tests {
                 0,
                 core::ptr::null(),
                 0,
-                PEER,
+                OPAQUE_PEER_HANDLE,
             );
         }
         assert_eq!(ENDPOINT_CALLBACKS_WITHOUT_DATA.load(Ordering::Acquire), 4);
+
+        unsafe {
+            ((*callbacks).device_callback)(
+                7,
+                ENDPOINT,
+                OP_ENDPOINT_PEER_ALIVE,
+                LIBERTAS_ENDPOINT_IGNORED_TRANS_ID,
+                core::ptr::null(),
+                0,
+                ENDPOINT,
+            );
+        }
+        assert_eq!(ENDPOINT_CALLBACKS_WITHOUT_DATA.load(Ordering::Acquire), 5);
 
         // Valid data is decoded, while trailing bytes and unknown statuses reject.
         deliver(OP_ENDPOINT_RSP, 105, &[LibertasEndpointStatus::Success as u8, 1]);
@@ -1893,7 +2342,7 @@ mod tests {
             &[LibertasEndpointStatus::Success as u8, 1, 0],
         );
         deliver(OP_ENDPOINT_REQ, 107, &[2]);
-        assert_eq!(ENDPOINT_CALLBACKS_WITH_DATA.load(Ordering::Acquire), 2);
+        assert_eq!(ENDPOINT_CALLBACKS_WITH_DATA.load(Ordering::Acquire), 3);
         assert_eq!(ENDPOINT_INVALID_RESPONSES.load(Ordering::Acquire), 5);
 
         __libertas_release_package();
@@ -1903,11 +2352,15 @@ mod tests {
     fn endpoint_status_listener_round_trips_permission_denied() {
         let _guard = TEST_LOCK.lock().unwrap();
         const ENDPOINT: LibertasEndpoint = 42;
-        const PEER: u32 = 74;
+        const OPAQUE_PEER_HANDLE: u32 = 74;
 
         ENDPOINT_STANDARD_RESPONSES.store(0, Ordering::Release);
         ENDPOINT_RECEIVED_STATUSES.store(0, Ordering::Release);
         ENDPOINT_RECEIVED_INVALID_MESSAGES.store(0, Ordering::Release);
+        ENDPOINT_RECEIVED_NO_PAYLOAD.store(0, Ordering::Release);
+        ENDPOINT_ALIVE_RECEIVED_DEVICE.store(0, Ordering::Release);
+        ENDPOINT_ALIVE_RECEIVED_TRANS_ID.store(usize::MAX, Ordering::Release);
+        ENDPOINT_ALIVE_RECEIVED_PEER.store(0, Ordering::Release);
         ENDPOINT_LAST_STATUS.store(0, Ordering::Release);
         ENDPOINT_REMOVALS.store(0, Ordering::Release);
 
@@ -1919,7 +2372,7 @@ mod tests {
         }
         libertas_register_endpoint_status_listener::<bool, _>(
             ENDPOINT,
-            |_, opcode, message, _, _, _| {
+            |device, opcode, message, _, trans_id, peer| {
                 match message {
                     LibertasEndpointMessage::Data(false)
                         if opcode == OP_ENDPOINT_REQ ||
@@ -1944,6 +2397,27 @@ mod tests {
                         );
                         LibertasEndpointHandlerResult::Handled
                     }
+                    LibertasEndpointMessage::NoPayload
+                        if opcode == OP_ENDPOINT_PEER_ALIVE =>
+                    {
+                        ENDPOINT_RECEIVED_NO_PAYLOAD.fetch_add(
+                            1,
+                            Ordering::AcqRel,
+                        );
+                        ENDPOINT_ALIVE_RECEIVED_DEVICE.store(
+                            device as usize,
+                            Ordering::Release,
+                        );
+                        ENDPOINT_ALIVE_RECEIVED_TRANS_ID.store(
+                            trans_id as usize,
+                            Ordering::Release,
+                        );
+                        ENDPOINT_ALIVE_RECEIVED_PEER.store(
+                            peer as usize,
+                            Ordering::Release,
+                        );
+                        LibertasEndpointHandlerResult::Handled
+                    }
                     _ => LibertasEndpointHandlerResult::Handled,
                 }
             },
@@ -1958,7 +2432,7 @@ mod tests {
                 trans_id,
                 data.as_ptr() as *const c_void,
                 data.len(),
-                PEER,
+                OPAQUE_PEER_HANDLE,
             );
         };
 
@@ -1973,7 +2447,10 @@ mod tests {
             LibertasEndpointStandardStatus::PermissionDenied.code() as usize,
         );
         assert_eq!(ENDPOINT_LAST_TRANS_ID.load(Ordering::Acquire), 201);
-        assert_eq!(ENDPOINT_LAST_PEER.load(Ordering::Acquire), PEER as usize);
+        assert_eq!(
+            ENDPOINT_LAST_PEER.load(Ordering::Acquire),
+            OPAQUE_PEER_HANDLE as usize,
+        );
 
         deliver(
             OP_ENDPOINT_SUB_REQ,
@@ -2020,10 +2497,71 @@ mod tests {
             ENDPOINT,
             LibertasEndpointStandardStatus::PermissionDenied,
             206,
-            PEER,
+            OPAQUE_PEER_HANDLE,
         );
         assert_eq!(ENDPOINT_STANDARD_RESPONSES.load(Ordering::Acquire), 3);
         assert_eq!(ENDPOINT_LAST_TRANS_ID.load(Ordering::Acquire), 206);
+
+        unsafe {
+            ((*callbacks).device_callback)(
+                7,
+                ENDPOINT,
+                OP_ENDPOINT_PEER_ALIVE,
+                LIBERTAS_ENDPOINT_IGNORED_TRANS_ID,
+                core::ptr::null(),
+                0,
+                ENDPOINT,
+            );
+        }
+        assert_eq!(ENDPOINT_RECEIVED_NO_PAYLOAD.load(Ordering::Acquire), 1);
+        assert_eq!(
+            ENDPOINT_ALIVE_RECEIVED_DEVICE.load(Ordering::Acquire),
+            ENDPOINT as usize,
+        );
+        assert_eq!(
+            ENDPOINT_ALIVE_RECEIVED_TRANS_ID.load(Ordering::Acquire),
+            LIBERTAS_ENDPOINT_IGNORED_TRANS_ID as usize,
+        );
+        assert_eq!(
+            ENDPOINT_ALIVE_RECEIVED_PEER.load(Ordering::Acquire),
+            ENDPOINT as usize,
+        );
+        assert_ne!(
+            ENDPOINT_ALIVE_RECEIVED_PEER.load(Ordering::Acquire),
+            OPAQUE_PEER_HANDLE as usize,
+        );
+
+        __libertas_release_package();
+    }
+
+    #[test]
+    fn endpoint_peer_alive_is_payloadless() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        const ENDPOINT: LibertasEndpoint = 43;
+        const OPAQUE_PEER_HANDLE: u32 = 75;
+
+        ENDPOINT_ALIVE_SENDS.store(0, Ordering::Release);
+        ENDPOINT_ALIVE_NULL_PAYLOADS.store(0, Ordering::Release);
+        ENDPOINT_LAST_DATA_LEN.store(usize::MAX, Ordering::Release);
+
+        let mut runtime_api = fake_runtime_api();
+        __libertas_init_package(
+            &raw mut runtime_api as *mut c_void);
+
+        libertas_endpoint_peer_alive(ENDPOINT, None);
+        assert_eq!(ENDPOINT_ALIVE_SENDS.load(Ordering::Acquire), 1);
+        assert_eq!(ENDPOINT_LAST_DEVICE.load(Ordering::Acquire), ENDPOINT as usize);
+        assert_eq!(ENDPOINT_LAST_TRANS_ID.load(Ordering::Acquire), 0);
+        assert_eq!(ENDPOINT_LAST_PEER.load(Ordering::Acquire), LIBERTAS_BROADCAST_DEST as usize);
+        assert_eq!(ENDPOINT_LAST_DATA_LEN.load(Ordering::Acquire), 0);
+
+        libertas_endpoint_peer_alive(ENDPOINT, Some(OPAQUE_PEER_HANDLE));
+        assert_eq!(ENDPOINT_ALIVE_SENDS.load(Ordering::Acquire), 2);
+        assert_eq!(ENDPOINT_ALIVE_NULL_PAYLOADS.load(Ordering::Acquire), 2);
+        assert_eq!(
+            ENDPOINT_LAST_PEER.load(Ordering::Acquire),
+            OPAQUE_PEER_HANDLE as usize,
+        );
 
         __libertas_release_package();
     }
