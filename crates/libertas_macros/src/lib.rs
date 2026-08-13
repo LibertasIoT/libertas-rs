@@ -59,11 +59,11 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn libertas_string_resources(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as ItemFn);
-    // Return the modified function (now clean of custom attributes)
-    TokenStream::from(quote! {
-        #input
-    })
+    // Parser-only metadata is valid on an exported function and on a reusable
+    // named schema type. The source parser validates the exact placement
+    // and resolves the referenced constant; the Rust compiler only needs the
+    // annotation consumed without rewriting the item.
+    item
 }
 
 /// Declares the compile-time permission list required by a Libertas function.
