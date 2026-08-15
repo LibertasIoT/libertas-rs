@@ -16,6 +16,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
             pat_type.attrs.retain(|attr| {
                 if attr.path().is_ident("libertas_copy_from") ||
                    attr.path().is_ident("libertas_enum_source") ||
+                   attr.path().is_ident("libertas_date_only") ||
                    attr.path().is_ident("libertas_formatted_text") ||
                    attr.path().is_ident("libertas_chart") ||
                    attr.path().is_ident("libertas_chart_channel") ||
@@ -120,6 +121,7 @@ pub fn libertas_chart_scale(_attr: TokenStream, item: TokenStream) -> TokenStrea
 #[proc_macro_derive(LibertasExport, attributes(
     libertas_copy_from,
     libertas_enum_source,
+    libertas_date_only,
     libertas_formatted_text,
     libertas_endpoint_schema, 
     libertas_endpoint_server, 
