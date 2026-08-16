@@ -28,7 +28,7 @@ pub struct IndexedData<T> where T: AvroDecode {
 /// A printf-style localized template shall be supplied in App documents to
 /// render the resource name into natural language with arguments.
 /// 
-#[derive(LibertasAvroDecode)]
+#[derive(LibertasAvroEncode, LibertasAvroDecode)]
 pub struct DataName {
     pub resource_name: String,
     pub arguments: Vec<NotificationArgumentDecode>,
@@ -151,6 +151,18 @@ pub fn libertas_data_remove_indexed(resource_name: &str, arguments: &[Notificati
         resource_name,
         arguments,
     };
+    let mut serialized = Vec::new();
+    data_name.avro_encode(&mut serialized);
+    __libertas_device_send_raw(PROTOCOL_LIBERTAS, DEVICE_SYSTEM_DATABASE_INDEXED, OP_SYSTEM_DATABASE_REMOVE_DATA, 0, 0, serialized.as_ptr(), serialized.len());
+}
+
+/// Removes the complete indexed database identified by an enumerated data
+/// name.
+///
+/// This is the lossless counterpart to [`libertas_data_get_indexed_names`]: it
+/// preserves the decoded argument types and values without requiring the App
+/// to reconstruct borrowed [`NotificationArgument`] values.
+pub fn libertas_data_remove_indexed_name(data_name: &DataName) {
     let mut serialized = Vec::new();
     data_name.avro_encode(&mut serialized);
     __libertas_device_send_raw(PROTOCOL_LIBERTAS, DEVICE_SYSTEM_DATABASE_INDEXED, OP_SYSTEM_DATABASE_REMOVE_DATA, 0, 0, serialized.as_ptr(), serialized.len());

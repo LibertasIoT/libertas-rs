@@ -37,7 +37,7 @@ pub use notification::{
     FormattedText, NotificationArgument, NotificationImportance, libertas_formatted_text,
     libertas_formatted_text_decode, libertas_notification_send, libertas_notification_send_literal,
 };
-pub use data::{DataName, IndexedData, IndexDirection, IndexedDataStat, libertas_data_get_single_names, libertas_data_get_indexed_names, libertas_data_write_single, libertas_data_write_indexed, libertas_data_read_single, libertas_data_read_indexed, libertas_data_read_indexed_range, libertas_data_remove_single, libertas_data_remove_indexed, libertas_data_remove_indexed_records, libertas_data_open_indexed};
+pub use data::{DataName, IndexedData, IndexDirection, IndexedDataStat, libertas_data_get_single_names, libertas_data_get_indexed_names, libertas_data_write_single, libertas_data_write_indexed, libertas_data_read_single, libertas_data_read_indexed, libertas_data_read_indexed_range, libertas_data_remove_single, libertas_data_remove_indexed, libertas_data_remove_indexed_name, libertas_data_remove_indexed_records, libertas_data_open_indexed};
 pub use log::{LogLevel, libertas_log};
 pub use libertas_utils::{InlineByteBuffer, STACK_BUF_SIZE};
 
