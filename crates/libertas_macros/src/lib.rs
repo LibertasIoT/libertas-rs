@@ -1,6 +1,161 @@
 use proc_macro::TokenStream;
-use quote::quote;
-use syn::{parse_macro_input, ItemFn, FnArg, Pat, DeriveInput};
+use quote::{format_ident, quote};
+use syn::ext::IdentExt;
+use syn::{DeriveInput, ExprPath, FnArg, ItemFn, Pat, Path, PathArguments, parse_macro_input};
+
+fn variant_index_const_ident(variant: &syn::Ident) -> syn::Ident {
+    let variant = variant.unraw();
+    format_ident!("__VARIANT_INDEX_{}", variant, span = variant.span())
+}
+
+/// Generates declaration-order indexes for every variant of an enum.
+///
+/// The generated associated constants are intended to be referenced through
+/// [`variant_index!`]. Unit, tuple, and struct variants are all supported, and
+/// the enum's generic parameters and `where` clause are preserved.
+///
+/// # Stability
+///
+/// This macro supports two distinct compatibility scenarios for protocol and
+/// data Union types in the Libertas type system.
+///
+/// ## Append-only version updates
+///
+/// A new version of a published Union may add variants only after all existing
+/// variants. It must not remove, reorder, or insert variants before an existing
+/// variant, because doing so would change an established declaration index.
+/// Libertas development tools validate and enforce this version-evolution rule.
+/// Declaration indexes therefore remain stable across compatible, append-only
+/// versions.
+///
+/// ## Runtime client-server protocol compatibility
+///
+/// Protocol compatibility is asymmetric. An endpoint client maintains the
+/// server's protocol declaration, but the server does not have the client's
+/// protocol declaration. Client/server matching occurs during configuration,
+/// but that match validates only the mandatory protocol requirements. It does
+/// not establish that the server supports every optional payload type the
+/// client may use later.
+///
+/// Before sending a request that uses an optional payload type, the client must
+/// therefore check the active server's protocol declaration at runtime. The
+/// server cannot perform this check on the client's behalf because it does not
+/// have the client's declaration. The client should use [`variant_index!`]
+/// instead of a hard-coded ordinal for this check. When the payload type is
+/// reached through nested Union variants, the client must check every variant
+/// along that declaration path before sending the request.
+///
+/// ```
+/// use libertas_macros::{variant_index, VariantIndex};
+///
+/// struct Connect;
+/// struct Data;
+///
+/// #[derive(VariantIndex)]
+/// enum Message {
+///     Connect(Connect),
+///     Data(Data),
+/// }
+///
+/// const DATA_INDEX: usize = variant_index!(Message::Data);
+/// assert_eq!(DATA_INDEX, 1);
+/// ```
+#[proc_macro_derive(VariantIndex)]
+pub fn variant_index_derive(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let name = &input.ident;
+    let data = match &input.data {
+        syn::Data::Enum(data) => data,
+        _ => {
+            return syn::Error::new_spanned(name, "VariantIndex can only be derived for an enum")
+                .to_compile_error()
+                .into();
+        }
+    };
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let constants = data.variants.iter().enumerate().map(|(index, variant)| {
+        let const_name = variant_index_const_ident(&variant.ident);
+        quote! {
+            #[doc(hidden)]
+            #[allow(non_upper_case_globals)]
+            pub const #const_name: ::core::primitive::usize = #index;
+        }
+    });
+
+    quote! {
+        impl #impl_generics #name #ty_generics #where_clause {
+            #(#constants)*
+        }
+    }
+    .into()
+}
+
+/// Expands an enum variant path to its zero-based declaration index.
+///
+/// The enum must derive [`VariantIndex`]. The expansion is an associated
+/// constant expression, so it can initialize constants and index constant
+/// tables without constructing the enum variant or its payload.
+///
+/// Qualified paths and generic enums are supported:
+///
+/// ```
+/// use libertas_macros::{variant_index, VariantIndex};
+///
+/// #[derive(VariantIndex)]
+/// enum Message<T> {
+///     Empty,
+///     Data(T),
+/// }
+///
+/// const DATA_INDEX: usize = variant_index!(Message::<String>::Data);
+/// const TABLE: [u32; 2] = [10, 20];
+/// const DATA_VALUE: u32 = TABLE[variant_index!(Message::<String>::Data)];
+///
+/// assert_eq!(DATA_INDEX, 1);
+/// assert_eq!(DATA_VALUE, 20);
+/// ```
+#[proc_macro]
+pub fn variant_index(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as ExprPath);
+    if input.qself.is_some() {
+        return syn::Error::new_spanned(
+            input,
+            "variant_index! expects an enum variant path such as Message::Data",
+        )
+        .to_compile_error()
+        .into();
+    }
+
+    let leading_colon = input.path.leading_colon;
+    let mut segments = input.path.segments.into_iter().collect::<Vec<_>>();
+    let Some(variant) = segments.pop() else {
+        return syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "variant_index! expects an enum variant path such as Message::Data",
+        )
+        .to_compile_error()
+        .into();
+    };
+    if segments.is_empty() || !matches!(&variant.arguments, PathArguments::None) {
+        return syn::Error::new_spanned(
+            variant,
+            "variant_index! expects an enum variant path such as Message::Data",
+        )
+        .to_compile_error()
+        .into();
+    }
+
+    let const_name = variant_index_const_ident(&variant.ident);
+    let enum_path = Path {
+        leading_colon,
+        segments: segments.into_iter().collect(),
+    };
+
+    quote! {
+        #enum_path::#const_name
+    }
+    .into()
+}
 
 /// This macro is used on Libertas public functions.
 /// 
