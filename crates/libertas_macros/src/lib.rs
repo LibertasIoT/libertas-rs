@@ -231,6 +231,15 @@ pub fn libertas_permissions(_attr: TokenStream, item: TokenStream) -> TokenStrea
     })
 }
 
+/// Marks a Libertas function as allowing at most one task on a Hub.
+///
+/// This is parser-only metadata. The Hub enforces the constraint when a task
+/// is created, when its function changes, or when its App version changes.
+#[proc_macro_attribute]
+pub fn libertas_singleton(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 #[proc_macro_attribute]
 pub fn libertas_data_schema(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);
