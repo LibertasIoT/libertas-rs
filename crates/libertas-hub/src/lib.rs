@@ -21,6 +21,8 @@ pub enum HubProtocol {
     /// subscription it must be greater than zero and limits the time between
     /// location reports.
     #[libertas_request]
+    // Reading location does not require write access to the Hub endpoint.
+    #[libertas_access_privilege("Read")]
     #[libertas_subscription_request]
     LocationReq {
         /// Maximum interval between subscription reports, in seconds.

@@ -292,7 +292,10 @@ pub fn libertas_chart_scale(_attr: TokenStream, item: TokenStream) -> TokenStrea
     libertas_endpoint_base_objects,
     libertas_permissions,
     libertas_foreign_type,
-    libertas_request, 
+    libertas_request,
+    // Restricts which end-user endpoint access levels may invoke this request;
+    // the schema parser canonicalizes "Read"/"Write" names to a bitmap.
+    libertas_access_privilege,
     libertas_response, 
     libertas_subscription_request, 
     libertas_subscription_data,
