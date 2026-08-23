@@ -177,6 +177,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                    attr.path().is_ident("libertas_chart_channel") ||
                    attr.path().is_ident("libertas_chart_scale") ||
                    attr.path().is_ident("libertas_chart_guide") ||
+                   attr.path().is_ident("libertas_physical_unit") ||
                    attr.path().is_ident("libertas_endpoint_schema") ||
                    attr.path().is_ident("libertas_endpoint_base_objects") || 
                    attr.path().is_ident("libertas_endpoint_server") || 
@@ -284,6 +285,12 @@ pub fn libertas_chart_guide(_attr: TokenStream, item: TokenStream) -> TokenStrea
     item
 }
 
+/// Parser-only portable physical-unit metadata. The schema parser validates it.
+#[proc_macro_attribute]
+pub fn libertas_physical_unit(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 /// Enables parser-only attributes on published structs and enums.
 ///
 /// `libertas_foreign_type` is accepted by Rust through this derive because it
@@ -325,6 +332,7 @@ pub fn libertas_chart_guide(_attr: TokenStream, item: TokenStream) -> TokenStrea
     libertas_chart_channel,
     libertas_chart_scale,
     libertas_chart_guide,
+    libertas_physical_unit,
     ))]
 pub fn libertas_derive(input: TokenStream) -> TokenStream {
     // 1. Parse the input tokens into a syntax tree
