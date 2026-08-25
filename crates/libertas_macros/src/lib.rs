@@ -171,6 +171,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
             pat_type.attrs.retain(|attr| {
                 if attr.path().is_ident("libertas_copy_from") ||
                    attr.path().is_ident("libertas_enum_source") ||
+                   attr.path().is_ident("libertas_bitflags") ||
                    attr.path().is_ident("libertas_date_only") ||
                    attr.path().is_ident("libertas_format") ||
                    attr.path().is_ident("libertas_formatted_text") ||
@@ -303,6 +304,17 @@ pub fn libertas_format(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
+/// Marks either a bitflag catalog declaration or an integer field that uses it.
+///
+/// The schema parser fabricates a localized Enumeration from a catalog and
+/// projects that catalog onto integer fields. This macro intentionally leaves
+/// Rust runtime representation and wire encoding unchanged. It also works on a
+/// struct emitted by the popular `bitflags!` macro.
+#[proc_macro_attribute]
+pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 /// Enables parser-only attributes on published structs and enums.
 ///
 /// `libertas_foreign_type` is accepted by Rust through this derive because it
@@ -311,6 +323,7 @@ pub fn libertas_format(_attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_derive(LibertasExport, attributes(
     libertas_copy_from,
     libertas_enum_source,
+    libertas_bitflags,
     libertas_date_only,
     libertas_format,
     libertas_formatted_text,
