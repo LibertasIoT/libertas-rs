@@ -172,6 +172,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 if attr.path().is_ident("libertas_copy_from") ||
                    attr.path().is_ident("libertas_enum_source") ||
                    attr.path().is_ident("libertas_date_only") ||
+                   attr.path().is_ident("libertas_format") ||
                    attr.path().is_ident("libertas_formatted_text") ||
                    attr.path().is_ident("libertas_chart") ||
                    attr.path().is_ident("libertas_chart_channel") ||
@@ -291,6 +292,17 @@ pub fn libertas_physical_unit(_attr: TokenStream, item: TokenStream) -> TokenStr
     item
 }
 
+/// Parser-only Unicode LDML display-format metadata.
+///
+/// The schema parser validates the pattern and its effective host type. This
+/// standalone form keeps reusable numeric and temporal type aliases valid Rust
+/// source; fields and exported function parameters use the derive/export
+/// helper paths below.
+#[proc_macro_attribute]
+pub fn libertas_format(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 /// Enables parser-only attributes on published structs and enums.
 ///
 /// `libertas_foreign_type` is accepted by Rust through this derive because it
@@ -300,6 +312,7 @@ pub fn libertas_physical_unit(_attr: TokenStream, item: TokenStream) -> TokenStr
     libertas_copy_from,
     libertas_enum_source,
     libertas_date_only,
+    libertas_format,
     libertas_formatted_text,
     libertas_endpoint_schema, 
     libertas_endpoint_server, 
