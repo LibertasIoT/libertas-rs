@@ -342,8 +342,8 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_subscription_request, 
     libertas_subscription_data,
     libertas_default,
-    // On an Endpoint client this carries the mandatory peer task-process FQN;
-    // it remains parser-only metadata and does not change the encoded ID.
+    // On an Endpoint client this carries an editable peer-process constraint;
+    // it remains parser-only metadata and does not fix the encoded Endpoint ID.
     libertas_fixed,
     libertas_device_type,
     libertas_virtual_device_type,
