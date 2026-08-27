@@ -190,6 +190,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                    attr.path().is_ident("libertas_ui_header") || 
                    attr.path().is_ident("libertas_read_only") || 
                    attr.path().is_ident("libertas_hidden") || 
+                   attr.path().is_ident("libertas_exclude_ui") ||
                    attr.path().is_ident("libertas_number") || 
                    attr.path().is_ident("libertas_size") ||
                    attr.path().is_ident("libertas_time_interval") || 
@@ -345,6 +346,9 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_ui_header,
     libertas_read_only,
     libertas_hidden,
+    // Omits a server Endpoint or protocol variant from client-generated UI;
+    // runtime protocol behavior and wire encoding remain unchanged.
+    libertas_exclude_ui,
     libertas_number,
     libertas_size,
     libertas_time_interval,
