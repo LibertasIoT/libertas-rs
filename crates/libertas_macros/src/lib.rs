@@ -186,6 +186,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                    attr.path().is_ident("libertas_permissions") ||
                    attr.path().is_ident("libertas_data_schema") || 
                    attr.path().is_ident("libertas_default") || 
+                   attr.path().is_ident("libertas_fixed") ||
                    attr.path().is_ident("libertas_device_type") || 
                    attr.path().is_ident("libertas_ui_header") || 
                    attr.path().is_ident("libertas_read_only") || 
@@ -341,6 +342,9 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_subscription_request, 
     libertas_subscription_data,
     libertas_default,
+    // On an Endpoint client this carries the mandatory peer task-process FQN;
+    // it remains parser-only metadata and does not change the encoded ID.
+    libertas_fixed,
     libertas_device_type,
     libertas_virtual_device_type,
     libertas_ui_header,
