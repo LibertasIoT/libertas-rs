@@ -25,19 +25,19 @@ pub struct IndexedData<T> where T: AvroDecode {
 
 /// Data name with resource and arguments.
 /// Used for identifying single records and indexed data in the database.
-/// A printf-style localized template shall be supplied in App documents to
+/// An LMF1 localized template shall be supplied in App documents to
 /// render the resource name into natural language with arguments.
 /// 
 #[derive(LibertasAvroEncode, LibertasAvroDecode)]
 pub struct DataName {
     pub resource_name: String,
-    pub arguments: Vec<NotificationArgumentDecode>,
+    pub arguments: Vec<LibertasMessageArgumentDecode>,
 }
 
 #[derive(LibertasAvroEncode)]
 struct DataNameInternal<'a> {
     resource_name: &'a str,
-    arguments: &'a [NotificationArgument<'a>],
+    arguments: &'a [LibertasMessageArgument<'a>],
 }
 
 #[repr(C)]
@@ -126,7 +126,7 @@ pub fn libertas_data_get_indexed_names() -> Vec<DataName> {
 }
 
 /// Removes a single record by resource name and arguments.
-pub fn libertas_data_remove_single(resource_name: &str, arguments: &[NotificationArgument]) {
+pub fn libertas_data_remove_single(resource_name: &str, arguments: &[LibertasMessageArgument]) {
     let data_name = DataNameInternal {
         resource_name,
         arguments,
@@ -141,12 +141,12 @@ pub fn libertas_data_remove_single(resource_name: &str, arguments: &[Notificatio
 /// 
 /// # Arguments
 /// * `resource_name` - The resource name of the indexed data to remove. This is a string that identifies the type of indexed data, such as "player_score_history" or "enemy_spawn_events".
-/// * `arguments` - The arguments that further specify the indexed data to remove. The arguments are an array of `NotificationArgument` structs, which can include various types of data such as integers, strings, or booleans. The specific arguments needed to identify the indexed data will depend on how the indexed data was originally written to the database.
+/// * `arguments` - The arguments that further specify the indexed data to remove. The arguments are an array of `LibertasMessageArgument` structs, which can include various types of data such as integers, strings, or booleans. The specific arguments needed to identify the indexed data will depend on how the indexed data was originally written to the database.
 /// Unlike a single record, indexed data is organized by an index value for
 /// ordered lookup. This operation removes the complete indexed database named
 /// by the resource and arguments, regardless of its records' index values.
 ///
-pub fn libertas_data_remove_indexed(resource_name: &str, arguments: &[NotificationArgument]) {
+pub fn libertas_data_remove_indexed(resource_name: &str, arguments: &[LibertasMessageArgument]) {
     let data_name = DataNameInternal {
         resource_name,
         arguments,
@@ -161,7 +161,7 @@ pub fn libertas_data_remove_indexed(resource_name: &str, arguments: &[Notificati
 ///
 /// This is the lossless counterpart to [`libertas_data_get_indexed_names`]: it
 /// preserves the decoded argument types and values without requiring the App
-/// to reconstruct borrowed [`NotificationArgument`] values.
+/// to reconstruct borrowed [`LibertasMessageArgument`] values.
 pub fn libertas_data_remove_indexed_name(data_name: &DataName) {
     let mut serialized = Vec::new();
     data_name.avro_encode(&mut serialized);
@@ -191,7 +191,7 @@ pub fn libertas_data_remove_indexed_records(db: LibertasDataStore, index_lo: i64
 /// 
 /// # Returns
 /// IndexedDataStat with handle, count, and index range. If `count` is 0, then `min_index` and `max_index` are undefined.
-pub fn libertas_data_open_indexed(resource_name: &str, arguments: &[NotificationArgument]) -> IndexedDataStat {
+pub fn libertas_data_open_indexed(resource_name: &str, arguments: &[LibertasMessageArgument]) -> IndexedDataStat {
     let data_name = DataNameInternal {
         resource_name,
         arguments,
@@ -218,7 +218,7 @@ pub fn libertas_data_open_indexed(resource_name: &str, arguments: &[Notification
 /// * `resource_name` - Resource identifier.
 /// * `arguments` - Resource arguments.
 /// * `data` - Encodable data.
-pub fn libertas_data_write_single(resource_name: &str, arguments: &[NotificationArgument], data: &dyn AvroEncode) {
+pub fn libertas_data_write_single(resource_name: &str, arguments: &[LibertasMessageArgument], data: &dyn AvroEncode) {
     let data_name = DataNameInternal {
         resource_name,
         arguments,
@@ -268,7 +268,7 @@ pub fn libertas_data_write_indexed(db: LibertasDataStore, index: i64, data: &dyn
 /// 
 /// # Returns
 /// Decoded data or None if not found.
-pub fn libertas_data_read_single<T>(resource_name: &str, arguments: &[NotificationArgument]) -> Option<T> where T: AvroDecode {
+pub fn libertas_data_read_single<T>(resource_name: &str, arguments: &[LibertasMessageArgument]) -> Option<T> where T: AvroDecode {
     let data_name = DataNameInternal {
         resource_name,
         arguments,
