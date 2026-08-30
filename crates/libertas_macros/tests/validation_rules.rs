@@ -10,7 +10,7 @@ struct Settings {
 }
 
 #[libertas_export]
-#[libertas_validation_rules("[minimum] == null || [maximum] == null || [minimum] <= [maximum];")]
+#[libertas_validation_rules("FinalOnly=true; [minimum] <= [maximum];")]
 fn configure(
     #[libertas_validation_rules("[] == null || [] >= 0;")] minimum: i32,
     maximum: i32,
