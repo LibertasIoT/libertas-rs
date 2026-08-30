@@ -339,6 +339,7 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     // the schema parser canonicalizes "Read"/"Write" names to a bitmap.
     libertas_access_privilege,
     libertas_response, 
+    libertas_error,
     libertas_subscription_request, 
     libertas_subscription_data,
     libertas_default,

@@ -6,6 +6,7 @@ enum Protocol {
     #[libertas_exclude_ui]
     InternalRequest(u32),
     #[libertas_response]
+    #[libertas_error]
     VisibleResponse(u32),
 }
 
