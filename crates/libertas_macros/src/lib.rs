@@ -170,6 +170,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
             // We use 'retain' to keep only the attributes that are NOT ours
             pat_type.attrs.retain(|attr| {
                 if attr.path().is_ident("libertas_copy_from") ||
+                   attr.path().is_ident("libertas_validation_rules") ||
                    attr.path().is_ident("libertas_enum_source") ||
                    attr.path().is_ident("libertas_bitflags") ||
                    attr.path().is_ident("libertas_date_only") ||
@@ -306,6 +307,14 @@ pub fn libertas_format(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
+/// Declares pure Libertas data validation expressions on a function, named
+/// type, field, parameter, or other schema data-type node. Studio owns parsing
+/// and semantic validation; this macro deliberately leaves Rust code intact.
+#[proc_macro_attribute]
+pub fn libertas_validation_rules(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 /// Marks either a bitflag catalog declaration or an integer field that uses it.
 ///
 /// The schema parser fabricates a localized Enumeration from a catalog and
@@ -324,6 +333,7 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// parser rejects it on fields, variants, and references.
 #[proc_macro_derive(LibertasExport, attributes(
     libertas_copy_from,
+    libertas_validation_rules,
     libertas_enum_source,
     libertas_bitflags,
     libertas_date_only,
