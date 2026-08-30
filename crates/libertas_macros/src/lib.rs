@@ -180,6 +180,11 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                    attr.path().is_ident("libertas_chart_channel") ||
                    attr.path().is_ident("libertas_chart_scale") ||
                    attr.path().is_ident("libertas_chart_guide") ||
+                   attr.path().is_ident("libertas_chart3d") ||
+                   attr.path().is_ident("libertas_chart3d_channel") ||
+                   attr.path().is_ident("libertas_chart3d_scale") ||
+                   attr.path().is_ident("libertas_chart3d_guide") ||
+                   attr.path().is_ident("libertas_chart3d_view") ||
                    attr.path().is_ident("libertas_physical_unit") ||
                    attr.path().is_ident("libertas_endpoint_schema") ||
                    attr.path().is_ident("libertas_endpoint_base_objects") || 
@@ -290,6 +295,36 @@ pub fn libertas_chart_guide(_attr: TokenStream, item: TokenStream) -> TokenStrea
     item
 }
 
+/// Parser-only 3D chart mark/composition metadata. Studio validates it.
+#[proc_macro_attribute]
+pub fn libertas_chart3d(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+/// Parser-only 3D chart channel metadata. Studio validates it.
+#[proc_macro_attribute]
+pub fn libertas_chart3d_channel(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+/// Parser-only 3D chart scale metadata. Studio validates it.
+#[proc_macro_attribute]
+pub fn libertas_chart3d_scale(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+/// Parser-only 3D chart guide metadata. Studio validates it.
+#[proc_macro_attribute]
+pub fn libertas_chart3d_guide(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+/// Parser-only 3D camera/projection metadata. Studio validates it.
+#[proc_macro_attribute]
+pub fn libertas_chart3d_view(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 /// Parser-only portable physical-unit metadata. The schema parser validates it.
 #[proc_macro_attribute]
 pub fn libertas_physical_unit(_attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -380,6 +415,11 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_chart_channel,
     libertas_chart_scale,
     libertas_chart_guide,
+    libertas_chart3d,
+    libertas_chart3d_channel,
+    libertas_chart3d_scale,
+    libertas_chart3d_guide,
+    libertas_chart3d_view,
     libertas_physical_unit,
     ))]
 pub fn libertas_derive(input: TokenStream) -> TokenStream {
