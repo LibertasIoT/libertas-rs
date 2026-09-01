@@ -1,11 +1,14 @@
-/// Libertas Rust SDK - Data API
-/// 
-/// Functions for single-record and indexed data operations with Avro encoding.
+//! Libertas Rust SDK - Data API
+//!
+//! Functions for single-record and indexed data operations. Every logical data
+//! name is one canonical byte blob containing a package-local LMF1 resource key
+//! and ordered, typed Libertas Message Arguments. The blob is both stable
+//! storage identity and the complete input for localized human presentation.
 
-use alloc::vec::Vec;
-use alloc::string::String;
-use libertas_macros::{LibertasAvroEncode, LibertasAvroDecode};
 use crate::*;
+use alloc::string::String;
+use alloc::vec::Vec;
+use libertas_macros::{LibertasAvroDecode, LibertasAvroEncode};
 use notification::*;
 
 /// Direction for indexed data reads.
@@ -23,21 +26,30 @@ pub struct IndexedData<T> where T: AvroDecode {
     pub data: T,
 }
 
-/// Data name with resource and arguments.
-/// Used for identifying single records and indexed data in the database.
-/// An LMF1 localized template shall be supplied in App documents to
-/// render the resource name into natural language with arguments.
-/// 
+/// Decoded view of a canonical Libertas data name.
+///
+/// At the storage boundary, `resource_name` and `arguments` are encoded into
+/// one byte blob. That blob is the sole identity of a single record or indexed
+/// database/table; it is not a literal or rendered String name. The same tuple
+/// is also a FormattedText value: the current task's package selects the
+/// `StringResources` catalog, `resource_name` selects an LMF1 template, and the
+/// typed arguments supply its data for localized human presentation.
+///
+/// Data functions accept the tuple and perform the canonical encoding. App code
+/// must not pre-render, Base64-wrap, or hand-encode it. A translation or template
+/// wording change leaves identity intact; changing the key, argument order,
+/// argument type, or argument value creates a different identity.
+///
+/// Single-record and indexed-database names occupy separate namespaces even
+/// when their bytes match. An indexed row's signed index is additional identity
+/// and is not part of this tuple.
 #[derive(LibertasAvroEncode, LibertasAvroDecode)]
 pub struct DataName {
+    /// Package-local key of the LMF1 template in `StringResources`.
     pub resource_name: String,
-    pub arguments: Vec<LibertasMessageArgumentDecode>,
-}
 
-#[derive(LibertasAvroEncode)]
-struct DataNameInternal<'a> {
-    resource_name: &'a str,
-    arguments: &'a [LibertasMessageArgument<'a>],
+    /// Ordered, typed values used for both byte identity and human rendering.
+    pub arguments: Vec<LibertasMessageArgumentDecode>,
 }
 
 #[repr(C)]
@@ -125,34 +137,27 @@ pub fn libertas_data_get_indexed_names() -> Vec<DataName> {
     names
 }
 
-/// Removes a single record by resource name and arguments.
+/// Removes the single record identified by the canonical encoding of a
+/// package-local LMF1 resource key and its ordered, typed arguments.
 pub fn libertas_data_remove_single(resource_name: &str, arguments: &[LibertasMessageArgument]) {
-    let data_name = DataNameInternal {
-        resource_name,
-        arguments,
-    };
-    let mut serialized = Vec::new();
-    data_name.avro_encode(&mut serialized);
+    let serialized = libertas_formatted_text(resource_name, arguments);
     __libertas_device_send_raw(PROTOCOL_LIBERTAS, DEVICE_SYSTEM_DATABASE_SINGLE, OP_SYSTEM_DATABASE_REMOVE_DATA, 0, 0, serialized.as_ptr(), serialized.len());
 }
 
-/// Removes a piece of indexed data from the indexed database. The data to remove is identified by the resource name and arguments.
-/// The resource name and arguments are encoded in Avro format and sent to the device to perform the removal. After this function is called, the specified indexed data will no longer be available in the indexed database.
-/// 
+/// Removes the complete indexed database identified and named by a
+/// package-local LMF1 resource key and its ordered, typed arguments.
+///
 /// # Arguments
-/// * `resource_name` - The resource name of the indexed data to remove. This is a string that identifies the type of indexed data, such as "player_score_history" or "enemy_spawn_events".
-/// * `arguments` - The arguments that further specify the indexed data to remove. The arguments are an array of `LibertasMessageArgument` structs, which can include various types of data such as integers, strings, or booleans. The specific arguments needed to identify the indexed data will depend on how the indexed data was originally written to the database.
+/// * `resource_name` - Package-local LMF1 template key in `StringResources`.
+/// * `arguments` - Ordered, typed values that must exactly match the tuple used
+///   when the indexed database was opened.
+///
 /// Unlike a single record, indexed data is organized by an index value for
 /// ordered lookup. This operation removes the complete indexed database named
 /// by the resource and arguments, regardless of its records' index values.
 ///
 pub fn libertas_data_remove_indexed(resource_name: &str, arguments: &[LibertasMessageArgument]) {
-    let data_name = DataNameInternal {
-        resource_name,
-        arguments,
-    };
-    let mut serialized = Vec::new();
-    data_name.avro_encode(&mut serialized);
+    let serialized = libertas_formatted_text(resource_name, arguments);
     __libertas_device_send_raw(PROTOCOL_LIBERTAS, DEVICE_SYSTEM_DATABASE_INDEXED, OP_SYSTEM_DATABASE_REMOVE_DATA, 0, 0, serialized.as_ptr(), serialized.len());
 }
 
@@ -186,18 +191,14 @@ pub fn libertas_data_remove_indexed_records(db: LibertasDataStore, index_lo: i64
 /// Opens indexed data and returns handle with stats.
 /// 
 /// # Arguments
-/// * `resource_name` - Resource identifier.
-/// * `arguments` - Resource arguments.
+/// * `resource_name` - Package-local LMF1 template key in `StringResources`.
+/// * `arguments` - Ordered, typed values identifying and naming the indexed
+///   database.
 /// 
 /// # Returns
 /// IndexedDataStat with handle, count, and index range. If `count` is 0, then `min_index` and `max_index` are undefined.
 pub fn libertas_data_open_indexed(resource_name: &str, arguments: &[LibertasMessageArgument]) -> IndexedDataStat {
-    let data_name = DataNameInternal {
-        resource_name,
-        arguments,
-    };
-    let mut serialized = Vec::new();
-    data_name.avro_encode(&mut serialized);
+    let serialized = libertas_formatted_text(resource_name, arguments);
     let result = __libertas_device_read_raw(PROTOCOL_LIBERTAS, DEVICE_SYSTEM_DATABASE_INDEXED, OP_SYSTEM_DATABASE_OPEN_INDEXED_DATA, serialized.as_ptr(), serialized.len());
     if result.success && result.data_len == core::mem::size_of::<IndexedDataStat>() {
         let stat = unsafe { &*(result.data as *const IndexedDataStat) };
@@ -215,16 +216,11 @@ pub fn libertas_data_open_indexed(resource_name: &str, arguments: &[LibertasMess
 /// Writes a single record.
 /// 
 /// # Arguments
-/// * `resource_name` - Resource identifier.
-/// * `arguments` - Resource arguments.
+/// * `resource_name` - Package-local LMF1 template key in `StringResources`.
+/// * `arguments` - Ordered, typed values identifying and naming the record.
 /// * `data` - Encodable data.
 pub fn libertas_data_write_single(resource_name: &str, arguments: &[LibertasMessageArgument], data: &dyn AvroEncode) {
-    let data_name = DataNameInternal {
-        resource_name,
-        arguments,
-    };
-    let mut serialized = Vec::new();
-    data_name.avro_encode(&mut serialized);
+    let mut serialized = libertas_formatted_text(resource_name, arguments);
     let name_len = serialized.len();
     data.avro_encode(&mut serialized);
     let total_len = serialized.len();
@@ -263,18 +259,13 @@ pub fn libertas_data_write_indexed(db: LibertasDataStore, index: i64, data: &dyn
 /// Reads a single record.
 /// 
 /// # Arguments
-/// * `resource_name` - Resource identifier.
-/// * `arguments` - Resource arguments.
+/// * `resource_name` - Package-local LMF1 template key in `StringResources`.
+/// * `arguments` - Ordered, typed values identifying and naming the record.
 /// 
 /// # Returns
 /// Decoded data or None if not found.
 pub fn libertas_data_read_single<T>(resource_name: &str, arguments: &[LibertasMessageArgument]) -> Option<T> where T: AvroDecode {
-    let data_name = DataNameInternal {
-        resource_name,
-        arguments,
-    };
-    let mut name = Vec::new();
-    data_name.avro_encode(&mut name);
+    let name = libertas_formatted_text(resource_name, arguments);
     let result = __libertas_device_read_raw(PROTOCOL_LIBERTAS, DEVICE_SYSTEM_DATABASE_SINGLE, OP_SYSTEM_DATABASE_READ_DATA, name.as_ptr(), name.len());
     return if result.success {
         let data_slice = unsafe { core::slice::from_raw_parts(result.data, result.data_len) };
@@ -347,4 +338,76 @@ pub fn libertas_data_read_indexed<T>(db: LibertasDataStore, index: i64) -> Optio
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decoded_data_name_matches_formatted_text_bytes() {
+        let arguments = [
+            LibertasMessageArgument::LiteralText("north greenhouse"),
+            LibertasMessageArgument::Object(42),
+            LibertasMessageArgument::Boolean(true),
+            LibertasMessageArgument::Signed(-9),
+            LibertasMessageArgument::Unsigned(9),
+            LibertasMessageArgument::Float(1.25),
+            LibertasMessageArgument::Double(-2.5),
+            LibertasMessageArgument::UnitSigned {
+                unit_type: "celsius",
+                value: -3,
+            },
+            LibertasMessageArgument::UnitUnsigned {
+                unit_type: "byte",
+                value: 1024,
+            },
+            LibertasMessageArgument::UnitFloat {
+                unit_type: "meter-per-second",
+                value: 1.5,
+            },
+            LibertasMessageArgument::UnitDouble {
+                unit_type: "millimeter",
+                value: 2.75,
+            },
+            LibertasMessageArgument::ResourceText("READY"),
+            LibertasMessageArgument::Plural(3),
+        ];
+        let expected = libertas_formatted_text("DEVICE_HISTORY", &arguments);
+
+        let decoded = DataName {
+            resource_name: String::from("DEVICE_HISTORY"),
+            arguments: Vec::from([
+                LibertasMessageArgumentDecode::LiteralText(String::from("north greenhouse")),
+                LibertasMessageArgumentDecode::Object(42),
+                LibertasMessageArgumentDecode::Boolean(true),
+                LibertasMessageArgumentDecode::Signed(-9),
+                LibertasMessageArgumentDecode::Unsigned(9),
+                LibertasMessageArgumentDecode::Float(1.25),
+                LibertasMessageArgumentDecode::Double(-2.5),
+                LibertasMessageArgumentDecode::UnitSigned {
+                    unit_type: String::from("celsius"),
+                    value: -3,
+                },
+                LibertasMessageArgumentDecode::UnitUnsigned {
+                    unit_type: String::from("byte"),
+                    value: 1024,
+                },
+                LibertasMessageArgumentDecode::UnitFloat {
+                    unit_type: String::from("meter-per-second"),
+                    value: 1.5,
+                },
+                LibertasMessageArgumentDecode::UnitDouble {
+                    unit_type: String::from("millimeter"),
+                    value: 2.75,
+                },
+                LibertasMessageArgumentDecode::ResourceText(String::from("READY")),
+                LibertasMessageArgumentDecode::Plural(3),
+            ]),
+        };
+        let mut reencoded = Vec::new();
+        decoded.avro_encode(&mut reencoded);
+
+        assert_eq!(reencoded, expected);
+    }
 }
