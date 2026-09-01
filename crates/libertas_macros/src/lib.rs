@@ -190,6 +190,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                    attr.path().is_ident("libertas_endpoint_base_objects") || 
                    attr.path().is_ident("libertas_endpoint_server") || 
                    attr.path().is_ident("libertas_permissions") ||
+                   attr.path().is_ident("libertas_access_host") ||
                    attr.path().is_ident("libertas_data_schema") || 
                    attr.path().is_ident("libertas_default") || 
                    attr.path().is_ident("libertas_fixed") ||
@@ -241,6 +242,14 @@ pub fn libertas_permissions(_attr: TokenStream, item: TokenStream) -> TokenStrea
     TokenStream::from(quote! {
         #input
     })
+}
+
+/// Declares the comma-delimited DNS hostnames a Libertas function task needs
+/// to access. The schema parser extracts the value, and Libertas Studio checks
+/// that every hostname has a localized reason in package StringResources.
+#[proc_macro_attribute]
+pub fn libertas_access_host(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
 }
 
 /// Marks a Libertas function as allowing at most one task on a Hub.
@@ -378,6 +387,7 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_endpoint_server, 
     libertas_endpoint_base_objects,
     libertas_permissions,
+    libertas_access_host,
     libertas_foreign_type,
     libertas_request,
     // Restricts which end-user endpoint access levels may invoke this request;
