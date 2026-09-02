@@ -196,6 +196,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                    attr.path().is_ident("libertas_fixed") ||
                    attr.path().is_ident("libertas_device_type") || 
                    attr.path().is_ident("libertas_ui_header") || 
+                   attr.path().is_ident("libertas_ui_include_description") ||
                    attr.path().is_ident("libertas_read_only") || 
                    attr.path().is_ident("libertas_hidden") || 
                    attr.path().is_ident("libertas_exclude_ui") ||
@@ -351,6 +352,14 @@ pub fn libertas_format(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
+/// Requests that clients display the localized long description inline with
+/// the short display name. This parser-only metadata does not alter the Rust
+/// value or its wire encoding.
+#[proc_macro_attribute]
+pub fn libertas_ui_include_description(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 /// Declares pure Libertas data validation expressions on a function, named
 /// type, field, parameter, or other schema data-type node. Studio owns parsing
 /// and semantic validation; this macro deliberately leaves Rust code intact.
@@ -404,6 +413,9 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_device_type,
     libertas_virtual_device_type,
     libertas_ui_header,
+    // Requests that clients render the long description beside the short
+    // display name. This is presentation metadata only.
+    libertas_ui_include_description,
     libertas_read_only,
     libertas_hidden,
     // Omits a server Endpoint or protocol variant from client-generated UI;
