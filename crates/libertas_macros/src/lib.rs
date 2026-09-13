@@ -173,6 +173,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                    attr.path().is_ident("libertas_prev_request") ||
                    attr.path().is_ident("libertas_calculation_request") ||
                    attr.path().is_ident("libertas_copy_from") ||
+                   attr.path().is_ident("libertas_copy_to") ||
                    attr.path().is_ident("libertas_validation_rules") ||
                    attr.path().is_ident("libertas_range_min") ||
                    attr.path().is_ident("libertas_range_max") ||
@@ -413,6 +414,7 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_workflow_request,
     libertas_prev_request,
     libertas_copy_from,
+    libertas_copy_to,
     libertas_validation_rules,
     libertas_range_min,
     libertas_range_max,
