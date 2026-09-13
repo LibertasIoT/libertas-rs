@@ -236,10 +236,12 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn libertas_string_resources(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    // Parser-only metadata is valid on an exported function and on a reusable
-    // named schema type. The source parser validates the exact placement
-    // and resolves the referenced constant; the Rust compiler only needs the
-    // annotation consumed without rewriting the item.
+    // Valid authoring declares one package catalog in leading crate docs:
+    // //! #[libertas_string_resources(APP_STRINGS)]
+    // Function/type/variant/field placement is invalid. This compiler helper
+    // only consumes an item attribute; it does not approve schema placement.
+    // The source parser resolves the constant and preserves misplaced metadata
+    // so Studio's shared validator can reject it with its source location.
     item
 }
 

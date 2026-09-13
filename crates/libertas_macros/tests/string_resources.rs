@@ -1,3 +1,9 @@
+// Deliberately invalid schema placements: these fixtures verify only that
+// the compiler helper passes through items unchanged. Studio rejects both
+// placements. Valid Apps declare their catalog in leading package docs with
+// //! #[libertas_string_resources(APP_STRINGS)]
+// Compiler acceptance must never be treated as schema validation.
+
 use libertas_macros::libertas_string_resources;
 
 #[allow(dead_code)]
@@ -15,7 +21,7 @@ struct ReusableOutput {
 }
 
 #[test]
-fn string_resources_compile_on_functions_and_named_types() {
+fn invalid_resource_placements_pass_through_for_studio_validation() {
     assert!(run());
     let value = ReusableOutput { value: String::new() };
     assert!(value.value.is_empty());
