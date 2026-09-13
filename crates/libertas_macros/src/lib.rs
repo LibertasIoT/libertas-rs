@@ -169,7 +169,10 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
             // 1. Check the attributes on this specific argument
             // We use 'retain' to keep only the attributes that are NOT ours
             pat_type.attrs.retain(|attr| {
-                if attr.path().is_ident("libertas_copy_from") ||
+                if attr.path().is_ident("libertas_workflow_request") ||
+                   attr.path().is_ident("libertas_prev_request") ||
+                   attr.path().is_ident("libertas_calculation_request") ||
+                   attr.path().is_ident("libertas_copy_from") ||
                    attr.path().is_ident("libertas_validation_rules") ||
                    attr.path().is_ident("libertas_range_min") ||
                    attr.path().is_ident("libertas_range_max") ||
@@ -177,6 +180,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                    attr.path().is_ident("libertas_bitflags") ||
                    attr.path().is_ident("libertas_date_only") ||
                    attr.path().is_ident("libertas_format") ||
+                   attr.path().is_ident("libertas_money") ||
                    attr.path().is_ident("libertas_formatted_text") ||
                    attr.path().is_ident("libertas_chart") ||
                    attr.path().is_ident("libertas_chart_channel") ||
@@ -343,12 +347,16 @@ pub fn libertas_physical_unit(_attr: TokenStream, item: TokenStream) -> TokenStr
     item
 }
 
+/// Exact i64 money in fixed minor units, with a currency code and scale.
+/// Studio validates the metadata; this macro leaves wire values unchanged.
+#[proc_macro_attribute]
+pub fn libertas_money(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 /// Parser-only Unicode LDML display-format metadata.
-///
-/// The schema parser validates the pattern and its effective host type. This
-/// standalone form keeps reusable numeric and temporal type aliases valid Rust
-/// source; fields and exported function parameters use the derive/export
-/// helper paths below.
+/// Studio validates the pattern and its effective host type. This standalone
+/// form supports reusable aliases; fields/parameters use the helper paths.
 #[proc_macro_attribute]
 pub fn libertas_format(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
@@ -401,6 +409,9 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// declares compatibility for the published named type itself. The schema
 /// parser rejects it on fields, variants, and references.
 #[proc_macro_derive(LibertasExport, attributes(
+    libertas_calculation_request,
+    libertas_workflow_request,
+    libertas_prev_request,
     libertas_copy_from,
     libertas_validation_rules,
     libertas_range_min,
@@ -409,6 +420,7 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_bitflags,
     libertas_date_only,
     libertas_format,
+    libertas_money,
     libertas_formatted_text,
     libertas_endpoint_schema, 
     libertas_endpoint_server, 

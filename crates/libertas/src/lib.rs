@@ -319,6 +319,8 @@ pub const OP_ENDPOINT_DATA: u8 = 5;
 pub const OP_ENDPOINT_REQ: u8 = 8;
 /// Endpoint response opcode.
 pub const OP_ENDPOINT_RSP: u8 = 9;
+/// Correlated server reply carrying a complete Request to edit and resubmit.
+pub const OP_ENDPOINT_EDIT_REQ: u8 = 10;
 /// Endpoint message envelope carried in the first payload byte.
 ///
 /// `Success` is followed by exactly one Avro datum. `InvalidMessage` has no
@@ -1836,6 +1838,21 @@ pub fn libertas_endpoint_response<T>(server: LibertasEndpoint, data: &T, trans_i
     libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_RSP, &bytes, trans_id, dest);
 }
 
+/// Replies with a complete Request for the client to edit and resubmit.
+///
+/// Pass the original opaque transaction ID and peer unchanged. The client
+/// installs these values directly, without CopyFrom, defaults, or automatic
+/// submission. Unfinished drafts remain client-local and cannot be sent here.
+#[inline(always)]
+pub fn libertas_endpoint_edit_request<T>(server: LibertasEndpoint, data: &T, trans_id: LibertasTransId, dest: u32)
+    where
+        T: AvroEncode + 'static {
+    let mut bytes = Vec::new();
+    bytes.push(LibertasEndpointStatus::Success as u8);
+    data.avro_encode(&mut bytes);
+    libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_EDIT_REQ, &bytes, trans_id, dest);
+}
+
 /// Sends a canonical failure status for an endpoint request.
 ///
 /// See [`LibertasEndpoint`] for the normative subscription, opaque-peer,
@@ -1973,6 +1990,8 @@ mod tests {
     static ENDPOINT_CALLBACKS_WITH_DATA: AtomicUsize = AtomicUsize::new(0);
     static ENDPOINT_CALLBACKS_WITHOUT_DATA: AtomicUsize = AtomicUsize::new(0);
     static ENDPOINT_INVALID_RESPONSES: AtomicUsize = AtomicUsize::new(0);
+    static ENDPOINT_EDIT_PAYLOAD: Mutex<Vec<u8>> = Mutex::new(Vec::new());
+    static ENDPOINT_EDIT_CALLBACKS: AtomicUsize = AtomicUsize::new(0);
     static ENDPOINT_STANDARD_RESPONSES: AtomicUsize = AtomicUsize::new(0);
     static ENDPOINT_RECEIVED_STATUSES: AtomicUsize = AtomicUsize::new(0);
     static ENDPOINT_RECEIVED_INVALID_MESSAGES: AtomicUsize = AtomicUsize::new(0);
@@ -2018,6 +2037,11 @@ mod tests {
                 ENDPOINT_ALIVE_NULL_PAYLOADS.fetch_add(1, Ordering::AcqRel);
             }
             ENDPOINT_LAST_DATA_LEN.store(data_len, Ordering::Release);
+            ENDPOINT_LAST_DEVICE.store(device as usize, Ordering::Release);
+            ENDPOINT_LAST_TRANS_ID.store(trans_id as usize, Ordering::Release);
+            ENDPOINT_LAST_PEER.store(peer as usize, Ordering::Release);
+        } else if protocol == PROTOCOL_LIBERTAS && op_code == OP_ENDPOINT_EDIT_REQ {
+            *ENDPOINT_EDIT_PAYLOAD.lock().unwrap() = unsafe { slice::from_raw_parts(data, data_len) }.to_vec();
             ENDPOINT_LAST_DEVICE.store(device as usize, Ordering::Release);
             ENDPOINT_LAST_TRANS_ID.store(trans_id as usize, Ordering::Release);
             ENDPOINT_LAST_PEER.store(peer as usize, Ordering::Release);
@@ -2547,6 +2571,38 @@ mod tests {
             OPAQUE_PEER_HANDLE as usize,
         );
 
+        __libertas_release_package();
+    }
+
+    #[test]
+    fn edit_request_preserves_envelope_opcode_and_opaque_correlation() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        const ENDPOINT: LibertasEndpoint = 43;
+        const TRANSACTION: LibertasTransId = 117;
+        const PEER: u32 = 75;
+        let mut runtime_api = fake_runtime_api();
+        let callbacks = __libertas_init_package(&raw mut runtime_api as *mut c_void);
+        unsafe { ((*callbacks).init_task)(7); }
+        ENDPOINT_EDIT_CALLBACKS.store(0, Ordering::Release);
+        libertas_endpoint_edit_request(ENDPOINT, &true, TRANSACTION, PEER);
+        let payload = ENDPOINT_EDIT_PAYLOAD.lock().unwrap().clone();
+        assert_eq!(payload, [0, 1]);
+        assert_eq!(ENDPOINT_LAST_DEVICE.load(Ordering::Acquire), ENDPOINT as usize);
+        assert_eq!(ENDPOINT_LAST_TRANS_ID.load(Ordering::Acquire), TRANSACTION as usize);
+        assert_eq!(ENDPOINT_LAST_PEER.load(Ordering::Acquire), PEER as usize);
+        libertas_register_endpoint_status_listener::<bool, _>(ENDPOINT,
+            |device, operation, message, _, transaction, peer| {
+                assert_eq!(device, ENDPOINT);
+                assert_eq!(operation, OP_ENDPOINT_EDIT_REQ);
+                assert!(matches!(message, LibertasEndpointMessage::Data(true)));
+                assert_eq!(transaction, TRANSACTION);
+                assert_eq!(peer, PEER);
+                ENDPOINT_EDIT_CALLBACKS.fetch_add(1, Ordering::AcqRel);
+                LibertasEndpointHandlerResult::Handled
+            }, Box::new(()));
+        unsafe { ((*callbacks).device_callback)(7, ENDPOINT, OP_ENDPOINT_EDIT_REQ,
+            TRANSACTION, payload.as_ptr().cast(), payload.len(), PEER); }
+        assert_eq!(ENDPOINT_EDIT_CALLBACKS.load(Ordering::Acquire), 1);
         __libertas_release_package();
     }
 

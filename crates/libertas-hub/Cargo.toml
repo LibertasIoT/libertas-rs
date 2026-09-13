@@ -6,7 +6,6 @@ license.workspace = true
 authors.workspace = true
 homepage.workspace = true
 description = "Shared message definitions for Libertas Hub"
-repository = "https://github.com/LibertasIoT/libertas-rs"
 
 [dependencies]
 libertas = { path = "../libertas", version = "0.2.10" }
