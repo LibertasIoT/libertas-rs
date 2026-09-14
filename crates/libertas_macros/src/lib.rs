@@ -158,7 +158,7 @@ pub fn variant_index(input: TokenStream) -> TokenStream {
 }
 
 /// This macro is used on Libertas public functions.
-/// 
+///
 #[proc_macro_attribute]
 pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(item as ItemFn);
@@ -173,6 +173,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                    attr.path().is_ident("libertas_prev_request") ||
                    attr.path().is_ident("libertas_calculation_request") ||
                    attr.path().is_ident("libertas_copy_from") ||
+                   attr.path().is_ident("libertas_constrained_by") ||
                    attr.path().is_ident("libertas_copy_to") ||
                    attr.path().is_ident("libertas_validation_rules") ||
                    attr.path().is_ident("libertas_range_min") ||
@@ -202,6 +203,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                    attr.path().is_ident("libertas_default") || 
                    attr.path().is_ident("libertas_fixed") ||
                    attr.path().is_ident("libertas_device_type") || 
+                   attr.path().is_ident("libertas_foldable") ||
                    attr.path().is_ident("libertas_ui_header") || 
                    attr.path().is_ident("libertas_ui_include_description") ||
                    attr.path().is_ident("libertas_read_only") || 
@@ -373,6 +375,12 @@ pub fn libertas_ui_include_description(_attr: TokenStream, item: TokenStream) ->
     item
 }
 
+/// Allows manual folding of a struct or union in generated clients.
+#[proc_macro_attribute]
+pub fn libertas_foldable(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 /// Declares pure Libertas data validation expressions on a function, named
 /// type, field, parameter, or other schema data-type node. Studio owns parsing
 /// and semantic validation; this macro deliberately leaves Rust code intact.
@@ -416,6 +424,7 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_workflow_request,
     libertas_prev_request,
     libertas_copy_from,
+    libertas_constrained_by,
     libertas_copy_to,
     libertas_validation_rules,
     libertas_range_min,
@@ -447,6 +456,7 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_device_type,
     libertas_virtual_device_type,
     libertas_ui_header,
+    libertas_foldable,
     // Requests that clients render the long description beside the short
     // display name. This is presentation metadata only.
     libertas_ui_include_description,
@@ -509,7 +519,7 @@ pub fn libertas_avro_encode_derive(input: TokenStream) -> TokenStream {
             } else {
                 panic!("LibertasAvroEncode only supports structs with named fields");
             }
-        },
+        }
         syn::Data::Enum(data) => {
             let has_discriminant = data.variants.iter().any(|v| v.discriminant.is_some());
             if has_discriminant {
@@ -570,7 +580,7 @@ pub fn libertas_avro_encode_derive(input: TokenStream) -> TokenStream {
                     }
                 }
             }
-        },
+        }
         _ => panic!("LibertasAvroEncode only supports structs and enums"),
     };
 
@@ -618,7 +628,7 @@ pub fn libertas_avro_decode_derive(input: TokenStream) -> TokenStream {
             } else {
                 panic!("LibertasAvroDecode only supports structs with named fields");
             }
-        },
+        }
         syn::Data::Enum(data) => {
             let has_discriminant = data.variants.iter().any(|v| v.discriminant.is_some());
             if has_discriminant {
@@ -679,7 +689,7 @@ pub fn libertas_avro_decode_derive(input: TokenStream) -> TokenStream {
                     }
                 }
             }
-        },
+        }
         _ => panic!("LibertasAvroDecode only supports structs and enums"),
     };
 
