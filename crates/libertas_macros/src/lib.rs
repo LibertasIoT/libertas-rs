@@ -174,6 +174,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                    attr.path().is_ident("libertas_calculation_request") ||
                    attr.path().is_ident("libertas_copy_from") ||
                    attr.path().is_ident("libertas_constrained_by") ||
+                   attr.path().is_ident("libertas_default_request") ||
                    attr.path().is_ident("libertas_copy_to") ||
                    attr.path().is_ident("libertas_validation_rules") ||
                    attr.path().is_ident("libertas_range_min") ||
@@ -204,6 +205,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                    attr.path().is_ident("libertas_fixed") ||
                    attr.path().is_ident("libertas_device_type") || 
                    attr.path().is_ident("libertas_foldable") ||
+                   attr.path().is_ident("libertas_cache_identity") ||
                    attr.path().is_ident("libertas_ui_header") || 
                    attr.path().is_ident("libertas_ui_include_description") ||
                    attr.path().is_ident("libertas_read_only") || 
@@ -425,6 +427,7 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_prev_request,
     libertas_copy_from,
     libertas_constrained_by,
+    libertas_default_request,
     libertas_copy_to,
     libertas_validation_rules,
     libertas_range_min,
@@ -476,6 +479,7 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_next_request,
     libertas_next_response,
     libertas_cacheable,
+    libertas_cache_identity,
     libertas_protocol_conformance,
     libertas_chart,
     libertas_chart_channel,
