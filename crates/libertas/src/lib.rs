@@ -81,16 +81,15 @@ pub type LibertasVirtualDevice = LibertasDevice;
 ///   handle)` in its in-memory map. That map belongs only to the current host
 ///   process: it is never persisted to a database or disk and is never restored.
 ///   A host restart clears every pair.
-/// - Control has exactly one cache-special subscription per endpoint: the first
-///   declared `SubscriptionRequest` whose effective payload type is `Nil` is the
-///   schema default. While Control watcher demand exists, the host pools that
-///   subscription under Hub object ID `0`, caches its successful initial
-///   subscription data, and distributes the initial response and later data to
-///   all eligible watchers. A later `Nil` subscription is non-default and never
-///   enters this cache merely because it has no arguments.
-///   Eligibility remains per Control connection: its handler checks the
-///   default variant's effective `AccessPrivilege` before admitting that
-///   watcher or replaying cached data.
+/// - The first declared `SubscriptionRequest` whose effective payload is `Nil`
+///   is the default Control subscription. Each new tracking admission obtains
+///   a fresh complete snapshot from the App; the host does not cache payloads.
+///   Apps must answer repeated requests with current complete data as well.
+///   The default stream may be shared, but each watcher is independently
+///   authorized against the default variant's effective `AccessPrivilege`.
+///   Apps must treat peer handles as opaque regardless of stream sharing.
+/// - Compatible SubscriptionData updates are an App choice. The App owns their
+///   ordering and consistency; the host only routes them and never merges them.
 /// - Every explicit non-default Control subscription, including a later `Nil`
 ///   variant, uses the authenticated real client object as its host route. It is
 ///   neither cached nor shared. The owning Control connection determines its

@@ -478,7 +478,6 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_unique,
     libertas_next_request,
     libertas_next_response,
-    libertas_cacheable,
     libertas_cache_identity,
     libertas_protocol_conformance,
     libertas_chart,
