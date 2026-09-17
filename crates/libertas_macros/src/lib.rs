@@ -214,9 +214,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                    attr.path().is_ident("libertas_number") || 
                    attr.path().is_ident("libertas_size") ||
                    attr.path().is_ident("libertas_time_interval") || 
-                   attr.path().is_ident("libertas_string") || 
                    attr.path().is_ident("libertas_enum") || 
-                   attr.path().is_ident("libertas_array") || 
                    attr.path().is_ident("libertas_unordered") || 
                    attr.path().is_ident("libertas_unique") || 
                    attr.path().is_ident("libertas_virtual_device_type") ||
@@ -421,6 +419,42 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// `libertas_foreign_type` is accepted by Rust through this derive because it
 /// declares compatibility for the published named type itself. The schema
 /// parser rejects it on fields, variants, and references.
+///
+/// Retired helpers are not accepted merely because the compiler sees this derive.
+/// Use `libertas_size` for String/List/Bytes sizes and `libertas_cache_identity`
+/// for supported draft identity metadata.
+///
+/// ```compile_fail
+/// use libertas_macros::LibertasExport;
+/// #[derive(LibertasExport)]
+/// struct Invalid { #[libertas_string(max_length = 4)] value: String }
+/// ```
+///
+/// ```compile_fail
+/// use libertas_macros::LibertasExport;
+/// #[derive(LibertasExport)]
+/// struct Invalid { #[libertas_array(sizeMax = 4)] value: Vec<u32> }
+/// ```
+///
+/// ```compile_fail
+/// use libertas_macros::LibertasExport;
+/// #[derive(LibertasExport)]
+/// struct Invalid { #[libertas_cacheable] value: String }
+/// ```
+///
+/// Retired parameter helpers are not silently consumed by the function wrapper.
+///
+/// ```compile_fail
+/// use libertas_macros::libertas_export;
+/// #[libertas_export]
+/// fn invalid(#[libertas_string(max_length = 4)] value: String) {}
+/// ```
+///
+/// ```compile_fail
+/// use libertas_macros::libertas_export;
+/// #[libertas_export]
+/// fn invalid(#[libertas_array(sizeMax = 4)] values: Vec<u32>) {}
+/// ```
 #[proc_macro_derive(LibertasExport, attributes(
     libertas_calculation_request,
     libertas_workflow_request,
@@ -471,9 +505,7 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_number,
     libertas_size,
     libertas_time_interval,
-    libertas_string,
     libertas_enum,
-    libertas_array,
     libertas_unordered,
     libertas_unique,
     libertas_next_request,
