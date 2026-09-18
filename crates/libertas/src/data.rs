@@ -92,7 +92,8 @@ struct DataIndexedRaw {
 
 /// Statistics for opened indexed data.
 /// Contains handle, record count, and index range.
-/// If `count` is 0, then `min_index` and `max_index` are undefined. Otherwise, valid indices are in the range [min_index, max_index].
+/// If `count` is 0, callers must ignore `min_index` and `max_index`; their values
+/// are unspecified. Otherwise, record indices are in [min_index, max_index].
 #[repr(C)]
 pub struct IndexedDataStat {
     pub handle: LibertasDataStore,
@@ -196,7 +197,8 @@ pub fn libertas_data_remove_indexed_records(db: LibertasDataStore, index_lo: i64
 ///   database.
 /// 
 /// # Returns
-/// IndexedDataStat with handle, count, and index range. If `count` is 0, then `min_index` and `max_index` are undefined.
+/// IndexedDataStat with handle, count, and index range. If `count` is 0, callers
+/// must ignore `min_index` and `max_index`; their values are unspecified.
 pub fn libertas_data_open_indexed(resource_name: &str, arguments: &[LibertasMessageArgument]) -> IndexedDataStat {
     let serialized = libertas_formatted_text(resource_name, arguments);
     let result = __libertas_device_read_raw(PROTOCOL_LIBERTAS, DEVICE_SYSTEM_DATABASE_INDEXED, OP_SYSTEM_DATABASE_OPEN_INDEXED_DATA, serialized.as_ptr(), serialized.len());

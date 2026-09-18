@@ -279,7 +279,9 @@ pub type LibertasTimeOnly = u32;
 /// Identifier for a local area network device.
 pub type LibertasLanDevice = u32;
 
-/// User identifier.
+/// User or user-group identifier.
+/// User fields and lists do not implicitly select the current user. Declare
+/// an explicit schema Default when an initial identity is intended.
 pub type LibertasUser = u32;
 
 /// Action identifier.
