@@ -1,7 +1,8 @@
-use libertas_macros::libertas_export;
+use libertas_macros::{libertas_export, libertas_data_error_status};
 
 /// Example function
 /// Accepts a documented configuration value.
+#[libertas_data_error_status]
 #[libertas_export]
 fn documented(
     /// Daily limit

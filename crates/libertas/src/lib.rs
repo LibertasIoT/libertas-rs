@@ -37,6 +37,7 @@ pub use notification::{
     LibertasMessageArgument, LibertasMessageArgumentDecode, NotificationImportance,
     libertas_formatted_text, libertas_notification_send, libertas_notification_send_literal,
 };
+pub use data::{DataError, libertas_data_try_get_single_names, libertas_data_try_get_indexed_names, libertas_data_try_remove_single, libertas_data_try_remove_indexed, libertas_data_try_remove_indexed_name, libertas_data_try_remove_indexed_records, libertas_data_try_open_indexed, libertas_data_try_write_single, libertas_data_try_write_indexed, libertas_data_try_read_single, libertas_data_try_read_indexed_range, libertas_data_try_read_indexed};
 pub use data::{DataName, IndexedData, IndexDirection, IndexedDataStat, libertas_data_get_single_names, libertas_data_get_indexed_names, libertas_data_write_single, libertas_data_write_indexed, libertas_data_read_single, libertas_data_read_indexed, libertas_data_read_indexed_range, libertas_data_remove_single, libertas_data_remove_indexed, libertas_data_remove_indexed_name, libertas_data_remove_indexed_records, libertas_data_open_indexed};
 pub use log::{LogLevel, libertas_log};
 pub use libertas_utils::{InlineByteBuffer, STACK_BUF_SIZE};
@@ -482,6 +483,8 @@ const OP_SYSTEM_DATABASE_WRITE_DATA: u8 = 0xf2;
 const OP_SYSTEM_DATABASE_READ_DATA: u8 = 0xf3;
 const OP_SYSTEM_DATABASE_REMOVE_DATA: u8 = 0xf4;
 const OP_SYSTEM_DATABASE_REMOVE_RECORD: u8 = 0xf5;
+const OP_SYSTEM_DATABASE_CHECKED: u8 = 0xf6;
+const OP_SYSTEM_DATABASE_DECODE_FAILURE: u8 = 0xf7;
 
 const CURRENT_VERSION: u32 = 0x000207;     // Version 0.2.7, 1.0 shall be 0x10000, each sub version must be within [0,255]
 
@@ -2101,6 +2104,46 @@ mod tests {
             endpoint_subscription_delivery_result:
                 fake_endpoint_subscription_delivery_result,
         }
+    }
+
+    static DATA_TEST_STATUS: AtomicUsize = AtomicUsize::new(0);
+    extern "C" fn checked_data_read(_: u16, _: u32, operation: u8, data: *const u8, len: usize) -> ReadResult {
+        #[repr(C)]
+        struct Request { operation: u8, data: *const u8, len: usize }
+        #[repr(C)]
+        struct Reply { status: u32, value: ReadResult }
+        assert_eq!(operation, 0xf6);
+        assert_eq!(len, core::mem::size_of::<Request>());
+        assert!(!data.is_null());
+        let request = unsafe { &*(data as *const Request) };
+        assert!((0xf0..=0xf5).contains(&request.operation));
+        let status = DATA_TEST_STATUS.load(Ordering::Acquire) as u32;
+        let reply = Box::leak(Box::new(Reply { status, value: ReadResult {
+            success: status == 0, data: core::ptr::null(), data_len: 0,
+        }}));
+        ReadResult { success: true, data: reply as *const _ as *const u8, data_len: core::mem::size_of::<Reply>() }
+    }
+
+    #[test]
+    fn checked_data_preserves_failure_absence_and_success() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        let mut runtime_api = fake_runtime_api();
+        runtime_api.device_read = checked_data_read;
+        __libertas_init_package(&raw mut runtime_api as *mut LibertasRuntimeApi as *mut c_void);
+        DATA_TEST_STATUS.store(3, Ordering::Release);
+        assert_eq!(libertas_data_try_write_single("TEST", &[], &42u32), Err(DataError::StorageError));
+        assert_eq!(libertas_data_try_read_single::<u32>("TEST", &[]), Err(DataError::StorageError));
+        let mut records = Vec::<IndexedData<u32>>::new();
+        assert_eq!(libertas_data_try_read_indexed_range(1, 0, IndexDirection::Above, 10, &mut records), Err(DataError::StorageError));
+        assert!(records.is_empty());
+        DATA_TEST_STATUS.store(1, Ordering::Release);
+        assert_eq!(libertas_data_try_read_single::<u32>("MISSING", &[]), Ok(None));
+        DATA_TEST_STATUS.store(0, Ordering::Release);
+        assert_eq!(libertas_data_try_remove_single("MISSING", &[]), Ok(()));
+        assert!(libertas_data_try_get_single_names().unwrap().is_empty());
+        DATA_TEST_STATUS.store(4, Ordering::Release);
+        assert_eq!(libertas_data_try_read_single::<u32>("TEST", &[]), Err(DataError::DataIntegrityError));
+        unsafe { RUNTIME_API = core::ptr::null_mut(); }
     }
 
     #[test]

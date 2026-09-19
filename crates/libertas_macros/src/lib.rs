@@ -273,6 +273,12 @@ pub fn libertas_access_host(_attr: TokenStream, item: TokenStream) -> TokenStrea
 ///
 /// This is parser-only metadata. The Hub enforces the constraint when a task
 /// is created, when its function changes, or when its App version changes.
+/// Enables explicit status-returning Data API operations for this task function.
+#[proc_macro_attribute]
+pub fn libertas_data_error_status(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 #[proc_macro_attribute]
 pub fn libertas_singleton(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
