@@ -169,7 +169,10 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
             // 1. Check the attributes on this specific argument
             // We use 'retain' to keep only the attributes that are NOT ours
             pat_type.attrs.retain(|attr| {
-                if attr.path().is_ident("libertas_workflow_request") ||
+                // Parameter documentation is consumed by schema extraction. Rust
+                // does not permit doc attributes on compiled function parameters.
+                if attr.path().is_ident("doc") ||
+                   attr.path().is_ident("libertas_workflow_request") ||
                    attr.path().is_ident("libertas_prev_request") ||
                    attr.path().is_ident("libertas_calculation_request") ||
                    attr.path().is_ident("libertas_copy_from") ||
