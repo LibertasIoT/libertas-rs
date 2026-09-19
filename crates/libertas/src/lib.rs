@@ -240,6 +240,13 @@ pub type LibertasVirtualDevice = LibertasDevice;
 ///   [`libertas_endpoint_status_response`]. A response neither creates nor
 ///   renews subscription membership, and membership does not permit an App to
 ///   invent a response correlation.
+/// - Complete an accepted SubscriptionRequest with a complete current snapshot
+///   through [`libertas_endpoint_response`], echoing its transaction ID and peer.
+///   A snapshot variant used for this reply and later reports carries both
+///   `Response` and `SubscriptionData`. Publish later changes through
+///   [`libertas_endpoint_report`]. A report alone does not complete the opening
+///   transaction; a client waiting for its correlated reply can remain loading.
+///   Reject an unsuccessful opening with a correlated error/status response.
 ///
 /// ## Peer Alive and client-visible identity
 ///
@@ -1908,7 +1915,9 @@ pub fn libertas_endpoint_status_response(
 ///
 /// # Note
 /// Unlike Matter protocol, the data can be any data structure defined and published by the server developer, encoded with Apache Avro format.
-/// This function is used to fulfill subscription requests that expect `OpCode::ReportData` messages.
+/// Use this function for subscription updates after the opening request has
+/// received its correlated snapshot response; see [`LibertasEndpoint`].
+/// A report does not substitute for that response.
 /// The endpoint protocol uses [`LIBERTAS_ENDPOINT_IGNORED_TRANS_ID`] because
 /// unsolicited reports do not correlate with a transaction.
 #[inline(always)]

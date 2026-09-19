@@ -309,6 +309,13 @@ pub fn libertas_chart(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
+/// Header layout metadata on standalone type aliases. Schema extraction owns
+/// the arguments; Studio owns semantic validation, as for derive helpers.
+#[proc_macro_attribute]
+pub fn libertas_ui_header(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 /// Parser-only chart channel metadata. The schema parser validates it.
 #[proc_macro_attribute]
 pub fn libertas_chart_channel(_attr: TokenStream, item: TokenStream) -> TokenStream {
