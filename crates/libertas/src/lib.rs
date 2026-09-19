@@ -284,8 +284,6 @@ pub type LibertasLanDevice = u32;
 /// an explicit schema Default when an initial identity is intended.
 pub type LibertasUser = u32;
 
-/// Action identifier.
-pub type LibertasAction = u32;
 
 /// Transaction identifier carried by every Libertas interaction.
 ///
