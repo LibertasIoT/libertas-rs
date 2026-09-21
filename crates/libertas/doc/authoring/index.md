@@ -15,6 +15,8 @@ interoperability, security, auditing, automation, and AI.
 
 **[Build your first App](guides/developing-apps.md)** · [Get started](guides/getting-started.md)
 
+<p class="site-credit">This website was built entirely by a CodeBot, starting from a short prompt.</p>
+
 <h2 id="projects" style="font-size:2rem;line-height:1.2;margin:1.5em 0 0.65em;">See what you can build</h2>
 
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:24px;align-items:stretch;">

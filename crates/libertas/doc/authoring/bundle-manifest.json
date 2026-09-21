@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "sdkVersion": "0.3.0",
-  "sourceRevision": "357fdd224253ffd50745ddc99a1eca9112fc1ab8",
+  "sourceRevision": "052ee125b1cfcf8118522406a34be3d2280ec073",
   "sourceDirty": false,
-  "sourceContentSha256": "daecb39c62cd23166383100ace34f38413198e1929b3757e2976e0aea9c6ef5d",
+  "sourceContentSha256": "409e95099c9025669308bebc6567e07f3ac45ff722522a03a9a2875309030ebd",
   "entryContentSha256": "80ab16c55edbd462203d27da61a74cb78bb16639929bbb9e82729e07142646b0",
   "files": {
     "assets/comment/chart_code.png": "61b793cb5efad9cec765af07788d44c64c48a266fda143622d2a70288d29423b",
@@ -102,7 +102,7 @@
     "guides/translation.md": "3d3c2f003e191c31312ed92b8a1464fdf6013d23abb7a5d0c9e11eb3f25bc732",
     "guides/troubleshooting.md": "1fdf5b49a249d2b990b5291361eab39e36321c9a328e9549ac06aa1e523675fe",
     "guides/visualization.md": "fbb3b7a46d3c29d853cdbc7a279a3351f4504a5c5603e848d8ec3b72fabc1a38",
-    "index.md": "61a05a517d2719cbc60f47148f490f914d645bbfb7a1abd155edee04efeb9c7e",
+    "index.md": "da15f1987be1f9496f55a41b73e6b282e01103653a9aebee2dbc1cb049d096c3",
     "navigation.json": "b9a297f104e1de54b9e726e4463aff7d9aab4cd612a9a73b9dedd155f3ed0b45",
     "reference/annotations.md": "035ddf2121995d66c4805224ded61eafb21ed4a30f1940ee57e9b3ac658e613d",
     "reference/app-contract.md": "f00e85c9b4bfae171a22a2faa70a09126827e2a7006526317fb1e3840b658e12",
