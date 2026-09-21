@@ -52,9 +52,15 @@ use hashbrown::HashMap;
 use hashbrown::DefaultHashBuilder;
 use priority_queue::PriorityQueue;
 
-/// Core entity representing any information source in the Libertas ecosystem.
-/// Examples: physical devices (lights, sensors), virtual entities (email accounts, files), or services.
-pub type LibertasDevice = u32;
+/// Platform identity. Allocated IDs are positive and at most `i64::MAX`.
+/// Zero is reserved for APIs that explicitly define a system context.
+pub type LibertasId = u64;
+/// Identity of an App task.
+pub type LibertasTaskId = LibertasId;
+/// Opaque peer route handle. Retain it unchanged for responses and signaling.
+pub type LibertasPeer = LibertasId;
+/// Core entity representing a physical device, virtual entity, or service.
+pub type LibertasDevice = LibertasId;
 
 /// Dynamically created virtual device bound to its creating task.
 /// Automatically deleted when the task is removed.
@@ -285,12 +291,12 @@ pub type LibertasDateTime = u64;
 pub type LibertasTimeOnly = u32;
 
 /// Identifier for a local area network device.
-pub type LibertasLanDevice = u32;
+pub type LibertasLanDevice = LibertasId;
 
 /// User or user-group identifier.
 /// User fields and lists do not implicitly select the current user. Declare
 /// an explicit schema Default when an initial identity is intended.
-pub type LibertasUser = u32;
+pub type LibertasUser = LibertasId;
 
 
 /// Transaction identifier carried by every Libertas interaction.
@@ -314,7 +320,7 @@ pub type LibertasDataStore = u32;
 /// Endpoint servers normally call [`libertas_endpoint_report`] or
 /// [`libertas_endpoint_peer_alive`] with `None` so the host performs client
 /// fan-out without exposing this value to App logic.
-pub const LIBERTAS_BROADCAST_DEST: u32 = 0xffffffff;
+pub const LIBERTAS_BROADCAST_DEST: LibertasPeer = u64::MAX;
 
 const OP_SYSTEM_LOG: u8 = 0xe0;
 
@@ -479,9 +485,9 @@ const OP_APP_SHUT_DOWN: u8 = 0xfd;
 const OP_SYSTEM_WAKE_UP: u8 = 255;         // See 
 const PROTOCOL_LIBERTAS: u16 = 0;
 
-const DEVICE_SYSTEM: u32 = 0;
-const DEVICE_SYSTEM_DATABASE_SINGLE: u32 = 0;
-const DEVICE_SYSTEM_DATABASE_INDEXED: u32 = 1;
+const DEVICE_SYSTEM: LibertasDevice = 0;
+const DEVICE_SYSTEM_DATABASE_SINGLE: LibertasDevice = 0;
+const DEVICE_SYSTEM_DATABASE_INDEXED: LibertasDevice = 1;
 
 const OP_SYSTEM_MESSAGE: u8 = 0xfe;
 const OP_SYSTEM_DATABASE_GET_NAMES: u8 = 0xf0;
@@ -493,10 +499,10 @@ const OP_SYSTEM_DATABASE_REMOVE_RECORD: u8 = 0xf5;
 const OP_SYSTEM_DATABASE_CHECKED: u8 = 0xf6;
 const OP_SYSTEM_DATABASE_DECODE_FAILURE: u8 = 0xf7;
 
-const CURRENT_VERSION: u32 = 0x000207;     // Version 0.2.7, 1.0 shall be 0x10000, each sub version must be within [0,255]
+const CURRENT_VERSION: u32 = 0x000300;     // Version 0.3.0, 1.0 shall be 0x10000, each sub version must be within [0,255]
 
 type LibertasTimerCallback = dyn FnMut(u32, u64, &mut Box<dyn Any>);
-type LibertasDeviceCallback = dyn FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, LibertasTransId, u32);
+type LibertasDeviceCallback = dyn FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, LibertasTransId, LibertasPeer);
 type LibertasWakeupCallback = dyn FnMut(&mut Box<dyn Any>);
 type LibertasShutdownHandler = dyn FnMut(&mut Box<dyn Any>);
 
@@ -511,7 +517,7 @@ enum TimerState {
     ArmedDeadline ( u64 ),
 }
 struct Timer {
-    task: u32,
+    task: LibertasTaskId,
     state: TimerState,
     cb: Rc<RefCell<Box<LibertasTimerCallback>>>,
     context: Rc<RefCell<Box<dyn Any>>>,
@@ -555,14 +561,14 @@ struct ReadResult {
 struct LibertasRuntimeApi {
     version: u32,                       // Runtime ABI/API version identifier.
     get_random: extern "C" fn(u8) -> u64,
-    get_task_id: extern "C" fn() -> u32,
-    set_task_id: extern "C" fn(u32),    // Used internally in callback driver. Only useful if we are driving multiple tasks within one thread.
+    get_task_id: extern "C" fn() -> LibertasTaskId,
+    set_task_id: extern "C" fn(LibertasTaskId),    // Used internally in callback driver. Only useful if we are driving multiple tasks within one thread.
     get_sys_ticks: extern "C" fn() -> u64,
     get_utc_time: extern "C" fn() -> u64,
     utc_to_local: extern "C" fn(i64) -> i64,
     local_to_utc: extern "C" fn(i64) -> i64,
-    device_send: extern "C" fn(u16, u32, LibertasTransId, u8, *const u8, usize, u32),           // Protocol, device (virtual device src), trans_id, op_code, data, data_len, opaque peer route handle
-    device_read: extern "C" fn(u16, u32, u8, *const u8, usize) -> ReadResult,       // Synchronous kernel operation for current task. protocol, device, op_code, data, data_len
+    device_send: extern "C" fn(u16, LibertasDevice, LibertasTransId, u8, *const u8, usize, LibertasPeer),           // Protocol, device (virtual device src), trans_id, op_code, data, data_len, opaque peer route handle
+    device_read: extern "C" fn(u16, LibertasDevice, u8, *const u8, usize) -> ReadResult,       // Synchronous kernel operation for current task. protocol, device, op_code, data, data_len
     // Completes only the current host-stamped private SUB delivery boundary.
     // Endpoint wrappers call it after decoding; Apps never call it.
     endpoint_subscription_delivery_result: extern "C" fn(u8),
@@ -573,15 +579,15 @@ struct LibertasRuntimeApi {
 #[repr(C)]
 pub struct LibertasPackageCallback {
     version: u32,
-    init_task: extern "C" fn(u32),
-    remove_task: extern "C" fn(u32),
+    init_task: extern "C" fn(LibertasTaskId),
+    remove_task: extern "C" fn(LibertasTaskId),
     timer_driver: extern "C" fn(u64, u64)->TimerDriverResult,
     // Returns one only when the registered callback was actually invoked.
-    device_callback: extern "C" fn(u32, u32, u8, LibertasTransId, *const c_void, usize, u32) -> u8, // task, device (virtual device dst), op_code, trans_id, data, data_len, source (virtual device & endpoint)
+    device_callback: extern "C" fn(LibertasTaskId, LibertasDevice, u8, LibertasTransId, *const c_void, usize, LibertasPeer) -> u8, // task, device (virtual device dst), op_code, trans_id, data, data_len, source (virtual device & endpoint)
 }
 
 struct Context {
-    device_callbacks: HashMap<u32, DeviceCallback>,
+    device_callbacks: HashMap<LibertasDevice, DeviceCallback>,
     shutdown_handler: Option<ShutdownHandler>,
 }
 
@@ -594,7 +600,7 @@ impl Context {
     }
 }
 
-extern "C" fn libertas_impl_init_task(task_id: u32) {
+extern "C" fn libertas_impl_init_task(task_id: LibertasTaskId) {
     unsafe {
         match ENV {
             Some(ref mut env) => env.init_task(task_id),
@@ -603,7 +609,7 @@ extern "C" fn libertas_impl_init_task(task_id: u32) {
     }
 }
 
-extern "C" fn libertas_impl_remove_task(task_id: u32) {
+extern "C" fn libertas_impl_remove_task(task_id: LibertasTaskId) {
     unsafe {
         match ENV {
             Some(ref mut env) => env.remove_task(task_id),
@@ -612,7 +618,7 @@ extern "C" fn libertas_impl_remove_task(task_id: u32) {
     }
 }
 
-extern "C" fn libertas_impl_device_callback(task: u32, device: u32, op_code: u8, trans_id: LibertasTransId, data: *const c_void, data_len: usize, peer: u32) -> u8 {
+extern "C" fn libertas_impl_device_callback(task: LibertasTaskId, device: LibertasDevice, op_code: u8, trans_id: LibertasTransId, data: *const c_void, data_len: usize, peer: LibertasPeer) -> u8 {
     if device == DEVICE_SYSTEM && op_code == OP_APP_SHUT_DOWN {
         if SHUTDOWN_STATE.compare_exchange(
                 SHUTDOWN_RUNNING,
@@ -764,7 +770,7 @@ struct LibertasPackageEnv {
     timers: HashMap<u32, Timer>,
     timers_active_interval: PriorityQueue<u32, Reverse<u64>, DefaultHashBuilder>,
     timers_active_deadline: PriorityQueue<u32, Reverse<u64>, DefaultHashBuilder>,
-    contexts: HashMap<u32, Context>,    // Key is task ID
+    contexts: HashMap<LibertasTaskId, Context>,    // Key is task ID
     package_callback: LibertasPackageCallback,
     wakeup_callbacks: Option<WakeupCallback>,
 }
@@ -791,15 +797,15 @@ impl LibertasPackageEnv{
     }
 
     #[inline(always)]
-    fn init_task(&mut self, task_id: u32) {
+    fn init_task(&mut self, task_id: LibertasTaskId) {
         self.contexts.insert(task_id, Context::new());
     }
 
     #[inline(always)]
-    fn remove_task(&mut self, task_id: u32) {
+    fn remove_task(&mut self, task_id: LibertasTaskId) {
         self.contexts.remove(&task_id);
         self.timers.retain( |k, timer| {
-            if *k == task_id {
+            if timer.task == task_id {
                 if let TimerState::ArmedInterval(_) = timer.state {
                     self.timers_active_interval.remove(k);
                 } else if let TimerState::ArmedDeadline(_) = timer.state {
@@ -852,6 +858,10 @@ static mut ENV: Option<LibertasPackageEnv> = None;
 #[doc(hidden)]
 pub fn __libertas_init_package(runtime_api:*mut c_void) -> *const LibertasPackageCallback {
     unsafe {
+        // Reject an incompatible host before reading any widened callback signature.
+        if runtime_api.is_null() || *(runtime_api as *const u32) != CURRENT_VERSION {
+            return core::ptr::null();
+        }
         RUNTIME_API = runtime_api as *mut LibertasRuntimeApi;
         ASYNC_RUNTIME_API.store(RUNTIME_API, Ordering::Release);
         SHUTDOWN_STATE.store(SHUTDOWN_RUNNING, Ordering::Release);
@@ -1050,7 +1060,7 @@ pub fn libertas_utc_time_to_local(utc: i64) -> i64 {
 }
 
 /// Returns the current task's unique identifier.
-pub fn libertas_get_task_id() -> u32 {
+pub fn libertas_get_task_id() -> LibertasTaskId {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
             return (runtime_api.get_task_id)();
@@ -1350,7 +1360,7 @@ fn libertas_register_device_listener_impl(
 /// 
 #[doc(hidden)]
 #[inline(always)]
-pub fn libertas_register_device_listener<F>(device: LibertasDevice, callback: F, context: Box<dyn Any>) where F: FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, LibertasTransId, u32) + Sized + 'static {
+pub fn libertas_register_device_listener<F>(device: LibertasDevice, callback: F, context: Box<dyn Any>) where F: FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, LibertasTransId, LibertasPeer) + Sized + 'static {
     libertas_register_device_listener_impl(device, Box::new(callback), context, false);
 }
 
@@ -1384,7 +1394,7 @@ type EndpointStatusCallback<T> = dyn FnMut(
     LibertasEndpointMessage<T>,
     &mut Box<dyn Any>,
     LibertasTransId,
-    u32,
+    LibertasPeer,
 ) -> LibertasEndpointHandlerResult;
 struct EndpointStatusListener<T> {
     callback: Box<EndpointStatusCallback<T>>,
@@ -1395,7 +1405,7 @@ fn libertas_endpoint_send_handler_result(
     server: LibertasEndpoint,
     opcode: u8,
     trans_id: LibertasTransId,
-    peer: u32,
+    peer: LibertasPeer,
     result: LibertasEndpointHandlerResult,
 ) {
     let status = match result {
@@ -1441,7 +1451,7 @@ fn libertas_endpoint_send_invalid_message(
     server: LibertasEndpoint,
     opcode: u8,
     trans_id: LibertasTransId,
-    peer: u32,
+    peer: LibertasPeer,
 ) {
     libertas_endpoint_send_handler_result(
         server,
@@ -1492,7 +1502,7 @@ pub fn libertas_register_endpoint_listener<T, F>(
                 Option<T>,
                 &mut Box<dyn Any>,
                 LibertasTransId,
-                u32,
+                LibertasPeer,
             ) -> LibertasEndpointStatus + Sized + 'static {
     libertas_register_endpoint_status_listener(
         id,
@@ -1549,7 +1559,7 @@ pub fn libertas_register_endpoint_status_listener<T, F>(
                 LibertasEndpointMessage<T>,
                 &mut Box<dyn Any>,
                 LibertasTransId,
-                u32,
+                LibertasPeer,
             ) -> LibertasEndpointHandlerResult + Sized + 'static {
     let listener = Box::new(EndpointStatusListener {
         callback: Box::new(callback),
@@ -1658,7 +1668,7 @@ pub fn libertas_register_endpoint_status_listener<T, F>(
     }), listener, true);
 }
 
-fn __libertas_device_send_raw(protocol: u16, device: LibertasDevice, op: u8, peer: u32, trans_id: LibertasTransId, data: *const u8, data_len: usize) {
+fn __libertas_device_send_raw(protocol: u16, device: LibertasDevice, op: u8, peer: LibertasPeer, trans_id: LibertasTransId, data: *const u8, data_len: usize) {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
             (runtime_api.device_send)(protocol, device, trans_id, op, data, data_len, peer);
@@ -1679,7 +1689,7 @@ fn __libertas_device_read_raw(protocol: u16, device: LibertasDevice, op: u8, dat
 }
 
 #[doc(hidden)]
-pub fn __libertas_device_send_raw_req(protocol: u16, device: LibertasDevice, op: u8, peer: u32, data: *const u8, data_len: usize) -> LibertasTransId {
+pub fn __libertas_device_send_raw_req(protocol: u16, device: LibertasDevice, op: u8, peer: LibertasPeer, data: *const u8, data_len: usize) -> LibertasTransId {
     unsafe {
         match ENV {
             Some(ref mut env) => {
@@ -1731,7 +1741,7 @@ pub fn libertas_device_send_request(protocol: u16, device: LibertasDevice, op: u
 /// 
 #[doc(hidden)]
 #[inline(always)]
-pub fn libertas_device_send_response(protocol: u16, device: LibertasDevice, op: u8, data: &[u8], trans_id: LibertasTransId, peer: u32) {
+pub fn libertas_device_send_response(protocol: u16, device: LibertasDevice, op: u8, data: &[u8], trans_id: LibertasTransId, peer: LibertasPeer) {
     __libertas_device_send_raw(protocol, device, op, peer, trans_id, data.as_ptr(), data.len());
 }
 
@@ -1750,7 +1760,7 @@ pub fn libertas_device_send_response(protocol: u16, device: LibertasDevice, op: 
 /// * `peer` - The peer that sent the original request.
 /// 
 #[doc(hidden)]
-pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8, data: &[u8], trans_id: LibertasTransId, peer: u32) {
+pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8, data: &[u8], trans_id: LibertasTransId, peer: LibertasPeer) {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
             (runtime_api.device_send)(protocol, device, trans_id, op, data.as_ptr(), data.len(), peer);
@@ -1838,7 +1848,7 @@ pub fn libertas_endpoint_subscribe_request<T>(server: LibertasEndpoint, data: &T
 /// # Note
 /// Unlike Matter protocol, the data can be any data structure defined and published by the server developer, encoded with Apache Avro format.
 #[inline(always)]
-pub fn libertas_endpoint_response<T>(server: LibertasEndpoint, data: &T, trans_id: LibertasTransId, dest: u32)
+pub fn libertas_endpoint_response<T>(server: LibertasEndpoint, data: &T, trans_id: LibertasTransId, dest: LibertasPeer)
     where 
         T: AvroEncode + 'static {
     let mut bytes: Vec<_> = Vec::new();
@@ -1853,7 +1863,7 @@ pub fn libertas_endpoint_response<T>(server: LibertasEndpoint, data: &T, trans_i
 /// installs these values directly, without CopyFrom, defaults, or automatic
 /// submission. Unfinished drafts remain client-local and cannot be sent here.
 #[inline(always)]
-pub fn libertas_endpoint_edit_request<T>(server: LibertasEndpoint, data: &T, trans_id: LibertasTransId, dest: u32)
+pub fn libertas_endpoint_edit_request<T>(server: LibertasEndpoint, data: &T, trans_id: LibertasTransId, dest: LibertasPeer)
     where
         T: AvroEncode + 'static {
     let mut bytes = Vec::new();
@@ -1876,7 +1886,7 @@ pub fn libertas_endpoint_status_response(
     server: LibertasEndpoint,
     status: LibertasEndpointStandardStatus,
     trans_id: LibertasTransId,
-    dest: u32,
+    dest: LibertasPeer,
 ) {
     let bytes = [
         LibertasEndpointStatus::StandardStatus as u8,
@@ -1921,7 +1931,7 @@ pub fn libertas_endpoint_status_response(
 /// The endpoint protocol uses [`LIBERTAS_ENDPOINT_IGNORED_TRANS_ID`] because
 /// unsolicited reports do not correlate with a transaction.
 #[inline(always)]
-pub fn libertas_endpoint_report<T>(server: LibertasEndpoint, data: &T, peer: Option<u32>)
+pub fn libertas_endpoint_report<T>(server: LibertasEndpoint, data: &T, peer: Option<LibertasPeer>)
     where 
         T: AvroEncode + 'static {
     let peer_id = peer.unwrap_or(LIBERTAS_BROADCAST_DEST);
@@ -1951,7 +1961,7 @@ pub fn libertas_endpoint_report<T>(server: LibertasEndpoint, data: &T, peer: Opt
 /// it does not promise that data is unchanged or that no report was lost.
 ///
 #[inline(always)]
-pub fn libertas_endpoint_peer_alive(server: LibertasEndpoint, peer: Option<u32>) {
+pub fn libertas_endpoint_peer_alive(server: LibertasEndpoint, peer: Option<LibertasPeer>) {
     let peer_id = peer.unwrap_or(LIBERTAS_BROADCAST_DEST);
     __libertas_device_send_raw(
         PROTOCOL_LIBERTAS,
@@ -1982,7 +1992,7 @@ pub fn libertas_endpoint_peer_alive(server: LibertasEndpoint, peer: Option<u32>)
 ///   Pass it through unchanged; never construct or interpret it as an ID.
 /// 
 #[inline(always)]
-pub fn libertas_endpoint_remove_subscriber(server: LibertasEndpoint, peer: u32) {
+pub fn libertas_endpoint_remove_subscriber(server: LibertasEndpoint, peer: LibertasPeer) {
     let empty_slice: &[u8] = &[];
     libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_REMOVE_PEER, empty_slice, LIBERTAS_ENDPOINT_IGNORED_TRANS_ID, peer);
 }
@@ -2024,18 +2034,18 @@ mod tests {
     static ENDPOINT_SUB_ACKS_OBSERVED_BY_CALLBACK: AtomicUsize = AtomicUsize::new(0);
 
     extern "C" fn fake_get_random(_: u8) -> u64 { 0 }
-    extern "C" fn fake_get_task_id() -> u32 { 7 }
-    extern "C" fn fake_set_task_id(_: u32) {}
+    extern "C" fn fake_get_task_id() -> LibertasTaskId { 7 }
+    extern "C" fn fake_set_task_id(_: LibertasTaskId) {}
     extern "C" fn fake_get_time() -> u64 { 0 }
     extern "C" fn fake_convert_time(value: i64) -> i64 { value }
     extern "C" fn fake_device_send(
         protocol: u16,
-        device: u32,
+        device: LibertasDevice,
         trans_id: LibertasTransId,
         op_code: u8,
         data: *const u8,
         data_len: usize,
-        peer: u32,
+        peer: LibertasPeer,
     ) {
         if protocol == PROTOCOL_LIBERTAS &&
                 device == DEVICE_SYSTEM &&
@@ -2079,7 +2089,7 @@ mod tests {
     }
     extern "C" fn fake_device_read(
         _: u16,
-        _: u32,
+        _: LibertasDevice,
         _: u8,
         _: *const u8,
         _: usize,
@@ -2116,7 +2126,7 @@ mod tests {
     }
 
     static DATA_TEST_STATUS: AtomicUsize = AtomicUsize::new(0);
-    extern "C" fn checked_data_read(_: u16, _: u32, operation: u8, data: *const u8, len: usize) -> ReadResult {
+    extern "C" fn checked_data_read(_: u16, _: LibertasDevice, operation: u8, data: *const u8, len: usize) -> ReadResult {
         #[repr(C)]
         struct Request { operation: u8, data: *const u8, len: usize }
         #[repr(C)]
@@ -2131,6 +2141,25 @@ mod tests {
             success: status == 0, data: core::ptr::null(), data_len: 0,
         }}));
         ReadResult { success: true, data: reply as *const _ as *const u8, data_len: core::mem::size_of::<Reply>() }
+    }
+
+    #[test]
+    fn id64_abi_rejects_old_hosts_and_removes_timers_by_task() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        let mut old_version: u32 = 0x000207;
+        assert!(__libertas_init_package(&raw mut old_version as *mut c_void).is_null());
+        assert!(__libertas_init_package(core::ptr::null_mut()).is_null());
+        let mut env = LibertasPackageEnv::new();
+        let task: LibertasTaskId = (1 << 53) + 7;
+        env.init_task(task);
+        env.timers.insert(1, Timer {
+            task, state: TimerState::Idle,
+            cb: Rc::new(RefCell::new(Box::new(|_, _, _| {}))),
+            context: Rc::new(RefCell::new(Box::new(()))),
+        });
+        env.remove_task(task);
+        assert!(env.timers.is_empty());
+        assert!(env.contexts.is_empty());
     }
 
     #[test]
@@ -2247,8 +2276,8 @@ mod tests {
     #[test]
     fn endpoint_listener_rejects_invalid_messages_without_panicking_or_looping() {
         let _guard = TEST_LOCK.lock().unwrap();
-        const ENDPOINT: LibertasEndpoint = 41;
-        const OPAQUE_PEER_HANDLE: u32 = 73;
+        const ENDPOINT: LibertasEndpoint = (1 << 53) + 41;
+        const OPAQUE_PEER_HANDLE: LibertasPeer = (1 << 53) + 73;
 
         ENDPOINT_CALLBACKS_WITH_DATA.store(0, Ordering::Release);
         ENDPOINT_CALLBACKS_WITHOUT_DATA.store(0, Ordering::Release);
@@ -2442,8 +2471,8 @@ mod tests {
     #[test]
     fn endpoint_status_listener_round_trips_permission_denied() {
         let _guard = TEST_LOCK.lock().unwrap();
-        const ENDPOINT: LibertasEndpoint = 42;
-        const OPAQUE_PEER_HANDLE: u32 = 74;
+        const ENDPOINT: LibertasEndpoint = (1 << 53) + 42;
+        const OPAQUE_PEER_HANDLE: LibertasPeer = (1 << 53) + 74;
 
         ENDPOINT_STANDARD_RESPONSES.store(0, Ordering::Release);
         ENDPOINT_RECEIVED_STATUSES.store(0, Ordering::Release);
@@ -2628,9 +2657,9 @@ mod tests {
     #[test]
     fn edit_request_preserves_envelope_opcode_and_opaque_correlation() {
         let _guard = TEST_LOCK.lock().unwrap();
-        const ENDPOINT: LibertasEndpoint = 43;
+        const ENDPOINT: LibertasEndpoint = (1 << 53) + 43;
         const TRANSACTION: LibertasTransId = 117;
-        const PEER: u32 = 75;
+        const PEER: LibertasPeer = (1 << 53) + 75;
         let mut runtime_api = fake_runtime_api();
         let callbacks = __libertas_init_package(&raw mut runtime_api as *mut c_void);
         unsafe { ((*callbacks).init_task)(7); }
@@ -2660,8 +2689,8 @@ mod tests {
     #[test]
     fn endpoint_peer_alive_is_payloadless() {
         let _guard = TEST_LOCK.lock().unwrap();
-        const ENDPOINT: LibertasEndpoint = 43;
-        const OPAQUE_PEER_HANDLE: u32 = 75;
+        const ENDPOINT: LibertasEndpoint = (1 << 53) + 43;
+        const OPAQUE_PEER_HANDLE: LibertasPeer = (1 << 53) + 75;
 
         ENDPOINT_ALIVE_SENDS.store(0, Ordering::Release);
         ENDPOINT_ALIVE_NULL_PAYLOADS.store(0, Ordering::Release);

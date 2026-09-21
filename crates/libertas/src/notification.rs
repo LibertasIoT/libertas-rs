@@ -34,7 +34,7 @@ pub enum NotificationImportance {
 #[derive(LibertasAvroEncode, Debug, Clone, Copy)]
 pub enum LibertasMessageArgument<'a> {
     LiteralText(&'a str),
-    Object(u32),
+    Object(LibertasId),
     Boolean(bool),
     Signed(i64),
     Unsigned(u64),
@@ -86,7 +86,7 @@ pub enum LibertasMessageArgument<'a> {
 #[derive(LibertasAvroEncode, LibertasAvroDecode, PartialEq, Debug, Clone)]
 pub enum LibertasMessageArgumentDecode {
     LiteralText(String),
-    Object(u32),
+    Object(LibertasId),
     Boolean(bool),
     Signed(i64),
     Unsigned(u64),
@@ -149,14 +149,14 @@ pub fn libertas_formatted_text(
 #[derive(LibertasAvroEncode)]
 struct LibertasNotification<'a> {
     level: NotificationImportance,
-    source: u32,
+    source: LibertasId,
     resource_name: &'a str,
     arguments: &'a [LibertasMessageArgument<'a>],
 }
 
 #[repr(C)]
 struct LibertasNotificationRaw {
-    recipients: *const u32,
+    recipients: *const LibertasUser,
     recipients_len: usize,
     data: *const u8,
     data_len: usize,
@@ -173,7 +173,7 @@ struct LibertasNotificationRaw {
 ///
 /// # Panics
 /// On size limits or permission violations.
-pub fn libertas_notification_send(recipients: &[u32], level: NotificationImportance, source: Option<u32>, resource_name: &str, args: &[LibertasMessageArgument]) {
+pub fn libertas_notification_send(recipients: &[LibertasUser], level: NotificationImportance, source: Option<LibertasId>, resource_name: &str, args: &[LibertasMessageArgument]) {
     let sourceid = if let Some(source) = source { source } else { libertas_get_task_id() };
     let n = LibertasNotification{
         level,
@@ -201,7 +201,7 @@ pub fn libertas_notification_send(recipients: &[u32], level: NotificationImporta
 ///
 /// # Panics
 /// On size limits or permission violations.
-pub fn libertas_notification_send_literal(recipients: &[u32], level: NotificationImportance, text: &str) {
+pub fn libertas_notification_send_literal(recipients: &[LibertasUser], level: NotificationImportance, text: &str) {
     let arg = LibertasMessageArgument::LiteralText(text);
     libertas_notification_send(recipients, level, None, "SYS_LITERAL", &[arg]);
 }

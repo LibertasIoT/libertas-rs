@@ -8,8 +8,8 @@ homepage.workspace = true
 description = "Shared message definitions for Libertas Hub"
 
 [dependencies]
-libertas = { path = "../libertas", version = "0.2.10" }
-libertas_macros = { path = "../libertas_macros", version = "0.2.10" }
+libertas = { path = "../libertas", version = "0.3.0" }
+libertas_macros = { path = "../libertas_macros", version = "0.3.0" }
 
 [lib]
 name = "libertas_hub"

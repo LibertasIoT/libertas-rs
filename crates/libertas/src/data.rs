@@ -369,7 +369,7 @@ struct DataCheckedRequest { operation: u8, data: *const u8, data_len: usize }
 #[repr(C)]
 struct DataCheckedResult { status: u32, value: ReadResult }
 
-fn checked_data_operation(device: u32, operation: u8, data: *const u8, data_len: usize) -> Result<ReadResult, DataError> {
+fn checked_data_operation(device: LibertasDevice, operation: u8, data: *const u8, data_len: usize) -> Result<ReadResult, DataError> {
     let request = DataCheckedRequest { operation, data, data_len };
     let reply = __libertas_device_read_raw(PROTOCOL_LIBERTAS, device, OP_SYSTEM_DATABASE_CHECKED,
         &request as *const _ as *const u8, core::mem::size_of::<DataCheckedRequest>());

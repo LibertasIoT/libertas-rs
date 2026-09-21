@@ -1,0 +1,161 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="1320" viewBox="0 0 2400 1320" role="img" aria-labelledby="title description">
+  <title id="title">MyProtocol: from Rust declarations to protocol state transitions</title>
+  <desc id="description">The supplied Rust enum appears on the left. All six states appear exactly once on the right, connected by twelve allowed directed transitions. Request1 can transition to Response1 or Response2. Request2 can transition to Response2 or Response3. Request3 can transition to Response3 or Response1. Response1 can transition to Request2 or Request3. Response2 can transition to Request3 or Request1. Response3 can transition to Request1 or Request2. Three double-headed links each represent two opposite transitions. One interior crossing has no junction.</desc>
+  <defs>
+    <marker id="response-arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="18" markerHeight="18" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M1 1 L11 6 L1 11 Z" fill="#2165b0"/>
+    </marker>
+    <marker id="request-arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="18" markerHeight="18" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M1 1 L11 6 L1 11 Z" fill="#7650a8"/>
+    </marker>
+    <style>
+      text { font-family: Arial, 'DejaVu Sans', sans-serif; }
+      .code, .line-number { font-family: 'DejaVu Sans Mono', monospace; font-size: 27px; }
+      .node-label { font-family: 'DejaVu Sans Mono', monospace; font-size: 29px; font-weight: 700; }
+    </style>
+  </defs>
+  <rect width="2400" height="1320" fill="#f4f7fb"/>
+  <g fill="#18324c">
+    <text x="80" y="106" font-size="62" font-weight="700">MyProtocol: code to state transitions</text>
+    <text x="82" y="164" font-size="29" fill="#53677b">Six variants. Twelve allowed transitions. Each annotation names the permitted next messages.</text>
+
+    <rect x="80" y="219" width="1080" height="1040" rx="24" fill="#fff" stroke="#dce4ed" stroke-width="2"/>
+    <rect x="1196" y="219" width="1124" height="1040" rx="24" fill="#fff" stroke="#dce4ed" stroke-width="2"/>
+    <text x="120" y="284" font-size="34" font-weight="700">Rust declaration</text>
+    <text x="1118" y="282" font-size="22" text-anchor="end" fill="#60758a">MyProtocol</text>
+    <path d="M80 312 H1160 M1196 312 H2320" stroke="#e4eaf1" stroke-width="2"/>
+    <text x="1236" y="284" font-size="34" font-weight="700">Allowed state transitions</text>
+
+    <rect x="108" y="342" width="1024" height="868" rx="14" fill="#f9fbfe"/>
+    <path d="M176 357 V1190" stroke="#e4eaf1" stroke-width="2"/>
+    <text x="155" y="386" class="line-number" text-anchor="end" fill="#8494a6" aria-hidden="true">1</text>
+    <text x="197" y="386" class="code" xml:space="preserve"><tspan fill="#88509a">pub</tspan> <tspan fill="#88509a">enum</tspan> <tspan fill="#193553">MyProtocol</tspan> {</text>
+    <text x="155" y="427.5" class="line-number" text-anchor="end" fill="#8494a6" aria-hidden="true">2</text>
+    <text x="197" y="427.5" class="code" xml:space="preserve">    #[<tspan fill="#2165b0">libertas_request</tspan>]</text>
+    <text x="155" y="469" class="line-number" text-anchor="end" fill="#8494a6" aria-hidden="true">3</text>
+    <text x="197" y="469" class="code" xml:space="preserve">    #[<tspan fill="#2165b0">libertas_next_response</tspan>(<tspan fill="#7650a8">Response1</tspan>,<tspan fill="#7650a8">Response2</tspan>)]</text>
+    <text x="155" y="510.5" class="line-number" text-anchor="end" fill="#8494a6" aria-hidden="true">4</text>
+    <text x="197" y="510.5" class="code" xml:space="preserve">    <tspan fill="#2165b0">Request1</tspan> {},</text>
+    <text x="155" y="552" class="line-number" text-anchor="end" fill="#8494a6" aria-hidden="true">5</text>
+    <text x="197" y="552" class="code" xml:space="preserve">    #[<tspan fill="#2165b0">libertas_request</tspan>]</text>
+    <text x="155" y="593.5" class="line-number" text-anchor="end" fill="#8494a6" aria-hidden="true">6</text>
+    <text x="197" y="593.5" class="code" xml:space="preserve">    #[<tspan fill="#2165b0">libertas_next_response</tspan>(<tspan fill="#7650a8">Response2</tspan>,<tspan fill="#7650a8">Response3</tspan>)]</text>
+    <text x="155" y="635" class="line-number" text-anchor="end" fill="#8494a6" aria-hidden="true">7</text>
+    <text x="197" y="635" class="code" xml:space="preserve">    <tspan fill="#2165b0">Request2</tspan> {},</text>
+    <text x="155" y="676.5" class="line-number" text-anchor="end" fill="#8494a6" aria-hidden="true">8</text>
+    <text x="197" y="676.5" class="code" xml:space="preserve">    #[<tspan fill="#2165b0">libertas_request</tspan>]</text>
+    <text x="155" y="718" class="line-number" text-anchor="end" fill="#8494a6" aria-hidden="true">9</text>
+    <text x="197" y="718" class="code" xml:space="preserve">    #[<tspan fill="#2165b0">libertas_next_response</tspan>(<tspan fill="#7650a8">Response3</tspan>,<tspan fill="#7650a8">Response1</tspan>)]</text>
+    <text x="155" y="759.5" class="line-number" text-anchor="end" fill="#8494a6" aria-hidden="true">10</text>
+    <text x="197" y="759.5" class="code" xml:space="preserve">    <tspan fill="#2165b0">Request3</tspan> {},</text>
+    <text x="155" y="801" class="line-number" text-anchor="end" fill="#8494a6" aria-hidden="true">11</text>
+    <text x="197" y="801" class="code" xml:space="preserve">    #[<tspan fill="#7650a8">libertas_response</tspan>]</text>
+    <text x="155" y="842.5" class="line-number" text-anchor="end" fill="#8494a6" aria-hidden="true">12</text>
+    <text x="197" y="842.5" class="code" xml:space="preserve">    #[<tspan fill="#7650a8">libertas_next_request</tspan>(<tspan fill="#2165b0">Request2</tspan>,<tspan fill="#2165b0">Request3</tspan>)]</text>
+    <text x="155" y="884" class="line-number" text-anchor="end" fill="#8494a6" aria-hidden="true">13</text>
+    <text x="197" y="884" class="code" xml:space="preserve">    <tspan fill="#7650a8">Response1</tspan> {},</text>
+    <text x="155" y="925.5" class="line-number" text-anchor="end" fill="#8494a6" aria-hidden="true">14</text>
+    <text x="197" y="925.5" class="code" xml:space="preserve">    #[<tspan fill="#7650a8">libertas_next_request</tspan>(<tspan fill="#2165b0">Request3</tspan>,<tspan fill="#2165b0">Request1</tspan>)]</text>
+    <text x="155" y="967" class="line-number" text-anchor="end" fill="#8494a6" aria-hidden="true">15</text>
+    <text x="197" y="967" class="code" xml:space="preserve">    #[<tspan fill="#7650a8">libertas_response</tspan>]</text>
+    <text x="155" y="1008.5" class="line-number" text-anchor="end" fill="#8494a6" aria-hidden="true">16</text>
+    <text x="197" y="1008.5" class="code" xml:space="preserve">    <tspan fill="#7650a8">Response2</tspan> {},</text>
+    <text x="155" y="1050" class="line-number" text-anchor="end" fill="#8494a6" aria-hidden="true">17</text>
+    <text x="197" y="1050" class="code" xml:space="preserve">    #[<tspan fill="#7650a8">libertas_response</tspan>]</text>
+    <text x="155" y="1091.5" class="line-number" text-anchor="end" fill="#8494a6" aria-hidden="true">18</text>
+    <text x="197" y="1091.5" class="code" xml:space="preserve">    #[<tspan fill="#7650a8">libertas_next_request</tspan>(<tspan fill="#2165b0">Request1</tspan>,<tspan fill="#2165b0">Request2</tspan>)]</text>
+    <text x="155" y="1133" class="line-number" text-anchor="end" fill="#8494a6" aria-hidden="true">19</text>
+    <text x="197" y="1133" class="code" xml:space="preserve">    <tspan fill="#7650a8">Response3</tspan> {},</text>
+    <text x="155" y="1174.5" class="line-number" text-anchor="end" fill="#8494a6" aria-hidden="true">20</text>
+    <text x="197" y="1174.5" class="code" xml:space="preserve">}</text>
+
+    <g data-connection="Request2-Response3" aria-label="Request2 ↔ Response3">
+    <title>Request2 ↔ Response3</title>
+    <g data-from="Request2" data-to="Response3"><title>Request2 → Response3</title></g><g data-from="Response3" data-to="Request2"><title>Response3 → Request2</title></g>
+    <path d="M2283 741 C2300 741 2300 732 2300 714 V378 Q2300 348 2270 348 H1246 Q1216 348 1216 378 V714 Q1216 741 1233 741" fill="none" stroke="#fff" stroke-width="13" stroke-linecap="round"/>
+    <path d="M2283 741 C2300 741 2300 732 2300 714 V378 Q2300 348 2270 348 H1246 Q1216 348 1216 378 V714 Q1216 741 1233 741" fill="none" stroke="#77899f" stroke-width="3.5" stroke-linecap="round"  marker-start="url(#request-arrow)" marker-end="url(#response-arrow)"/>
+  </g>
+<g data-connection="Request1-Response1" aria-label="Request1 → Response1">
+    <title>Request1 → Response1</title>
+    <g data-from="Request1" data-to="Response1"><title>Request1 → Response1</title></g>
+    <path d="M1628 476 H1885" fill="none" stroke="#fff" stroke-width="13" stroke-linecap="round"/>
+    <path d="M1628 476 H1885" fill="none" stroke="#2165b0" stroke-width="3.5" stroke-linecap="round"   marker-end="url(#response-arrow)"/>
+  </g>
+<g data-connection="Response1-Request2" aria-label="Response1 → Request2">
+    <title>Response1 → Request2</title>
+    <g data-from="Response1" data-to="Request2"><title>Response1 → Request2</title></g>
+    <path d="M2108 476 C2170 476 2170 581 2170 692" fill="none" stroke="#fff" stroke-width="13" stroke-linecap="round"/>
+    <path d="M2108 476 C2170 476 2170 581 2170 692" fill="none" stroke="#7650a8" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="11 8"  marker-end="url(#request-arrow)"/>
+  </g>
+<g data-connection="Request2-Response2" aria-label="Request2 → Response2">
+    <title>Request2 → Response2</title>
+    <g data-from="Request2" data-to="Response2"><title>Request2 → Response2</title></g>
+    <path d="M2170 787 C2170 901 2170 1006 2111 1006" fill="none" stroke="#fff" stroke-width="13" stroke-linecap="round"/>
+    <path d="M2170 787 C2170 901 2170 1006 2111 1006" fill="none" stroke="#2165b0" stroke-width="3.5" stroke-linecap="round"   marker-end="url(#response-arrow)"/>
+  </g>
+<g data-connection="Response2-Request3" aria-label="Response2 → Request3">
+    <title>Response2 → Request3</title>
+    <g data-from="Response2" data-to="Request3"><title>Response2 → Request3</title></g>
+    <path d="M1888 1006 H1631" fill="none" stroke="#fff" stroke-width="13" stroke-linecap="round"/>
+    <path d="M1888 1006 H1631" fill="none" stroke="#7650a8" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="11 8"  marker-end="url(#request-arrow)"/>
+  </g>
+<g data-connection="Request3-Response3" aria-label="Request3 → Response3">
+    <title>Request3 → Response3</title>
+    <g data-from="Request3" data-to="Response3"><title>Request3 → Response3</title></g>
+    <path d="M1408 1006 C1346 1006 1346 897 1346 790" fill="none" stroke="#fff" stroke-width="13" stroke-linecap="round"/>
+    <path d="M1408 1006 C1346 1006 1346 897 1346 790" fill="none" stroke="#2165b0" stroke-width="3.5" stroke-linecap="round"   marker-end="url(#response-arrow)"/>
+  </g>
+<g data-connection="Response3-Request1" aria-label="Response3 → Request1">
+    <title>Response3 → Request1</title>
+    <g data-from="Response3" data-to="Request1"><title>Response3 → Request1</title></g>
+    <path d="M1346 695 C1346 585 1346 476 1405 476" fill="none" stroke="#fff" stroke-width="13" stroke-linecap="round"/>
+    <path d="M1346 695 C1346 585 1346 476 1405 476" fill="none" stroke="#7650a8" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="11 8"  marker-end="url(#request-arrow)"/>
+  </g>
+<g data-connection="Request1-Response2" aria-label="Request1 ↔ Response2">
+    <title>Request1 ↔ Response2</title>
+    <g data-from="Request1" data-to="Response2"><title>Request1 → Response2</title></g><g data-from="Response2" data-to="Request1"><title>Response2 → Request1</title></g>
+    <path d="M1518 525 C1518 664 1998 818 1998 957" fill="none" stroke="#fff" stroke-width="13" stroke-linecap="round"/>
+    <path d="M1518 525 C1518 664 1998 818 1998 957" fill="none" stroke="#77899f" stroke-width="3.5" stroke-linecap="round"  marker-start="url(#request-arrow)" marker-end="url(#response-arrow)"/>
+  </g>
+<g data-connection="Request3-Response1" aria-label="Request3 ↔ Response1">
+    <title>Request3 ↔ Response1</title>
+    <g data-from="Request3" data-to="Response1"><title>Request3 → Response1</title></g><g data-from="Response1" data-to="Request3"><title>Response1 → Request3</title></g>
+    <path d="M1518 957 C1518 818 1998 664 1998 525" fill="none" stroke="#fff" stroke-width="13" stroke-linecap="round"/>
+    <path d="M1518 957 C1518 818 1998 664 1998 525" fill="none" stroke="#77899f" stroke-width="3.5" stroke-linecap="round"  marker-start="url(#request-arrow)" marker-end="url(#response-arrow)"/>
+  </g>
+    <g data-state="Request1">
+    <rect x="1408" y="430" width="220" height="92" rx="18" fill="#eef5ff" stroke="#2165b0" stroke-width="2.5"/>
+    <text x="1518" y="487" text-anchor="middle" class="node-label" fill="#2165b0">Request1</text>
+  </g>
+<g data-state="Request2">
+    <rect x="2060" y="695" width="220" height="92" rx="18" fill="#eef5ff" stroke="#2165b0" stroke-width="2.5"/>
+    <text x="2170" y="752" text-anchor="middle" class="node-label" fill="#2165b0">Request2</text>
+  </g>
+<g data-state="Request3">
+    <rect x="1408" y="960" width="220" height="92" rx="18" fill="#eef5ff" stroke="#2165b0" stroke-width="2.5"/>
+    <text x="1518" y="1017" text-anchor="middle" class="node-label" fill="#2165b0">Request3</text>
+  </g>
+<g data-state="Response1">
+    <rect x="1888" y="430" width="220" height="92" rx="18" fill="#f5effc" stroke="#7650a8" stroke-width="2.5"/>
+    <text x="1998" y="487" text-anchor="middle" class="node-label" fill="#7650a8">Response1</text>
+  </g>
+<g data-state="Response2">
+    <rect x="1888" y="960" width="220" height="92" rx="18" fill="#f5effc" stroke="#7650a8" stroke-width="2.5"/>
+    <text x="1998" y="1017" text-anchor="middle" class="node-label" fill="#7650a8">Response2</text>
+  </g>
+<g data-state="Response3">
+    <rect x="1236" y="695" width="220" height="92" rx="18" fill="#f5effc" stroke="#7650a8" stroke-width="2.5"/>
+    <text x="1346" y="752" text-anchor="middle" class="node-label" fill="#7650a8">Response3</text>
+  </g>
+
+    <g font-size="25" fill="#53677b">
+      <path d="M1246 1126 H1298" stroke="#2165b0" stroke-width="3.5" marker-end="url(#response-arrow)"/>
+      <text x="1318" y="1134">Next response</text>
+      <path d="M1590 1126 H1642" stroke="#7650a8" stroke-width="3.5" stroke-dasharray="11 8" marker-end="url(#request-arrow)"/>
+      <text x="1662" y="1134">Next request</text>
+      <path d="M1910 1126 H1962" stroke="#77899f" stroke-width="3.5" marker-start="url(#request-arrow)" marker-end="url(#response-arrow)"/>
+      <text x="1982" y="1134">Both directions</text>
+      <text x="1758" y="1200" text-anchor="middle">Follow the arrowheads. Crossing lines do not join.</text>
+    </g>
+  </g>
+</svg>

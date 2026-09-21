@@ -10,8 +10,8 @@ description = "Libertas App SDK"
 [dependencies]
 hashbrown = { version = "0.16" }
 priority-queue = { version = "2.7", default-features = false }
-libertas_macros = { path = "../libertas_macros", version="0.2.10" }
-libertas_utils = { path = "../libertas_utils", version="0.2.10" }
+libertas_macros = { path = "../libertas_macros", version="0.3.0" }
+libertas_utils = { path = "../libertas_utils", version="0.3.0" }
 
 [lib]
 name = "libertas"
