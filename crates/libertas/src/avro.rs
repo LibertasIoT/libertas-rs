@@ -1,6 +1,6 @@
-use alloc::vec::Vec;
-use alloc::string::String;
 use alloc::boxed::Box;
+use alloc::string::String;
+use alloc::vec::Vec;
 
 fn take_bytes<'a>(
     buffer: &'a [u8],
@@ -22,7 +22,7 @@ pub trait AvroEncode {
 
 /// A trait for decoding Rust data types from Avro format, which is a compact binary serialization format. Types that implement the `AvroDecode` trait can be decoded from a byte buffer in Avro format using the `avro_decode` method. This trait is essential for converting Avro-encoded byte data back into usable Rust data structures, especially when working with indexed data read from the indexed database. The `avro_decode` method takes a byte slice (`&[u8]`) containing the Avro-encoded data and a mutable reference to an offset (`&mut usize`) that tracks the current position in the buffer. The method returns a `Result<Self, &'static str>`, where `Self` is the type being decoded, and the error string provides information about any decoding issues that may arise, such as unexpected end of buffer or invalid data formats. When implementing this method for your custom types, you should ensure that the decoding logic correctly interprets the Avro format and updates the offset accordingly as bytes are read from the buffer.
 pub trait AvroDecode: Sized {
-    /// Decode an instance of the implementing type from Avro format using the provided byte buffer and offset. The `avro_decode` method is responsible for reading bytes from the `buffer` starting at the position indicated by `offset`, interpreting those bytes according to the Avro specification, and constructing an instance of the implementing type. The method returns a `Result<Self, &'static str>`, where `Self` is the type being decoded, and the error string provides information about any issues that may arise during decoding, such as reaching the end of the buffer unexpectedly or encountering invalid data formats. When implementing this method for your custom types, you should ensure that the decoding logic correctly follows the Avro format and updates the offset as bytes are consumed from the buffer to allow for sequential decoding of multiple values. 
+    /// Decode an instance of the implementing type from Avro format using the provided byte buffer and offset. The `avro_decode` method is responsible for reading bytes from the `buffer` starting at the position indicated by `offset`, interpreting those bytes according to the Avro specification, and constructing an instance of the implementing type. The method returns a `Result<Self, &'static str>`, where `Self` is the type being decoded, and the error string provides information about any issues that may arise during decoding, such as reaching the end of the buffer unexpectedly or encountering invalid data formats. When implementing this method for your custom types, you should ensure that the decoding logic correctly follows the Avro format and updates the offset as bytes are consumed from the buffer to allow for sequential decoding of multiple values.
     ///
     /// The input may come from an untrusted peer. Implementations must return
     /// `Err` for invalid input and must not panic because endpoint listeners
@@ -62,10 +62,11 @@ impl AvroEncode for bool {
     }
 }
 
-
 impl AvroDecode for bool {
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
-        if *offset >= buffer.len() { return Err("EOF while reading bool"); }
+        if *offset >= buffer.len() {
+            return Err("EOF while reading bool");
+        }
         let v = buffer[*offset];
         *offset += 1;
         match v {
@@ -75,7 +76,6 @@ impl AvroDecode for bool {
         }
     }
 }
-
 
 impl AvroEncode for i32 {
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
@@ -88,33 +88,39 @@ impl AvroEncode for i32 {
                 byte |= 0x80;
             }
             buffer.push(byte);
-            if n == 0 { break; }
+            if n == 0 {
+                break;
+            }
         }
     }
 }
-
 
 impl AvroDecode for i32 {
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         let mut result: u32 = 0;
         let mut shift = 0;
         loop {
-            if *offset >= buffer.len() { return Err("EOF while reading i32"); }
+            if *offset >= buffer.len() {
+                return Err("EOF while reading i32");
+            }
             let byte = buffer[*offset];
             *offset += 1;
             if shift == 28 && byte & 0xf0 != 0 {
                 return Err("Invalid terminal byte for i32");
             }
             result |= ((byte & 0x7F) as u32) << shift;
-            if byte & 0x80 == 0 { break; }
+            if byte & 0x80 == 0 {
+                break;
+            }
             shift += 7;
-            if shift >= 32 { return Err("Too many bytes for i32"); }
+            if shift >= 32 {
+                return Err("Too many bytes for i32");
+            }
         }
-        let decoded = ((result >> 1) as i32) ^ -( (result & 1) as i32 );
+        let decoded = ((result >> 1) as i32) ^ -((result & 1) as i32);
         Ok(decoded)
     }
 }
-
 
 impl AvroEncode for i64 {
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
@@ -127,40 +133,45 @@ impl AvroEncode for i64 {
                 byte |= 0x80;
             }
             buffer.push(byte);
-            if n == 0 { break; }
+            if n == 0 {
+                break;
+            }
         }
     }
 }
-
 
 impl AvroDecode for i64 {
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         let mut result: u64 = 0;
         let mut shift = 0;
         loop {
-            if *offset >= buffer.len() { return Err("EOF while reading i64"); }
+            if *offset >= buffer.len() {
+                return Err("EOF while reading i64");
+            }
             let byte = buffer[*offset];
             *offset += 1;
             if shift == 63 && byte & 0xfe != 0 {
                 return Err("Invalid terminal byte for i64");
             }
             result |= ((byte & 0x7F) as u64) << shift;
-            if byte & 0x80 == 0 { break; }
+            if byte & 0x80 == 0 {
+                break;
+            }
             shift += 7;
-            if shift >= 64 { return Err("Too many bytes for i64"); }
+            if shift >= 64 {
+                return Err("Too many bytes for i64");
+            }
         }
-        let decoded = ((result >> 1) as i64) ^ -( (result & 1) as i64 );
+        let decoded = ((result >> 1) as i64) ^ -((result & 1) as i64);
         Ok(decoded)
     }
 }
-
 
 impl AvroEncode for f32 {
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         buffer.extend_from_slice(&self.to_le_bytes());
     }
 }
-
 
 impl AvroDecode for f32 {
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
@@ -170,13 +181,11 @@ impl AvroDecode for f32 {
     }
 }
 
-
 impl AvroEncode for f64 {
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         buffer.extend_from_slice(&self.to_le_bytes());
     }
 }
-
 
 impl AvroDecode for f64 {
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
@@ -194,11 +203,12 @@ impl AvroEncode for String {
     }
 }
 
-
 impl AvroDecode for String {
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         let len = i64::avro_decode(buffer, offset)?;
-        if len < 0 { return Err("Negative length for string"); }
+        if len < 0 {
+            return Err("Negative length for string");
+        }
         let len = usize::try_from(len).map_err(|_| "String length is too large")?;
         let bytes = take_bytes(buffer, offset, len, "EOF while reading string")?;
         String::from_utf8(bytes.to_vec()).map_err(|_| "Invalid UTF-8 in string")
@@ -214,9 +224,9 @@ impl AvroEncode for &str {
     }
 }
 
-impl<T> AvroEncode for &[T] 
-where 
-    T: AvroEncode 
+impl<T> AvroEncode for &[T]
+where
+    T: AvroEncode,
 {
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         let len = self.len() as i64;
@@ -244,13 +254,11 @@ impl<A: AvroEncode> AvroEncode for (A,) {
     }
 }
 
-
 impl<A: AvroDecode> AvroDecode for (A,) {
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((A::avro_decode(buffer, offset)?,))
     }
 }
-
 
 impl<A: AvroEncode, B: AvroEncode> AvroEncode for (A, B) {
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
@@ -258,7 +266,6 @@ impl<A: AvroEncode, B: AvroEncode> AvroEncode for (A, B) {
         self.1.avro_encode(buffer);
     }
 }
-
 
 impl<A: AvroDecode, B: AvroDecode> AvroDecode for (A, B) {
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
@@ -269,7 +276,6 @@ impl<A: AvroDecode, B: AvroDecode> AvroDecode for (A, B) {
     }
 }
 
-
 impl<A: AvroEncode, B: AvroEncode, C: AvroEncode> AvroEncode for (A, B, C) {
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
@@ -277,7 +283,6 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode> AvroEncode for (A, B, C) {
         self.2.avro_encode(buffer);
     }
 }
-
 
 impl<A: AvroDecode, B: AvroDecode, C: AvroDecode> AvroDecode for (A, B, C) {
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
@@ -289,7 +294,6 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode> AvroDecode for (A, B, C) {
     }
 }
 
-
 impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode> AvroEncode for (A, B, C, D) {
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
@@ -298,7 +302,6 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode> AvroEncode for 
         self.3.avro_encode(buffer);
     }
 }
-
 
 impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode> AvroDecode for (A, B, C, D) {
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
@@ -311,8 +314,9 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode> AvroDecode for 
     }
 }
 
-
-impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode> AvroEncode for (A, B, C, D, E) {
+impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode> AvroEncode
+    for (A, B, C, D, E)
+{
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
@@ -322,8 +326,9 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode> 
     }
 }
 
-
-impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode> AvroDecode for (A, B, C, D, E) {
+impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode> AvroDecode
+    for (A, B, C, D, E)
+{
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((
             A::avro_decode(buffer, offset)?,
@@ -335,8 +340,9 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode> 
     }
 }
 
-
-impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode> AvroEncode for (A, B, C, D, E, F) {
+impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode>
+    AvroEncode for (A, B, C, D, E, F)
+{
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
@@ -347,8 +353,9 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, 
     }
 }
 
-
-impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, F: AvroDecode> AvroDecode for (A, B, C, D, E, F) {
+impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, F: AvroDecode>
+    AvroDecode for (A, B, C, D, E, F)
+{
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((
             A::avro_decode(buffer, offset)?,
@@ -361,8 +368,16 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, 
     }
 }
 
-
-impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode, G: AvroEncode> AvroEncode for (A, B, C, D, E, F, G) {
+impl<
+    A: AvroEncode,
+    B: AvroEncode,
+    C: AvroEncode,
+    D: AvroEncode,
+    E: AvroEncode,
+    F: AvroEncode,
+    G: AvroEncode,
+> AvroEncode for (A, B, C, D, E, F, G)
+{
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
@@ -374,8 +389,16 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, 
     }
 }
 
-
-impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, F: AvroDecode, G: AvroDecode> AvroDecode for (A, B, C, D, E, F, G) {
+impl<
+    A: AvroDecode,
+    B: AvroDecode,
+    C: AvroDecode,
+    D: AvroDecode,
+    E: AvroDecode,
+    F: AvroDecode,
+    G: AvroDecode,
+> AvroDecode for (A, B, C, D, E, F, G)
+{
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((
             A::avro_decode(buffer, offset)?,
@@ -389,9 +412,17 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, 
     }
 }
 
-
-impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode, 
-        G: AvroEncode, H: AvroEncode> AvroEncode for (A, B, C, D, E, F, G, H) {
+impl<
+    A: AvroEncode,
+    B: AvroEncode,
+    C: AvroEncode,
+    D: AvroEncode,
+    E: AvroEncode,
+    F: AvroEncode,
+    G: AvroEncode,
+    H: AvroEncode,
+> AvroEncode for (A, B, C, D, E, F, G, H)
+{
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
@@ -404,9 +435,17 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, 
     }
 }
 
-
-impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, F: AvroDecode, 
-        G: AvroDecode, H: AvroDecode> AvroDecode for (A, B, C, D, E, F, G, H) {
+impl<
+    A: AvroDecode,
+    B: AvroDecode,
+    C: AvroDecode,
+    D: AvroDecode,
+    E: AvroDecode,
+    F: AvroDecode,
+    G: AvroDecode,
+    H: AvroDecode,
+> AvroDecode for (A, B, C, D, E, F, G, H)
+{
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((
             A::avro_decode(buffer, offset)?,
@@ -421,9 +460,18 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, 
     }
 }
 
-
-impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode, 
-        G: AvroEncode, H: AvroEncode, I: AvroEncode> AvroEncode for (A, B, C, D, E, F, G, H, I) {
+impl<
+    A: AvroEncode,
+    B: AvroEncode,
+    C: AvroEncode,
+    D: AvroEncode,
+    E: AvroEncode,
+    F: AvroEncode,
+    G: AvroEncode,
+    H: AvroEncode,
+    I: AvroEncode,
+> AvroEncode for (A, B, C, D, E, F, G, H, I)
+{
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
@@ -437,9 +485,18 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, 
     }
 }
 
-
-impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, F: AvroDecode, 
-        G: AvroDecode, H: AvroDecode, I: AvroDecode> AvroDecode for (A, B, C, D, E, F, G, H, I) {
+impl<
+    A: AvroDecode,
+    B: AvroDecode,
+    C: AvroDecode,
+    D: AvroDecode,
+    E: AvroDecode,
+    F: AvroDecode,
+    G: AvroDecode,
+    H: AvroDecode,
+    I: AvroDecode,
+> AvroDecode for (A, B, C, D, E, F, G, H, I)
+{
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((
             A::avro_decode(buffer, offset)?,
@@ -455,9 +512,19 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, 
     }
 }
 
-
-impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode, 
-        G: AvroEncode, H: AvroEncode, I: AvroEncode, J: AvroEncode> AvroEncode for (A, B, C, D, E, F, G, H, I, J) {
+impl<
+    A: AvroEncode,
+    B: AvroEncode,
+    C: AvroEncode,
+    D: AvroEncode,
+    E: AvroEncode,
+    F: AvroEncode,
+    G: AvroEncode,
+    H: AvroEncode,
+    I: AvroEncode,
+    J: AvroEncode,
+> AvroEncode for (A, B, C, D, E, F, G, H, I, J)
+{
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
@@ -472,9 +539,19 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, 
     }
 }
 
-
-impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, F: AvroDecode, 
-        G: AvroDecode, H: AvroDecode, I: AvroDecode, J: AvroDecode> AvroDecode for (A, B, C, D, E, F, G, H, I, J) {
+impl<
+    A: AvroDecode,
+    B: AvroDecode,
+    C: AvroDecode,
+    D: AvroDecode,
+    E: AvroDecode,
+    F: AvroDecode,
+    G: AvroDecode,
+    H: AvroDecode,
+    I: AvroDecode,
+    J: AvroDecode,
+> AvroDecode for (A, B, C, D, E, F, G, H, I, J)
+{
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((
             A::avro_decode(buffer, offset)?,
@@ -491,9 +568,20 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, 
     }
 }
 
-
-impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode, 
-        G: AvroEncode, H: AvroEncode, I: AvroEncode, J: AvroEncode, K: AvroEncode> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K) {
+impl<
+    A: AvroEncode,
+    B: AvroEncode,
+    C: AvroEncode,
+    D: AvroEncode,
+    E: AvroEncode,
+    F: AvroEncode,
+    G: AvroEncode,
+    H: AvroEncode,
+    I: AvroEncode,
+    J: AvroEncode,
+    K: AvroEncode,
+> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K)
+{
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
@@ -509,9 +597,20 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, 
     }
 }
 
-
-impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, F: AvroDecode, 
-        G: AvroDecode, H: AvroDecode, I: AvroDecode, J: AvroDecode, K: AvroDecode> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K) {
+impl<
+    A: AvroDecode,
+    B: AvroDecode,
+    C: AvroDecode,
+    D: AvroDecode,
+    E: AvroDecode,
+    F: AvroDecode,
+    G: AvroDecode,
+    H: AvroDecode,
+    I: AvroDecode,
+    J: AvroDecode,
+    K: AvroDecode,
+> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K)
+{
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((
             A::avro_decode(buffer, offset)?,
@@ -529,10 +628,21 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, 
     }
 }
 
-
-impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode, 
-        G: AvroEncode, H: AvroEncode, I: AvroEncode, J: AvroEncode, K: AvroEncode, L: AvroEncode> 
-        AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L) {
+impl<
+    A: AvroEncode,
+    B: AvroEncode,
+    C: AvroEncode,
+    D: AvroEncode,
+    E: AvroEncode,
+    F: AvroEncode,
+    G: AvroEncode,
+    H: AvroEncode,
+    I: AvroEncode,
+    J: AvroEncode,
+    K: AvroEncode,
+    L: AvroEncode,
+> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L)
+{
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
@@ -549,10 +659,21 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, 
     }
 }
 
-
-impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, F: AvroDecode, 
-        G: AvroDecode, H: AvroDecode, I: AvroDecode, J: AvroDecode, K: AvroDecode, L: AvroDecode> 
-        AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L) {
+impl<
+    A: AvroDecode,
+    B: AvroDecode,
+    C: AvroDecode,
+    D: AvroDecode,
+    E: AvroDecode,
+    F: AvroDecode,
+    G: AvroDecode,
+    H: AvroDecode,
+    I: AvroDecode,
+    J: AvroDecode,
+    K: AvroDecode,
+    L: AvroDecode,
+> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L)
+{
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((
             A::avro_decode(buffer, offset)?,
@@ -571,11 +692,22 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, 
     }
 }
 
-
-impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode, 
-        G: AvroEncode, H: AvroEncode, I: AvroEncode, J: AvroEncode, K: AvroEncode, L: AvroEncode,
-        M: AvroEncode> 
-        AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M) {
+impl<
+    A: AvroEncode,
+    B: AvroEncode,
+    C: AvroEncode,
+    D: AvroEncode,
+    E: AvroEncode,
+    F: AvroEncode,
+    G: AvroEncode,
+    H: AvroEncode,
+    I: AvroEncode,
+    J: AvroEncode,
+    K: AvroEncode,
+    L: AvroEncode,
+    M: AvroEncode,
+> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M)
+{
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
@@ -593,11 +725,22 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, 
     }
 }
 
-
-impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, F: AvroDecode, 
-        G: AvroDecode, H: AvroDecode, I: AvroDecode, J: AvroDecode, K: AvroDecode, L: AvroDecode, 
-        M: AvroDecode> 
-        AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M) {
+impl<
+    A: AvroDecode,
+    B: AvroDecode,
+    C: AvroDecode,
+    D: AvroDecode,
+    E: AvroDecode,
+    F: AvroDecode,
+    G: AvroDecode,
+    H: AvroDecode,
+    I: AvroDecode,
+    J: AvroDecode,
+    K: AvroDecode,
+    L: AvroDecode,
+    M: AvroDecode,
+> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M)
+{
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((
             A::avro_decode(buffer, offset)?,
@@ -616,7 +759,6 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, 
         ))
     }
 }
-
 
 impl<A> NotBytesEncode for (A,) {}
 impl<A> NotBytesDecode for (A,) {}
@@ -642,32 +784,89 @@ impl<A, B, C, D, E, F, G, H, I, J, K> NotBytesEncode for (A, B, C, D, E, F, G, H
 impl<A, B, C, D, E, F, G, H, I, J, K> NotBytesDecode for (A, B, C, D, E, F, G, H, I, J, K) {}
 impl<A, B, C, D, E, F, G, H, I, J, K, L> NotBytesEncode for (A, B, C, D, E, F, G, H, I, J, K, L) {}
 impl<A, B, C, D, E, F, G, H, I, J, K, L> NotBytesDecode for (A, B, C, D, E, F, G, H, I, J, K, L) {}
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M> NotBytesEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M) {}
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M> NotBytesDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M) {}
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M> NotBytesEncode
+    for (A, B, C, D, E, F, G, H, I, J, K, L, M)
+{
+}
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M> NotBytesDecode
+    for (A, B, C, D, E, F, G, H, I, J, K, L, M)
+{
+}
 
-impl AvroEncode for u8 { fn avro_encode(&self, buffer: &mut Vec<u8>) { (*self as i32).avro_encode(buffer); } }
-impl AvroDecode for u8 { fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> { u8::try_from(i32::avro_decode(buffer, offset)?).map_err(|_| "Decoded value does not fit u8") } }
+impl AvroEncode for u8 {
+    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+        (*self as i32).avro_encode(buffer);
+    }
+}
+impl AvroDecode for u8 {
+    fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
+        u8::try_from(i32::avro_decode(buffer, offset)?).map_err(|_| "Decoded value does not fit u8")
+    }
+}
 
-impl AvroEncode for i8 { fn avro_encode(&self, buffer: &mut Vec<u8>) { (*self as i32).avro_encode(buffer); } }
-impl AvroDecode for i8 { fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> { i8::try_from(i32::avro_decode(buffer, offset)?).map_err(|_| "Decoded value does not fit i8") } }
+impl AvroEncode for i8 {
+    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+        (*self as i32).avro_encode(buffer);
+    }
+}
+impl AvroDecode for i8 {
+    fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
+        i8::try_from(i32::avro_decode(buffer, offset)?).map_err(|_| "Decoded value does not fit i8")
+    }
+}
 
-impl AvroEncode for i16 { fn avro_encode(&self, buffer: &mut Vec<u8>) { (*self as i32).avro_encode(buffer); } }
-impl AvroDecode for i16 { fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> { i16::try_from(i32::avro_decode(buffer, offset)?).map_err(|_| "Decoded value does not fit i16") } }
+impl AvroEncode for i16 {
+    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+        (*self as i32).avro_encode(buffer);
+    }
+}
+impl AvroDecode for i16 {
+    fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
+        i16::try_from(i32::avro_decode(buffer, offset)?)
+            .map_err(|_| "Decoded value does not fit i16")
+    }
+}
 impl NotBytesEncode for i16 {}
 impl NotBytesDecode for i16 {}
 
-impl AvroEncode for u16 { fn avro_encode(&self, buffer: &mut Vec<u8>) { (*self as i32).avro_encode(buffer); } }
-impl AvroDecode for u16 { fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> { u16::try_from(i32::avro_decode(buffer, offset)?).map_err(|_| "Decoded value does not fit u16") } }
+impl AvroEncode for u16 {
+    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+        (*self as i32).avro_encode(buffer);
+    }
+}
+impl AvroDecode for u16 {
+    fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
+        u16::try_from(i32::avro_decode(buffer, offset)?)
+            .map_err(|_| "Decoded value does not fit u16")
+    }
+}
 impl NotBytesEncode for u16 {}
 impl NotBytesDecode for u16 {}
 
-impl AvroEncode for u32 { fn avro_encode(&self, buffer: &mut Vec<u8>) { (*self as i64).avro_encode(buffer); } }
-impl AvroDecode for u32 { fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> { u32::try_from(i64::avro_decode(buffer, offset)?).map_err(|_| "Decoded value does not fit u32") } }
+impl AvroEncode for u32 {
+    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+        (*self as i64).avro_encode(buffer);
+    }
+}
+impl AvroDecode for u32 {
+    fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
+        u32::try_from(i64::avro_decode(buffer, offset)?)
+            .map_err(|_| "Decoded value does not fit u32")
+    }
+}
 impl NotBytesEncode for u32 {}
 impl NotBytesDecode for u32 {}
 
-impl AvroEncode for u64 { fn avro_encode(&self, buffer: &mut Vec<u8>) { (*self as i64).avro_encode(buffer); } }
-impl AvroDecode for u64 { fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> { Ok(i64::avro_decode(buffer, offset)? as u64) } }
+impl AvroEncode for u64 {
+    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+        (*self as i64).avro_encode(buffer);
+    }
+}
+impl AvroDecode for u64 {
+    fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
+        Ok(i64::avro_decode(buffer, offset)? as u64)
+    }
+}
 impl NotBytesEncode for u64 {}
 impl NotBytesDecode for u64 {}
 
@@ -681,17 +880,17 @@ impl AvroEncode for Vec<i8> {
     }
 }
 
-
 impl AvroDecode for Vec<i8> {
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         let len = i64::avro_decode(buffer, offset)?;
-        if len < 0 { return Err("Negative length for bytes"); }
+        if len < 0 {
+            return Err("Negative length for bytes");
+        }
         let len = usize::try_from(len).map_err(|_| "Bytes length is too large")?;
         let bytes = take_bytes(buffer, offset, len, "EOF while reading bytes")?;
         Ok(bytes.iter().map(|&b| b as i8).collect())
     }
 }
-
 
 impl AvroEncode for Vec<u8> {
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
@@ -701,17 +900,17 @@ impl AvroEncode for Vec<u8> {
     }
 }
 
-
 impl AvroDecode for Vec<u8> {
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         let len = i64::avro_decode(buffer, offset)?;
-        if len < 0 { return Err("Negative length for bytes"); }
+        if len < 0 {
+            return Err("Negative length for bytes");
+        }
         let len = usize::try_from(len).map_err(|_| "Bytes length is too large")?;
         let bytes = take_bytes(buffer, offset, len, "EOF while reading bytes")?;
         Ok(bytes.to_vec())
     }
 }
-
 
 impl<T: AvroEncode + NotBytesEncode> AvroEncode for Vec<T> {
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
@@ -726,7 +925,6 @@ impl<T: AvroEncode + NotBytesEncode> AvroEncode for Vec<T> {
     }
 }
 
-
 impl<T: AvroDecode + NotBytesDecode> AvroDecode for Vec<T> {
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         let mut result = Vec::new();
@@ -736,24 +934,26 @@ impl<T: AvroDecode + NotBytesDecode> AvroDecode for Vec<T> {
                 break;
             }
             let (count, block_end) = if block_count < 0 {
-                let count = block_count.checked_neg()
+                let count = block_count
+                    .checked_neg()
                     .ok_or("Invalid Avro array block count")?;
                 let byte_count = i64::avro_decode(buffer, offset)?;
                 if byte_count < 0 {
                     return Err("Negative Avro array block size");
                 }
-                let byte_count = usize::try_from(byte_count)
-                    .map_err(|_| "Avro array block is too large")?;
-                let block_end = offset.checked_add(byte_count)
+                let byte_count =
+                    usize::try_from(byte_count).map_err(|_| "Avro array block is too large")?;
+                let block_end = offset
+                    .checked_add(byte_count)
                     .filter(|end| *end <= buffer.len())
                     .ok_or("EOF while reading Avro array block")?;
                 (count, Some(block_end))
             } else {
                 (block_count, None)
             };
-            let count = usize::try_from(count)
-                .map_err(|_| "Avro array item count is too large")?;
-            result.try_reserve(count)
+            let count = usize::try_from(count).map_err(|_| "Avro array item count is too large")?;
+            result
+                .try_reserve(count)
                 .map_err(|_| "Avro array item count is too large")?;
             for _ in 0..count {
                 let item_offset = *offset;
@@ -774,7 +974,6 @@ impl<T: AvroDecode + NotBytesDecode> AvroDecode for Vec<T> {
     }
 }
 
-
 impl<T: AvroEncode> AvroEncode for Option<T> {
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         match self {
@@ -788,7 +987,6 @@ impl<T: AvroEncode> AvroEncode for Option<T> {
         }
     }
 }
-
 
 impl<T: AvroDecode> AvroDecode for Option<T> {
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
@@ -813,7 +1011,23 @@ impl<T: AvroDecode> AvroDecode for Box<T> {
     }
 }
 
-impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode, G: AvroEncode, H: AvroEncode, I: AvroEncode, J: AvroEncode, K: AvroEncode, L: AvroEncode, M: AvroEncode, N: AvroEncode> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N,) {
+impl<
+    A: AvroEncode,
+    B: AvroEncode,
+    C: AvroEncode,
+    D: AvroEncode,
+    E: AvroEncode,
+    F: AvroEncode,
+    G: AvroEncode,
+    H: AvroEncode,
+    I: AvroEncode,
+    J: AvroEncode,
+    K: AvroEncode,
+    L: AvroEncode,
+    M: AvroEncode,
+    N: AvroEncode,
+> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N)
+{
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
@@ -832,9 +1046,23 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, 
     }
 }
 
-
-
-impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, F: AvroDecode, G: AvroDecode, H: AvroDecode, I: AvroDecode, J: AvroDecode, K: AvroDecode, L: AvroDecode, M: AvroDecode, N: AvroDecode> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N,) {
+impl<
+    A: AvroDecode,
+    B: AvroDecode,
+    C: AvroDecode,
+    D: AvroDecode,
+    E: AvroDecode,
+    F: AvroDecode,
+    G: AvroDecode,
+    H: AvroDecode,
+    I: AvroDecode,
+    J: AvroDecode,
+    K: AvroDecode,
+    L: AvroDecode,
+    M: AvroDecode,
+    N: AvroDecode,
+> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N)
+{
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((
             A::avro_decode(buffer, offset)?,
@@ -860,7 +1088,7 @@ mod tests {
     extern crate std;
 
     use super::*;
-    use std::panic::{catch_unwind, AssertUnwindSafe};
+    use std::panic::{AssertUnwindSafe, catch_unwind};
 
     #[test]
     fn f32_and_u64_round_trip_with_libertas_wire_widths() {
@@ -923,12 +1151,33 @@ mod tests {
     }
 }
 
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N> NotBytesEncode
+    for (A, B, C, D, E, F, G, H, I, J, K, L, M, N)
+{
+}
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N> NotBytesDecode
+    for (A, B, C, D, E, F, G, H, I, J, K, L, M, N)
+{
+}
 
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N> NotBytesEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N,) {}
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N> NotBytesDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N,) {}
-
-
-impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode, G: AvroEncode, H: AvroEncode, I: AvroEncode, J: AvroEncode, K: AvroEncode, L: AvroEncode, M: AvroEncode, N: AvroEncode, O: AvroEncode> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O,) {
+impl<
+    A: AvroEncode,
+    B: AvroEncode,
+    C: AvroEncode,
+    D: AvroEncode,
+    E: AvroEncode,
+    F: AvroEncode,
+    G: AvroEncode,
+    H: AvroEncode,
+    I: AvroEncode,
+    J: AvroEncode,
+    K: AvroEncode,
+    L: AvroEncode,
+    M: AvroEncode,
+    N: AvroEncode,
+    O: AvroEncode,
+> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)
+{
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
@@ -948,9 +1197,24 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, 
     }
 }
 
-
-
-impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, F: AvroDecode, G: AvroDecode, H: AvroDecode, I: AvroDecode, J: AvroDecode, K: AvroDecode, L: AvroDecode, M: AvroDecode, N: AvroDecode, O: AvroDecode> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O,) {
+impl<
+    A: AvroDecode,
+    B: AvroDecode,
+    C: AvroDecode,
+    D: AvroDecode,
+    E: AvroDecode,
+    F: AvroDecode,
+    G: AvroDecode,
+    H: AvroDecode,
+    I: AvroDecode,
+    J: AvroDecode,
+    K: AvroDecode,
+    L: AvroDecode,
+    M: AvroDecode,
+    N: AvroDecode,
+    O: AvroDecode,
+> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)
+{
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((
             A::avro_decode(buffer, offset)?,
@@ -972,12 +1236,34 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, 
     }
 }
 
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O> NotBytesEncode
+    for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)
+{
+}
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O> NotBytesDecode
+    for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)
+{
+}
 
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O> NotBytesEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O,) {}
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O> NotBytesDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O,) {}
-
-
-impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode, G: AvroEncode, H: AvroEncode, I: AvroEncode, J: AvroEncode, K: AvroEncode, L: AvroEncode, M: AvroEncode, N: AvroEncode, O: AvroEncode, P: AvroEncode> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P,) {
+impl<
+    A: AvroEncode,
+    B: AvroEncode,
+    C: AvroEncode,
+    D: AvroEncode,
+    E: AvroEncode,
+    F: AvroEncode,
+    G: AvroEncode,
+    H: AvroEncode,
+    I: AvroEncode,
+    J: AvroEncode,
+    K: AvroEncode,
+    L: AvroEncode,
+    M: AvroEncode,
+    N: AvroEncode,
+    O: AvroEncode,
+    P: AvroEncode,
+> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)
+{
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
@@ -998,9 +1284,25 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, 
     }
 }
 
-
-
-impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, F: AvroDecode, G: AvroDecode, H: AvroDecode, I: AvroDecode, J: AvroDecode, K: AvroDecode, L: AvroDecode, M: AvroDecode, N: AvroDecode, O: AvroDecode, P: AvroDecode> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P,) {
+impl<
+    A: AvroDecode,
+    B: AvroDecode,
+    C: AvroDecode,
+    D: AvroDecode,
+    E: AvroDecode,
+    F: AvroDecode,
+    G: AvroDecode,
+    H: AvroDecode,
+    I: AvroDecode,
+    J: AvroDecode,
+    K: AvroDecode,
+    L: AvroDecode,
+    M: AvroDecode,
+    N: AvroDecode,
+    O: AvroDecode,
+    P: AvroDecode,
+> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)
+{
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((
             A::avro_decode(buffer, offset)?,
@@ -1023,12 +1325,35 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, 
     }
 }
 
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P> NotBytesEncode
+    for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)
+{
+}
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P> NotBytesDecode
+    for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)
+{
+}
 
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P> NotBytesEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P,) {}
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P> NotBytesDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P,) {}
-
-
-impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode, G: AvroEncode, H: AvroEncode, I: AvroEncode, J: AvroEncode, K: AvroEncode, L: AvroEncode, M: AvroEncode, N: AvroEncode, O: AvroEncode, P: AvroEncode, Q: AvroEncode> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q,) {
+impl<
+    A: AvroEncode,
+    B: AvroEncode,
+    C: AvroEncode,
+    D: AvroEncode,
+    E: AvroEncode,
+    F: AvroEncode,
+    G: AvroEncode,
+    H: AvroEncode,
+    I: AvroEncode,
+    J: AvroEncode,
+    K: AvroEncode,
+    L: AvroEncode,
+    M: AvroEncode,
+    N: AvroEncode,
+    O: AvroEncode,
+    P: AvroEncode,
+    Q: AvroEncode,
+> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q)
+{
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
@@ -1050,9 +1375,26 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, 
     }
 }
 
-
-
-impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, F: AvroDecode, G: AvroDecode, H: AvroDecode, I: AvroDecode, J: AvroDecode, K: AvroDecode, L: AvroDecode, M: AvroDecode, N: AvroDecode, O: AvroDecode, P: AvroDecode, Q: AvroDecode> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q,) {
+impl<
+    A: AvroDecode,
+    B: AvroDecode,
+    C: AvroDecode,
+    D: AvroDecode,
+    E: AvroDecode,
+    F: AvroDecode,
+    G: AvroDecode,
+    H: AvroDecode,
+    I: AvroDecode,
+    J: AvroDecode,
+    K: AvroDecode,
+    L: AvroDecode,
+    M: AvroDecode,
+    N: AvroDecode,
+    O: AvroDecode,
+    P: AvroDecode,
+    Q: AvroDecode,
+> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q)
+{
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((
             A::avro_decode(buffer, offset)?,
@@ -1076,12 +1418,36 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, 
     }
 }
 
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q> NotBytesEncode
+    for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q)
+{
+}
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q> NotBytesDecode
+    for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q)
+{
+}
 
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q> NotBytesEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q,) {}
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q> NotBytesDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q,) {}
-
-
-impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode, G: AvroEncode, H: AvroEncode, I: AvroEncode, J: AvroEncode, K: AvroEncode, L: AvroEncode, M: AvroEncode, N: AvroEncode, O: AvroEncode, P: AvroEncode, Q: AvroEncode, R: AvroEncode> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R,) {
+impl<
+    A: AvroEncode,
+    B: AvroEncode,
+    C: AvroEncode,
+    D: AvroEncode,
+    E: AvroEncode,
+    F: AvroEncode,
+    G: AvroEncode,
+    H: AvroEncode,
+    I: AvroEncode,
+    J: AvroEncode,
+    K: AvroEncode,
+    L: AvroEncode,
+    M: AvroEncode,
+    N: AvroEncode,
+    O: AvroEncode,
+    P: AvroEncode,
+    Q: AvroEncode,
+    R: AvroEncode,
+> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R)
+{
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
@@ -1104,9 +1470,27 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, 
     }
 }
 
-
-
-impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, F: AvroDecode, G: AvroDecode, H: AvroDecode, I: AvroDecode, J: AvroDecode, K: AvroDecode, L: AvroDecode, M: AvroDecode, N: AvroDecode, O: AvroDecode, P: AvroDecode, Q: AvroDecode, R: AvroDecode> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R,) {
+impl<
+    A: AvroDecode,
+    B: AvroDecode,
+    C: AvroDecode,
+    D: AvroDecode,
+    E: AvroDecode,
+    F: AvroDecode,
+    G: AvroDecode,
+    H: AvroDecode,
+    I: AvroDecode,
+    J: AvroDecode,
+    K: AvroDecode,
+    L: AvroDecode,
+    M: AvroDecode,
+    N: AvroDecode,
+    O: AvroDecode,
+    P: AvroDecode,
+    Q: AvroDecode,
+    R: AvroDecode,
+> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R)
+{
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((
             A::avro_decode(buffer, offset)?,
@@ -1131,12 +1515,37 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, 
     }
 }
 
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R> NotBytesEncode
+    for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R)
+{
+}
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R> NotBytesDecode
+    for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R)
+{
+}
 
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R> NotBytesEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R,) {}
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R> NotBytesDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R,) {}
-
-
-impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode, G: AvroEncode, H: AvroEncode, I: AvroEncode, J: AvroEncode, K: AvroEncode, L: AvroEncode, M: AvroEncode, N: AvroEncode, O: AvroEncode, P: AvroEncode, Q: AvroEncode, R: AvroEncode, S: AvroEncode> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S,) {
+impl<
+    A: AvroEncode,
+    B: AvroEncode,
+    C: AvroEncode,
+    D: AvroEncode,
+    E: AvroEncode,
+    F: AvroEncode,
+    G: AvroEncode,
+    H: AvroEncode,
+    I: AvroEncode,
+    J: AvroEncode,
+    K: AvroEncode,
+    L: AvroEncode,
+    M: AvroEncode,
+    N: AvroEncode,
+    O: AvroEncode,
+    P: AvroEncode,
+    Q: AvroEncode,
+    R: AvroEncode,
+    S: AvroEncode,
+> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S)
+{
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
@@ -1160,9 +1569,28 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, 
     }
 }
 
-
-
-impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, F: AvroDecode, G: AvroDecode, H: AvroDecode, I: AvroDecode, J: AvroDecode, K: AvroDecode, L: AvroDecode, M: AvroDecode, N: AvroDecode, O: AvroDecode, P: AvroDecode, Q: AvroDecode, R: AvroDecode, S: AvroDecode> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S,) {
+impl<
+    A: AvroDecode,
+    B: AvroDecode,
+    C: AvroDecode,
+    D: AvroDecode,
+    E: AvroDecode,
+    F: AvroDecode,
+    G: AvroDecode,
+    H: AvroDecode,
+    I: AvroDecode,
+    J: AvroDecode,
+    K: AvroDecode,
+    L: AvroDecode,
+    M: AvroDecode,
+    N: AvroDecode,
+    O: AvroDecode,
+    P: AvroDecode,
+    Q: AvroDecode,
+    R: AvroDecode,
+    S: AvroDecode,
+> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S)
+{
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((
             A::avro_decode(buffer, offset)?,
@@ -1188,12 +1616,38 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, 
     }
 }
 
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S> NotBytesEncode
+    for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S)
+{
+}
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S> NotBytesDecode
+    for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S)
+{
+}
 
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S> NotBytesEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S,) {}
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S> NotBytesDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S,) {}
-
-
-impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode, G: AvroEncode, H: AvroEncode, I: AvroEncode, J: AvroEncode, K: AvroEncode, L: AvroEncode, M: AvroEncode, N: AvroEncode, O: AvroEncode, P: AvroEncode, Q: AvroEncode, R: AvroEncode, S: AvroEncode, T: AvroEncode> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T,) {
+impl<
+    A: AvroEncode,
+    B: AvroEncode,
+    C: AvroEncode,
+    D: AvroEncode,
+    E: AvroEncode,
+    F: AvroEncode,
+    G: AvroEncode,
+    H: AvroEncode,
+    I: AvroEncode,
+    J: AvroEncode,
+    K: AvroEncode,
+    L: AvroEncode,
+    M: AvroEncode,
+    N: AvroEncode,
+    O: AvroEncode,
+    P: AvroEncode,
+    Q: AvroEncode,
+    R: AvroEncode,
+    S: AvroEncode,
+    T: AvroEncode,
+> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)
+{
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
@@ -1218,9 +1672,29 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, 
     }
 }
 
-
-
-impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, F: AvroDecode, G: AvroDecode, H: AvroDecode, I: AvroDecode, J: AvroDecode, K: AvroDecode, L: AvroDecode, M: AvroDecode, N: AvroDecode, O: AvroDecode, P: AvroDecode, Q: AvroDecode, R: AvroDecode, S: AvroDecode, T: AvroDecode> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T,) {
+impl<
+    A: AvroDecode,
+    B: AvroDecode,
+    C: AvroDecode,
+    D: AvroDecode,
+    E: AvroDecode,
+    F: AvroDecode,
+    G: AvroDecode,
+    H: AvroDecode,
+    I: AvroDecode,
+    J: AvroDecode,
+    K: AvroDecode,
+    L: AvroDecode,
+    M: AvroDecode,
+    N: AvroDecode,
+    O: AvroDecode,
+    P: AvroDecode,
+    Q: AvroDecode,
+    R: AvroDecode,
+    S: AvroDecode,
+    T: AvroDecode,
+> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)
+{
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((
             A::avro_decode(buffer, offset)?,
@@ -1247,12 +1721,62 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, 
     }
 }
 
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T> NotBytesEncode
+    for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)
+{
+}
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T> NotBytesDecode
+    for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)
+{
+}
 
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T> NotBytesEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T,) {}
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T> NotBytesDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T,) {}
-
-
-impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode, G: AvroEncode, H: AvroEncode, I: AvroEncode, J: AvroEncode, K: AvroEncode, L: AvroEncode, M: AvroEncode, N: AvroEncode, O: AvroEncode, P: AvroEncode, Q: AvroEncode, R: AvroEncode, S: AvroEncode, T: AvroEncode, U: AvroEncode> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U,) {
+impl<
+    A: AvroEncode,
+    B: AvroEncode,
+    C: AvroEncode,
+    D: AvroEncode,
+    E: AvroEncode,
+    F: AvroEncode,
+    G: AvroEncode,
+    H: AvroEncode,
+    I: AvroEncode,
+    J: AvroEncode,
+    K: AvroEncode,
+    L: AvroEncode,
+    M: AvroEncode,
+    N: AvroEncode,
+    O: AvroEncode,
+    P: AvroEncode,
+    Q: AvroEncode,
+    R: AvroEncode,
+    S: AvroEncode,
+    T: AvroEncode,
+    U: AvroEncode,
+> AvroEncode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+    )
+{
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
@@ -1278,9 +1802,53 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, 
     }
 }
 
-
-
-impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, F: AvroDecode, G: AvroDecode, H: AvroDecode, I: AvroDecode, J: AvroDecode, K: AvroDecode, L: AvroDecode, M: AvroDecode, N: AvroDecode, O: AvroDecode, P: AvroDecode, Q: AvroDecode, R: AvroDecode, S: AvroDecode, T: AvroDecode, U: AvroDecode> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U,) {
+impl<
+    A: AvroDecode,
+    B: AvroDecode,
+    C: AvroDecode,
+    D: AvroDecode,
+    E: AvroDecode,
+    F: AvroDecode,
+    G: AvroDecode,
+    H: AvroDecode,
+    I: AvroDecode,
+    J: AvroDecode,
+    K: AvroDecode,
+    L: AvroDecode,
+    M: AvroDecode,
+    N: AvroDecode,
+    O: AvroDecode,
+    P: AvroDecode,
+    Q: AvroDecode,
+    R: AvroDecode,
+    S: AvroDecode,
+    T: AvroDecode,
+    U: AvroDecode,
+> AvroDecode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+    )
+{
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((
             A::avro_decode(buffer, offset)?,
@@ -1308,12 +1876,108 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, 
     }
 }
 
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U> NotBytesEncode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+    )
+{
+}
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U> NotBytesDecode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+    )
+{
+}
 
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U> NotBytesEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U,) {}
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U> NotBytesDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U,) {}
-
-
-impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode, G: AvroEncode, H: AvroEncode, I: AvroEncode, J: AvroEncode, K: AvroEncode, L: AvroEncode, M: AvroEncode, N: AvroEncode, O: AvroEncode, P: AvroEncode, Q: AvroEncode, R: AvroEncode, S: AvroEncode, T: AvroEncode, U: AvroEncode, V: AvroEncode> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V,) {
+impl<
+    A: AvroEncode,
+    B: AvroEncode,
+    C: AvroEncode,
+    D: AvroEncode,
+    E: AvroEncode,
+    F: AvroEncode,
+    G: AvroEncode,
+    H: AvroEncode,
+    I: AvroEncode,
+    J: AvroEncode,
+    K: AvroEncode,
+    L: AvroEncode,
+    M: AvroEncode,
+    N: AvroEncode,
+    O: AvroEncode,
+    P: AvroEncode,
+    Q: AvroEncode,
+    R: AvroEncode,
+    S: AvroEncode,
+    T: AvroEncode,
+    U: AvroEncode,
+    V: AvroEncode,
+> AvroEncode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+        V,
+    )
+{
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
@@ -1340,9 +2004,55 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, 
     }
 }
 
-
-
-impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, F: AvroDecode, G: AvroDecode, H: AvroDecode, I: AvroDecode, J: AvroDecode, K: AvroDecode, L: AvroDecode, M: AvroDecode, N: AvroDecode, O: AvroDecode, P: AvroDecode, Q: AvroDecode, R: AvroDecode, S: AvroDecode, T: AvroDecode, U: AvroDecode, V: AvroDecode> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V,) {
+impl<
+    A: AvroDecode,
+    B: AvroDecode,
+    C: AvroDecode,
+    D: AvroDecode,
+    E: AvroDecode,
+    F: AvroDecode,
+    G: AvroDecode,
+    H: AvroDecode,
+    I: AvroDecode,
+    J: AvroDecode,
+    K: AvroDecode,
+    L: AvroDecode,
+    M: AvroDecode,
+    N: AvroDecode,
+    O: AvroDecode,
+    P: AvroDecode,
+    Q: AvroDecode,
+    R: AvroDecode,
+    S: AvroDecode,
+    T: AvroDecode,
+    U: AvroDecode,
+    V: AvroDecode,
+> AvroDecode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+        V,
+    )
+{
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((
             A::avro_decode(buffer, offset)?,
@@ -1371,12 +2081,112 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, 
     }
 }
 
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V> NotBytesEncode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+        V,
+    )
+{
+}
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V> NotBytesDecode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+        V,
+    )
+{
+}
 
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V> NotBytesEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V,) {}
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V> NotBytesDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V,) {}
-
-
-impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode, G: AvroEncode, H: AvroEncode, I: AvroEncode, J: AvroEncode, K: AvroEncode, L: AvroEncode, M: AvroEncode, N: AvroEncode, O: AvroEncode, P: AvroEncode, Q: AvroEncode, R: AvroEncode, S: AvroEncode, T: AvroEncode, U: AvroEncode, V: AvroEncode, W: AvroEncode> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W,) {
+impl<
+    A: AvroEncode,
+    B: AvroEncode,
+    C: AvroEncode,
+    D: AvroEncode,
+    E: AvroEncode,
+    F: AvroEncode,
+    G: AvroEncode,
+    H: AvroEncode,
+    I: AvroEncode,
+    J: AvroEncode,
+    K: AvroEncode,
+    L: AvroEncode,
+    M: AvroEncode,
+    N: AvroEncode,
+    O: AvroEncode,
+    P: AvroEncode,
+    Q: AvroEncode,
+    R: AvroEncode,
+    S: AvroEncode,
+    T: AvroEncode,
+    U: AvroEncode,
+    V: AvroEncode,
+    W: AvroEncode,
+> AvroEncode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+        V,
+        W,
+    )
+{
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
@@ -1404,9 +2214,57 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, 
     }
 }
 
-
-
-impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, F: AvroDecode, G: AvroDecode, H: AvroDecode, I: AvroDecode, J: AvroDecode, K: AvroDecode, L: AvroDecode, M: AvroDecode, N: AvroDecode, O: AvroDecode, P: AvroDecode, Q: AvroDecode, R: AvroDecode, S: AvroDecode, T: AvroDecode, U: AvroDecode, V: AvroDecode, W: AvroDecode> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W,) {
+impl<
+    A: AvroDecode,
+    B: AvroDecode,
+    C: AvroDecode,
+    D: AvroDecode,
+    E: AvroDecode,
+    F: AvroDecode,
+    G: AvroDecode,
+    H: AvroDecode,
+    I: AvroDecode,
+    J: AvroDecode,
+    K: AvroDecode,
+    L: AvroDecode,
+    M: AvroDecode,
+    N: AvroDecode,
+    O: AvroDecode,
+    P: AvroDecode,
+    Q: AvroDecode,
+    R: AvroDecode,
+    S: AvroDecode,
+    T: AvroDecode,
+    U: AvroDecode,
+    V: AvroDecode,
+    W: AvroDecode,
+> AvroDecode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+        V,
+        W,
+    )
+{
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((
             A::avro_decode(buffer, offset)?,
@@ -1436,12 +2294,116 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, 
     }
 }
 
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W> NotBytesEncode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+        V,
+        W,
+    )
+{
+}
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W> NotBytesDecode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+        V,
+        W,
+    )
+{
+}
 
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W> NotBytesEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W,) {}
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W> NotBytesDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W,) {}
-
-
-impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode, G: AvroEncode, H: AvroEncode, I: AvroEncode, J: AvroEncode, K: AvroEncode, L: AvroEncode, M: AvroEncode, N: AvroEncode, O: AvroEncode, P: AvroEncode, Q: AvroEncode, R: AvroEncode, S: AvroEncode, T: AvroEncode, U: AvroEncode, V: AvroEncode, W: AvroEncode, X: AvroEncode> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X,) {
+impl<
+    A: AvroEncode,
+    B: AvroEncode,
+    C: AvroEncode,
+    D: AvroEncode,
+    E: AvroEncode,
+    F: AvroEncode,
+    G: AvroEncode,
+    H: AvroEncode,
+    I: AvroEncode,
+    J: AvroEncode,
+    K: AvroEncode,
+    L: AvroEncode,
+    M: AvroEncode,
+    N: AvroEncode,
+    O: AvroEncode,
+    P: AvroEncode,
+    Q: AvroEncode,
+    R: AvroEncode,
+    S: AvroEncode,
+    T: AvroEncode,
+    U: AvroEncode,
+    V: AvroEncode,
+    W: AvroEncode,
+    X: AvroEncode,
+> AvroEncode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+        V,
+        W,
+        X,
+    )
+{
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
@@ -1470,9 +2432,59 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, 
     }
 }
 
-
-
-impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, F: AvroDecode, G: AvroDecode, H: AvroDecode, I: AvroDecode, J: AvroDecode, K: AvroDecode, L: AvroDecode, M: AvroDecode, N: AvroDecode, O: AvroDecode, P: AvroDecode, Q: AvroDecode, R: AvroDecode, S: AvroDecode, T: AvroDecode, U: AvroDecode, V: AvroDecode, W: AvroDecode, X: AvroDecode> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X,) {
+impl<
+    A: AvroDecode,
+    B: AvroDecode,
+    C: AvroDecode,
+    D: AvroDecode,
+    E: AvroDecode,
+    F: AvroDecode,
+    G: AvroDecode,
+    H: AvroDecode,
+    I: AvroDecode,
+    J: AvroDecode,
+    K: AvroDecode,
+    L: AvroDecode,
+    M: AvroDecode,
+    N: AvroDecode,
+    O: AvroDecode,
+    P: AvroDecode,
+    Q: AvroDecode,
+    R: AvroDecode,
+    S: AvroDecode,
+    T: AvroDecode,
+    U: AvroDecode,
+    V: AvroDecode,
+    W: AvroDecode,
+    X: AvroDecode,
+> AvroDecode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+        V,
+        W,
+        X,
+    )
+{
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((
             A::avro_decode(buffer, offset)?,
@@ -1503,12 +2515,120 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, 
     }
 }
 
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X> NotBytesEncode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+        V,
+        W,
+        X,
+    )
+{
+}
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X> NotBytesDecode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+        V,
+        W,
+        X,
+    )
+{
+}
 
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X> NotBytesEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X,) {}
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X> NotBytesDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X,) {}
-
-
-impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode, G: AvroEncode, H: AvroEncode, I: AvroEncode, J: AvroEncode, K: AvroEncode, L: AvroEncode, M: AvroEncode, N: AvroEncode, O: AvroEncode, P: AvroEncode, Q: AvroEncode, R: AvroEncode, S: AvroEncode, T: AvroEncode, U: AvroEncode, V: AvroEncode, W: AvroEncode, X: AvroEncode, Y: AvroEncode> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y,) {
+impl<
+    A: AvroEncode,
+    B: AvroEncode,
+    C: AvroEncode,
+    D: AvroEncode,
+    E: AvroEncode,
+    F: AvroEncode,
+    G: AvroEncode,
+    H: AvroEncode,
+    I: AvroEncode,
+    J: AvroEncode,
+    K: AvroEncode,
+    L: AvroEncode,
+    M: AvroEncode,
+    N: AvroEncode,
+    O: AvroEncode,
+    P: AvroEncode,
+    Q: AvroEncode,
+    R: AvroEncode,
+    S: AvroEncode,
+    T: AvroEncode,
+    U: AvroEncode,
+    V: AvroEncode,
+    W: AvroEncode,
+    X: AvroEncode,
+    Y: AvroEncode,
+> AvroEncode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+        V,
+        W,
+        X,
+        Y,
+    )
+{
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
@@ -1538,9 +2658,61 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, 
     }
 }
 
-
-
-impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, F: AvroDecode, G: AvroDecode, H: AvroDecode, I: AvroDecode, J: AvroDecode, K: AvroDecode, L: AvroDecode, M: AvroDecode, N: AvroDecode, O: AvroDecode, P: AvroDecode, Q: AvroDecode, R: AvroDecode, S: AvroDecode, T: AvroDecode, U: AvroDecode, V: AvroDecode, W: AvroDecode, X: AvroDecode, Y: AvroDecode> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y,) {
+impl<
+    A: AvroDecode,
+    B: AvroDecode,
+    C: AvroDecode,
+    D: AvroDecode,
+    E: AvroDecode,
+    F: AvroDecode,
+    G: AvroDecode,
+    H: AvroDecode,
+    I: AvroDecode,
+    J: AvroDecode,
+    K: AvroDecode,
+    L: AvroDecode,
+    M: AvroDecode,
+    N: AvroDecode,
+    O: AvroDecode,
+    P: AvroDecode,
+    Q: AvroDecode,
+    R: AvroDecode,
+    S: AvroDecode,
+    T: AvroDecode,
+    U: AvroDecode,
+    V: AvroDecode,
+    W: AvroDecode,
+    X: AvroDecode,
+    Y: AvroDecode,
+> AvroDecode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+        V,
+        W,
+        X,
+        Y,
+    )
+{
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((
             A::avro_decode(buffer, offset)?,
@@ -1572,12 +2744,124 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, 
     }
 }
 
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y> NotBytesEncode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+        V,
+        W,
+        X,
+        Y,
+    )
+{
+}
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y> NotBytesDecode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+        V,
+        W,
+        X,
+        Y,
+    )
+{
+}
 
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y> NotBytesEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y,) {}
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y> NotBytesDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y,) {}
-
-
-impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode, G: AvroEncode, H: AvroEncode, I: AvroEncode, J: AvroEncode, K: AvroEncode, L: AvroEncode, M: AvroEncode, N: AvroEncode, O: AvroEncode, P: AvroEncode, Q: AvroEncode, R: AvroEncode, S: AvroEncode, T: AvroEncode, U: AvroEncode, V: AvroEncode, W: AvroEncode, X: AvroEncode, Y: AvroEncode, Z: AvroEncode> AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,) {
+impl<
+    A: AvroEncode,
+    B: AvroEncode,
+    C: AvroEncode,
+    D: AvroEncode,
+    E: AvroEncode,
+    F: AvroEncode,
+    G: AvroEncode,
+    H: AvroEncode,
+    I: AvroEncode,
+    J: AvroEncode,
+    K: AvroEncode,
+    L: AvroEncode,
+    M: AvroEncode,
+    N: AvroEncode,
+    O: AvroEncode,
+    P: AvroEncode,
+    Q: AvroEncode,
+    R: AvroEncode,
+    S: AvroEncode,
+    T: AvroEncode,
+    U: AvroEncode,
+    V: AvroEncode,
+    W: AvroEncode,
+    X: AvroEncode,
+    Y: AvroEncode,
+    Z: AvroEncode,
+> AvroEncode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+        V,
+        W,
+        X,
+        Y,
+        Z,
+    )
+{
     fn avro_encode(&self, buffer: &mut Vec<u8>) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
@@ -1608,9 +2892,63 @@ impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, 
     }
 }
 
-
-
-impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, F: AvroDecode, G: AvroDecode, H: AvroDecode, I: AvroDecode, J: AvroDecode, K: AvroDecode, L: AvroDecode, M: AvroDecode, N: AvroDecode, O: AvroDecode, P: AvroDecode, Q: AvroDecode, R: AvroDecode, S: AvroDecode, T: AvroDecode, U: AvroDecode, V: AvroDecode, W: AvroDecode, X: AvroDecode, Y: AvroDecode, Z: AvroDecode> AvroDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,) {
+impl<
+    A: AvroDecode,
+    B: AvroDecode,
+    C: AvroDecode,
+    D: AvroDecode,
+    E: AvroDecode,
+    F: AvroDecode,
+    G: AvroDecode,
+    H: AvroDecode,
+    I: AvroDecode,
+    J: AvroDecode,
+    K: AvroDecode,
+    L: AvroDecode,
+    M: AvroDecode,
+    N: AvroDecode,
+    O: AvroDecode,
+    P: AvroDecode,
+    Q: AvroDecode,
+    R: AvroDecode,
+    S: AvroDecode,
+    T: AvroDecode,
+    U: AvroDecode,
+    V: AvroDecode,
+    W: AvroDecode,
+    X: AvroDecode,
+    Y: AvroDecode,
+    Z: AvroDecode,
+> AvroDecode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+        V,
+        W,
+        X,
+        Y,
+        Z,
+    )
+{
     fn avro_decode(buffer: &[u8], offset: &mut usize) -> Result<Self, &'static str> {
         Ok((
             A::avro_decode(buffer, offset)?,
@@ -1643,6 +2981,65 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode, 
     }
 }
 
-
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z> NotBytesEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,) {}
-impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z> NotBytesDecode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,) {}
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z> NotBytesEncode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+        V,
+        W,
+        X,
+        Y,
+        Z,
+    )
+{
+}
+impl<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z> NotBytesDecode
+    for (
+        A,
+        B,
+        C,
+        D,
+        E,
+        F,
+        G,
+        H,
+        I,
+        J,
+        K,
+        L,
+        M,
+        N,
+        O,
+        P,
+        Q,
+        R,
+        S,
+        T,
+        U,
+        V,
+        W,
+        X,
+        Y,
+        Z,
+    )
+{
+}
