@@ -13,33 +13,33 @@ Libertas provides everything around them: presentation, isolation, persistence,
 interoperability, security, auditing, automation, and AI.
 
 
+<p class="app-authoring-note">All Libertas applications can be built entirely by a CodeBot, starting from a short prompt.</p>
+
 **[Build your first App](guides/developing-apps.md)** · [Get started](guides/getting-started.md)
 
-<p class="site-credit">This website was built entirely by a CodeBot, starting from a short prompt.</p>
-
-<h2 id="projects" style="font-size:2rem;line-height:1.2;margin:1.5em 0 0.65em;">See what you can build</h2>
+<h2 id="projects" style="font-size:2rem;line-height:1.2;margin:1.5em 0 0.65em;">See What You Can Build</h2>
 
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:24px;align-items:stretch;">
 <article style="border:1px solid GrayText;border-radius:12px;padding:24px;min-width:0;display:flex;flex-direction:column;">
-<h3 style="font-size:1.5rem;line-height:1.2;margin:0 0 12px;">Federal tax return App</h3>
-<p style="margin:0 0 16px;">Covers a wide range of federal tax scenarios, with native phone and web interfaces and automated calculations using implemented 2026 federal tax rules. About 16,000 lines of Rust App source, including comments; tests are separate.</p>
+<h3 style="font-size:1.5rem;line-height:1.2;margin:0 0 12px;">Federal Tax Return App</h3>
+<p style="margin:0 0 16px;">Covers a wide range of federal tax scenarios, with native phone and web interfaces and automated calculations using implemented 2026 federal tax rules. Its Rust source describes the data, workflow and calculations.</p>
 <p style="margin:0 0 20px;">A return-preparation prototype, without return submission.</p>
 <p style="margin:auto 0 0;"><a href="examples/federal-tax.md"><strong>Explore the tax App →</strong></a></p>
 </article>
 <article style="border:1px solid GrayText;border-radius:12px;padding:24px;min-width:0;display:flex;flex-direction:column;">
-<h3 style="font-size:1.5rem;line-height:1.2;margin:0 0 12px;">Weather-based sprinkler App</h3>
+<h3 style="font-size:1.5rem;line-height:1.2;margin:0 0 12px;">Sprinkler Weather Control</h3>
 <p style="margin:0 0 16px;">Turn forecasts, plant needs, and watering history into irrigation schedules. Coordinate Matter valves, respect no-watering periods, and see live status and reports.</p>
 <p style="margin:auto 0 0;"><a href="examples/weather-sprinkler.md"><strong>Explore the sprinkler App →</strong></a></p>
 </article>
 <article style="border:1px solid GrayText;border-radius:12px;padding:24px;min-width:0;display:flex;flex-direction:column;">
-<h3 style="font-size:1.5rem;line-height:1.2;margin:0 0 12px;">Chart gallery</h3>
+<h3 style="font-size:1.5rem;line-height:1.2;margin:0 0 12px;">Chart Gallery</h3>
 <p style="margin:0 0 16px;">Explore 32 real chart views: trends, distributions, radar, maps, networks, surfaces, and point clouds. The same data descriptions supply labels, units, and legends.</p>
 <a href="guides/chart-gallery.md" style="display:block;margin:0 0 20px;"><img src="assets/screenshots/chart-gallery/3d-height-map.png" alt="A terrain surface whose height is shown through geometry and color." style="display:block;width:100%;max-height:200px;object-fit:contain;border:1px solid GrayText;border-radius:8px;box-sizing:border-box;"></a>
 <p style="margin:auto 0 0;"><a href="guides/chart-gallery.md"><strong>Open the chart gallery →</strong></a></p>
 </article>
 </div>
 
-<h2 id="start-building" style="font-size:2rem;line-height:1.2;margin:1.5em 0 0.65em;">Your next App</h2>
+<h2 id="start-building" style="font-size:2rem;line-height:1.2;margin:1.5em 0 0.65em;">Your Next App</h2>
 
 Follow the [human tutorial](guides/developing-apps.md), explore the
 [guides](guides/index.md), or give your coding agent the [CodeBot guide](codebot/index.md).

@@ -9,7 +9,10 @@ estimate. It uses synthetic data and does not submit a return.
 This App prepares individual-return estimates, including Schedule C sole-proprietor
 businesses and ordinary cash- or accrual-method Schedule F farms. Corporate and partnership entity returns are outside its scope;
 ordinary U.S. S-corporation K-1 businesses are supported when their required
-records are complete. Broader individual K-1 coverage remains unfinished.
+records are complete. Ordinary partnership Form 1065 records can now be saved,
+but partnership return calculations remain unfinished and prevent a complete
+estimate. Estate/trust Form 1041 K-1s remain unsupported. Do not enter either
+as S-corporation income; identify unentered items in the uncovered-income check.
 
 Native phone and web interfaces present the same guided interview, with
 automated calculations using the App's implemented 2026 federal tax rules.
@@ -176,7 +179,187 @@ premium tax credit reconciliation includes additional credits, excess-advance
 repayment and medical-deduction coordination. Repayment also enters the
 regular-tax liability used for the AMT comparison and foreign-tax credit limits,
 following [Form 6251](https://www.irs.gov/pub/irs-pdf/f6251.pdf) and
-[Form 1116 line 20](https://www.irs.gov/instructions/i1116).
+[Form 1116 line 20](https://www.irs.gov/instructions/i1116). Ordinary Form 1116 also supports
+the enhanced senior deduction: it reduces actual income tax but is excluded from
+foreign expense allocation and the worldwide-income denominator. The denominator
+is computed before the return's zero floor, including when the senior deduction
+reduces actual taxable income to zero. See Form 1116 lines 3b and 18 in the same
+instructions. Allowed traditional IRA deductions also feed this worksheet: expense
+allocation uses gross income before the IRA deduction, and the AMT calculation
+retains the IRA deduction while excluding the standard deduction. Supported
+itemizing now allocates medical expenses, general sales taxes and personal-property
+taxes after their deduction limits; AMT retains medical expenses and removes
+those taxes. The existing automatic deduction comparison can choose itemizing
+even below the standard deduction when it lowers total tax. An explicit choice
+is preserved. Qualified home mortgage interest follows gross-income allocation,
+with an explicit optional all-U.S. allocation when combined foreign gross income
+is at most $5,000. Eligible U.S. cash gifts are allocated to domestic income,
+including the non-itemizer deduction; they do not reduce foreign income. See
+[Form 1116 line 4a](https://www.irs.gov/instructions/i1116) and the
+[charitable-allocation rule](https://www.irs.gov/irb/2005-33_IRB).
+Itemized state/local income taxes use records of each payment and its underlying
+domestic and foreign income. The App reconciles payments, applies the SALT and
+high-income deduction limits, then allocates to the existing foreign-source
+groups. A state that exempts foreign income can have an entirely domestic share;
+AMT removes the state taxes. The optional $5,000 all-U.S. interest allocation
+also supports investment interest, using the existing independent regular and
+AMT Form 4952 deductions. Ordinary portfolio investments also support asset-based allocation from
+beginning/end adjusted bases or complete dated basis histories when endpoint
+averaging distorts holdings. The App calculates daily weights independently for
+regular tax and AMT. Current-year
+asset values allocate both current interest and prior disallowed interest now
+deductible. A mixed-source asset uses its recorded domestic and foreign gross
+income to split its basis before allocating interest; source yields must
+reconcile with entered income. Special valuation, unresolved or zero mixed-asset
+yields, unresolved state attribution and other itemized classes still require
+additional worksheets.
+Direct foreign interest and ordinary dividends now include withholding-treatment
+facts. The App groups these payments, reallocates a loss in one passive withholding
+group proportionately to the other positive passive groups, then tests high-tax
+treatment separately for regular tax and AMT. It shows the income and taxes
+moved to the general category, including taxes on groups reduced to zero.
+Remaining losses first offset the other
+foreign category, then domestic income. Domestic losses reduce positive foreign
+income proportionately. Results show new separate-limitation, overall-foreign
+and overall-domestic loss account amounts for regular tax and normal AMT. Keep
+these amounts for future recapture. Retained general/passive loss-account
+balances now feed ordered recapture: overall foreign loss, separate limitation
+loss, then overall domestic loss. Results show opposite-account netting,
+recapture and closing balances independently for regular tax and normal AMT.
+An optional additional overall-foreign-loss recapture election is checked
+against available income and balances. Special dispositions, ownership changes,
+enhanced pre-2018 domestic-loss elections and loss accounts with the simplified
+AMT election still require additional worksheets.
+This follows [the passive-income grouping regulation](https://www.law.cornell.edu/cfr/text/26/1.904-4)
+and [Form 6251's AMT instructions](https://www.irs.gov/instructions/i6251).
+The ordinary-source worksheet also supports a valid simplified AMT limitation
+election made in the first eligible claim year and retained in later years.
+It reuses regular net foreign income for the AMT limit; it can increase tax and
+is not an annual choice of the cheaper method. The result shows the income used
+for each category's AMT limit. Retained 2025 Schedule B balances now supply
+prior-year carryovers: current taxes use the limit first, then the oldest balance
+in each category, separately for regular tax and AMT. The App shows usage,
+expiration and remaining balances, even with no current foreign income. Retained 2025 credit worksheets can also allocate new 2026 excess back one year,
+separately by category and tax system, and show the remaining new carryforward.
+A valid 2025 small-credit election prevents that carryback. If 2025 instead used
+a foreign-tax deduction, retained hypothetical credit worksheets let the App
+calculate mandatory absorption and the reduced carryforward. Absorption gives
+no credit, deduction or refund while that choice remains unchanged; see
+[Publication 514, deduction years](https://www.irs.gov/publications/p514).
+Unreviewed histories remain visibly pending. Reconstructing missing prior-year
+worksheets and computing prior-return refunds are not included. The carryback
+allocation is not a refund amount.
+See [Schedule B lines 6–7](https://www.irs.gov/instructions/i1116sb). Entity-specific
+allocations, foreign losses and unresolved history adjustments remain outside
+this worksheet. The AMT limit uses final AMT
+income, including the high-income married-separate addition. Its expense
+allocation excludes state-tax refunds removed from AMT, including when an IRA
+deduction must be allocated.
+Government unemployment entries now preserve gross benefits, actual withholding
+and individual repayment records. Benefits received and repaid in 2026 are
+netted once on Schedule 1 line 7; the repayment does not reduce withholding or
+create a second deduction. The result shows gross, repaid and taxable amounts
+for each source. Earlier-year repayments are combined across filers and sources,
+including net Social Security repayments. When the supported total is $3,000 or
+less, they give no current deduction or credit and do not reduce current benefits.
+For larger governmental unemployment repayments, the comparison accepts original
+2023–2025 ordinary-return income, filing status, fixed standard deduction and
+filed income tax. It recomputes historical tax after removing the matching
+repayments, then compares complete current returns using the deduction or credit.
+Automatic selects the lower net tax; explicit method choices remain available.
+The credit can exceed current tax. Childless earned-income credit is recomputed
+from the original year's eligibility facts and published 2023–2025 tables,
+including credits newly available after excluding repaid benefits. The result
+shows original and recomputed tax and EIC separately. Current residency or SSN
+answers never replace original-year facts. Age-based standard additions,
+Schedule R elderly credit and the 2025 enhanced senior deduction are also
+recomputed. Timely SSNs are entered once for both EIC and the senior deduction;
+Schedule R uses the original year's qualifying nontaxable pension records when
+they can affect the result. Regular-method Social Security is recomputed from
+original SSA-1099/RRB-1099 net benefits and tax-exempt interest, carrying revised
+AGI into the senior deduction and EIC and revised nontaxable benefits into
+Schedule R. Separate returns use original-year living arrangements. Original-year
+ordinary retirement records include fully taxable traditional IRA withdrawals
+and employer-plan pensions with payer-determined taxable amounts. Their taxable income feeds the same historical calculations;
+pension investment returned tax-free does not reduce Schedule R credit. See
+[IRS pension reporting](https://www.irs.gov/instructions/i1040gi)
+and [IRA distribution guidance](https://www.irs.gov/publications/p590b).
+For early distributions, the original 10% or SIMPLE 25% tax is recomputed,
+including the medical-expense exception above 7.5% of historical AGI. The App
+reconciles original Form 5329 Part I tax, applies the medical floor once and
+rounds each spouse's form separately. Any decrease joins the repayment credit;
+unchanged additional tax creates no extra credit. See
+[Form 5329 instructions](https://www.irs.gov/instructions/i5329).
+Historical income is no longer limited to $100,000. The comparison switches
+between each year's tax table and rate worksheet and recomputes AMT, including
+specified private-activity-bond interest, exemption phaseout and separate-filer
+adjustments. It adds back standard and enhanced senior deductions for AMT.
+Original Form 1099-DIV records also support ordinary and qualified dividends,
+capital-gain distributions and their 25%/28% components. Both tax methods
+recompute preferential-rate bands. These sources enter Social Security's income
+base and EIC's investment-income limit once. Historical capital records reuse
+source proceeds, basis, holding period, wash-sale adjustments and personal-use
+classification. Shared netting applies incoming short/long loss balances and
+the $3,000 loss limit ($1,500 for separate filers), preserving special-rate
+components. Original and revised regular/AMT balances are calculated separately. Changed
+losses propagate through supplied consecutive historical returns, even when a
+later year has no repayment. Enter actual incoming losses for reconciliation;
+the App calculates revised balances and recomputes tax and EIC eligibility.
+Records may be entered in any order. Complete original 2025 repayment worksheets
+also supply current capital-loss inputs, without requiring the same worksheet
+again. Separately entered current history must reconcile; unknown investment-loss
+attribution still needs its source details. Balances differing entering 2026
+are reconciled with these actual 2025 regular/AMT balances.
+The App compares complete current returns without the repayment deduction or
+credit, using actual versus refigured balances. The Chapter 1 tax decrease,
+including affected refundable credits, is added once to the repayment credit;
+actual current income and saved history remain unchanged. Selecting the credit
+method reports the refigured remaining regular/AMT capital losses for future
+years; selecting the deduction method retains ordinary balances. Missing
+intervening years or unresolved current calculations prevent completion.
+Historical sales accept separate AMT basis and wash-sale records. Incoming AMT
+losses may differ from regular losses; an explicit zero differs from leaving
+that option absent, which means equal balances. Both netting and preferential
+rates use the applicable sources. When capital sources differ, retained permanent
+capital-adjustment records distinguish exclusions from deferrals. An explicitly
+empty list confirms no permanent component; an absent list does not. Fixed
+source adjustments apply while incoming losses are unchanged. Loss differences
+proven to arise from the calculated permanent deductions retain that origin;
+other changing loss histories can supply an independent exclusion-only worksheet.
+It retains separate incoming short/long losses and each sale’s differing basis
+and wash-sale facts, reusing the proceeds and holding period. The App nets and
+carries these losses separately in both comparisons and reconciles each subsequent
+year. Use this complete worksheet or fixed capital adjustments, not both.
+Historical comparisons can
+use preceding-year Form 8801 source facts and incoming minimum-tax credits
+with separate original and refigured balances. Supported unused credits flow
+through consecutive supplied returns and the 2026 comparison. Complete original
+2025 source facts also supply the current credit automatically; duplicate records
+must reconcile even when the historical worksheet produces zero credit. A second
+record cannot create a carryover or omit a known permanent adjustment. The calculation uses the preceding year’s rates, retains signed
+credit generation, and limits use after other supported nonrefundable credits.
+Propagation includes qualified dividends, capital-gain distributions and sales,
+including 25% and 28% gain components, and newly generated deferral credits.
+The carried worksheet preserves separate regular-tax band amounts and AMT gain
+pools. Differing exclusion-only losses entering 2026, changed credit ownership,
+and a changed credit balance still unused after 2026 require further calculation.
+See [Form 8801](https://www.irs.gov/pub/irs-pdf/f8801.pdf). Special investment treatments
+also need their own calculations. See
+[Schedule D instructions](https://www.irs.gov/instructions/i1040sd).
+NIIT is outside the Chapter 1 tax decrease used for this credit; a hypothetical
+NIIT decrease is not added. See [Form 6251](https://www.irs.gov/instructions/i6251)
+and [IRS section 1341 discussion](https://www.irs.gov/irb/2013-51_IRB).
+Social Security lump-sum elections and cross-year
+election dependencies, treaty treatment or net-benefit repayments, other
+early-distribution exceptions, unresolved retirement basis or special treatments, other
+original-year income-sensitive items, changed
+joint-return ownership, loss carryovers and farm-sale tax deferral still need
+further calculation. Missing history never means zero credit. Report repayments
+of other earlier-year income in Additional coverage checks, even when each payment
+is small. Employee-paid
+program contribution recovery, private funds and employer supplemental benefits
+also need their own treatment. See [IRS unemployment guidance](https://www.irs.gov/publications/p525).
+
 Retirement calculations include
 qualified charitable distributions coordinated with prior IRA basis and
 current contributions whose deduction and exclusion pass the consistency check
@@ -187,8 +370,61 @@ automatic-enrollment withdrawals), and
 owner-specific IRA basis allocation, including current contributions and payment
 timing, with on-screen carryforwards. Each filer can keep the default maximum
 IRA deduction or designate part or all of the contribution as nondeductible.
+Employee-funded section 501(c)(18)(D) trust contributions are entered once in
+Adjustments using W-2 code H and annual compensation/deferral records. W-2 wages
+remain unchanged. The App checks the separate $7,000 and 25% compensation limits
+and the [2026 shared regular-deferral limit](https://www.irs.gov/pub/irs-drop/n-25-67.pdf),
+then calculates the separate deduction and includes the contribution in Saver’s
+Credit automatically. Do not repeat it in that credit's workplace totals.
+Deductible contributions establish IRA workplace coverage and reduce traditional
+IRA contribution capacity. They do not reduce IRA or rental-allowance modified
+income. Coordination with the same employee’s Roth contributions or a partially
+phased-out traditional IRA deduction remains unfinished. Excess contributions
+and unresolved catch-up classifications still require correction or further review.
+See [IRS contribution reporting guidance](https://www.irs.gov/publications/p525).
+
+Permissible automatic-enrollment withdrawals entered in Income now join the
+Saver’s Credit lookback automatically, including earnings. Do not enter them
+again in the credit's distribution history or subtract them again from original
+2026 deferrals. Other counting distributions still need that history. The existing
+[Form 8880 rules](https://www.irs.gov/pub/irs-pdf/f8880.pdf) apply recipient,
+joint-return and contribution limits; exemption from early-withdrawal tax does
+not itself exempt a distribution from the credit lookback.
+Allocated taxable IRA amounts now feed education, medical, unemployment-insurance,
+disability, terminal-illness, qualified-reservist and full-levy exceptions without
+exempting ordinary income. The same calculation handles the 10% and applicable
+25% SIMPLE additional-tax rates, following
+[Form 5329](https://www.irs.gov/instructions/i5329).
+IRA first-home, birth/adoption, emergency, domestic-abuse and partial-levy
+exceptions also allocate basis. Results distinguish gross qualifying withdrawals
+from their taxable relief; shared first-home and parent/child limits consume gross
+amounts and favor claims saving the most additional tax. The qualified employer-plan
+withdrawal worksheet also supplies the taxable proportion for birth/adoption,
+emergency, domestic-abuse and levy exceptions, using its same-account balance
+and unrecovered investment under [Publication 575](https://www.irs.gov/publications/p575).
+Complete qualified employer-plan cash discharges also use the known recovered
+basis to allocate these gross-limited exceptions. Other partially taxable pension
+sources, overlapping public-safety insurance
+exclusions and multiple domestic-abuse claims still require further coordination.
+Supported IRA repayment worksheets are described below.
 Income limits may make more nondeductible than elected; these contributions
-require Form 8606 reporting.
+require Form 8606 reporting. Qualified reservist repayments to a traditional IRA
+use original distribution, service and dated deposit records. They add
+nondeductible basis outside annual contribution limits, without reversing the
+original income or creating a deduction, following
+[Publication 590-A](https://www.irs.gov/publications/p590a). Results show repayments,
+remaining unpaid amounts, current nondeductible basis and the usual basis
+carryforward. The calculation checks the two-year deadline and coordinates later
+withdrawals, QCDs and supported HSA funding order. Special 2026 traditional IRA birth/adoption, emergency, domestic-abuse and
+terminal-illness repayments use their separate
+[Form 8606 worksheet](https://www.irs.gov/instructions/i8606). Actual deposits link
+to the original income entry. The App checks the three-year deadline and qualified
+gross ceiling, adjusts same-year account value, and calculates the owner's taxable
+income reduction and future basis adjustment. It pools all applicable qualifying
+distributions, even if only one was repaid. Later-year deposits can require an
+amended original return; results identify them. Prior-year source distributions,
+employer-plan and Roth repayment treatment, disaster repayments and use of earlier
+repayment basis adjustments remain outside this worksheet.
 Inherited traditional IRA distributions use a separate annual record for each
 beneficiary and deceased owner, combining that person's inherited traditional,
 SEP and SIMPLE accounts. Allocated nondeductible basis is recovered proportionally
@@ -276,8 +512,22 @@ reservist withdrawals use their account-type and service-order rules. Qualified
 birth/adoption withdrawals share a limit for each parent and child and check
 the one-year withdrawal window. Emergency-expense withdrawals check account
 balance, prior replenishment and the one-withdrawal annual limit. A first, single
-domestic-abuse withdrawal uses the 2026 cap and one-year window; repeat claims
-and repayment coordination remain unfinished.
+domestic-abuse withdrawal uses the 2026 cap and one-year window. Traditional
+IRA repayments use the worksheet described above; repeated domestic-abuse
+claims and employer-plan or Roth repayment coordination remain unfinished.
+Qualified 2026 long-term-care distributions from participating defined-contribution
+employer plans can reduce the additional withdrawal tax while leaving pension
+income taxable. The App checks the issuer statement, annual certified premiums,
+10% vested-benefit ceiling and $2,600 limit under
+[IRS Notice 2026-33](https://www.irs.gov/pub/irs-drop/n-26-33.pdf). Repeated payments
+share the allowance; spouse coverage requires a joint return. IRAs do not qualify,
+and an ordinary withdrawal cannot be retroactively designated when the plan does
+not offer this option. The current calculation supports one participating plan
+per employee, using a payer-reported taxable amount that already includes the
+special pretax-first allocation, fully taxable payments or complete contract
+discharges. Calculated partial-basis withdrawals, multiple-plan coordination,
+designated Roth and governmental 457 source coordination remain unfinished. This exception has no three-year repayment
+option and does not automatically create a premium deduction.
 Qualifying employer disability pensions before minimum retirement age flow
 through wage reporting, earned-income calculations and the disability credit.
 After minimum retirement age, qualifying disability pensions stay on the pension
@@ -344,10 +594,10 @@ investment-tax coordination remain unfinished; affected estimates show an explic
 issue.
 Complex exceptions remain explicit; this is not every federal tax scenario.
 
-Foreign housing and treaty treatment, complex Form 1116 allocations, rental
+Foreign housing deductions, adverse-condition second households and treaty treatment, complex Form 1116 allocations, rental
 personal use/disposals/special loss histories, special Marketplace allocations,
 QCD deduction/exclusion combinations that fail the consistency check, special IRA distributions, employer-plan
-and inherited-account conversions, after-tax IRA rollovers completed the following year,
+and inherited-account conversions,
 and IRA-to-plan rollovers requiring transaction-date valuation,
 and additional AMT adjustments still require
 further worksheets. Unsupported combinations produce review issues instead of
@@ -470,15 +720,60 @@ a current payment credit. Accrual farms include recognized insurance income
 without this cash-method deferral. The result shows included and deferred
 amounts and the separate election-statement requirement. See
 [IRS crop-insurance timing](https://www.irs.gov/publications/p225).
-Cash-method CCC loan records distinguish current advances from earlier loans
-already included in income. Redemption adjusts taxable market gain or crop basis
-according to that history; forfeitures and later sales enter income once. The
-review shows these components, retained basis and current withholding. One
+CCC loan records distinguish current advances from earlier loans already
+included in income. Cash farms support loan treatment or the section 77 income
+election. Accrual farms support loan treatment, with all pledged or redeemed
+crop inventory included in the shared opening/closing inventory calculation
+and recognized CCC sales entered only in the lot records. Redemption adjusts taxable market gain or crop basis
+according to that history; forfeitures and later sales enter income once.
+Forfeiture records also track the settlement year and any surplus the CCC pays
+in 2026, so a later payment is included without repeating earlier principal.
+A shortfall released by the CCC does not create a deduction. For a loan already
+included under section 77, a deficiency the farmer is legally required to pay
+and actually pays during 2026 enters farm expenses once, including payments
+after an earlier disposition. The review shows these components, retained basis
+and current withholding. One
 section 77 method applies across the taxpayer's farms and continues into later
 years; required election statements remain the taxpayer's responsibility.
-Accrual inventory coordination, partial settlements and additional basis
-adjustments still require unfinished worksheets. See the
+A partial loan release uses separate records for each source-identified released
+portion and the remaining collateral, with its own attributable original
+principal. Include every portion of a current advance; never repeat the full
+loan amount for each portion or invent a basis allocation. The display separates
+full reported forfeitures from taxable forfeitures. Accrual section 77 inventory
+and basis coordination, unidentified partial payments, deficiencies under loan
+treatment and additional basis adjustments still require unfinished worksheets. See the
 [IRS CCC loan rules](https://www.irs.gov/publications/p225).
+Cash farms can enter unused production-supply prepayments and retained
+undeducted costs separately from ordinary expenses. The App calculates the
+expense ceiling, evaluates supported farm-related exceptions and releases
+identified earlier costs when consumed. Current costs enter farm expenses once;
+the review shows the deduction and remaining balance. Purchase, business-purpose
+and income-distortion facts remain necessary even when an exception removes
+the ceiling. Ordinary depreciation, the allowed simplified home-office deduction
+and supported final-return conservation adjustments enter the expense base.
+The App resolves the supply and home-office limits together, without deducting
+either cost twice. Poultry bought solely for resale uses identified purchase
+lots and the consistently adopted cost method. Under eligible payment-year
+treatment, current unsold costs share the ceiling. Under sale-year treatment,
+unsold costs stay in basis even if a prepaid exception applies. Costs not
+previously deducted are released on sale or other disposition. The review shows
+those costs separately; enter sale receipts without deducting the same basis
+again. Retained production-poultry costs paid in 2025 and deferred solely by
+that year's prepaid ceiling are released in 2026 without waiting for sale.
+The App subtracts previously deducted costs, adds the release to other expenses
+and applies the current ceiling once. Current production-poultry purchases and
+unresolved ceiling coordination with section 179 or differing AMT depreciation
+still need further worksheets. Multiple cash farms owned by the same taxpayer
+share the expense ceiling when every eligible prepayment fits or only one farm
+has eligible new prepayments. Deductions and remaining costs stay with their
+source farm. A binding ceiling with competing farms, different owners or mixed
+accounting methods still needs additional coordination. Document-only previews
+defer these calculations to the complete return.
+Home-office use combined with a farm-land disposition also requires the
+unimplemented gain/loss attribution to the office income limit. Qualifying ceiling exceptions can
+use the existing shared deduction calculations. See the
+[IRS prepaid-supply rules](https://www.irs.gov/publications/p225).
+
 CRP annual and incentive payments now retain their taxable farm income while
 separately excluding qualifying payments from self-employment earnings. Benefit
 status is recorded for each payment date. The exclusion also flows through
@@ -531,7 +826,9 @@ are netted once. Mixed-business cases where the overall income cap or minimum
 deduction changes attribution still require further calculation.
 Personal itemized deductions can accompany averaging when no state/local income-tax
 allocation is needed. Automatic deduction selection compares total tax, including
-AMT, rather than choosing the largest deduction.
+AMT, rather than choosing the largest deduction. A review note identifies when a
+route is unavailable; that comparison cannot establish the lowest tax across
+all possible routes. Explicit deduction choices are preserved.
 Farm capital gains, fishing and other farm sources,
 itemized state/local income-tax allocation, prior NOL allocation, Archer MSA coordination, changes
 requiring separate histories for two farming spouses, full Form 1116 and young-filer
@@ -539,13 +836,89 @@ coordination still require further averaging worksheets. Current-year results
 remain estimates pending final 2026 reconciliation. See the
 [Schedule J instructions](https://www.irs.gov/instructions/i1040sj).
 Soil-and-water conservation costs now have an explicit capitalization or
-section 175 deduction treatment. For a single directly owned farm with ordinary
-product income, the App applies the 25% gross-income limit, includes the allowed
-expense once, and displays the unused carryforward or land-basis addition.
+section 175 deduction treatment. The App combines supported gross product income
+from the same filer's directly owned farms before applying the 25% limit. It
+supports all costs when the shared limit does not bind, or costs belonging to
+one farm when it does. Allowed expenses enter once, with separate carryforward
+and land-basis outputs.
 The deduction requires confirmation of the qualifying plan and valid method.
-Multiple farms, nonproduction receipts/subsidies, other farming sources,
-conservation-district assessment limits and disposal recapture remain unfinished.
+District depreciable-property assessments now apply the total-share cap,
+combine same-year installments, and spread qualifying excess over the following
+nine years. Current deduction, deferred amounts, income-limited carryforward and
+land-basis additions remain separate. Enter the original district assessment and
+payment records, including earlier years; do not enter calculated deductions.
+A deceased farmer's remaining prior-year assessment spread now becomes available
+on that owner's final return, still subject to the farm-income limit. Unused
+income-limited amounts expire rather than transfer to the estate. A living
+farmer's balance is not accelerated because their spouse died.
+A binding limit across costs from several farms, different farm owners,
+nonproduction receipts/subsidies, other farming sources, revised assessments,
+current-parcel deduction/disposal coordination and a new assessment spread beginning in the death year
+remain unfinished.
 See [Publication 225, conservation expenses](https://www.irs.gov/publications/p225).
+A per-sale farmland tax-installment election now calculates supported ordinary
+regular-tax cases from qualifying use, buyer and covenant facts. All selected
+sales share one calculation, retaining actual AGI and deductions while refiguring
+gain character and personal-credit limits. The screen separates total tax, the
+first installment, the remaining deferred liability and current tax payable.
+Withholding and actual payments remain separate from the deferral offset.
+For example, a supported $40,000 capital-gain sale produces $6,000 attributable
+tax: $1,500 is due initially and $4,500 remains deferred. The return's other tax
+is still due normally. Actual credit carryovers and refundable credits are not
+replaced by the hypothetical reduced-tax worksheet.
+Eligible small foreign-tax-credit elections from payee statements now work with
+this calculation. The credit is re-limited before personal credits; its actual
+return amount remains unchanged and no election-year carryover is created.
+Premium-credit repayment also participates in both regular-liability comparisons,
+using unchanged household income and coverage facts. Foreign employee-income
+exclusions retain tax-rate stacking and recompute preferential-income caps for
+the reduced-tax comparison.
+Supported Schedule J averaging can also accompany the installment election:
+the comparison preserves the chosen amount up to its reduced taxable-income
+ceiling. If that ceiling binds, the App recomputes the three base-year allocations
+from their retained sources, including supported foreign and preferential-income
+worksheets. The actual election, source records and annual tax remain unchanged.
+AMT stays in the actual return. Personal credits allowed against it are preserved
+in the actual comparison; the recalculated credit total is capped at reduced
+regular tax as Form 1062 line 12z requires. The comparison does not change actual
+credit carryforwards or refundable credits. Section 53 minimum-tax credit is
+excluded from both Form 1062 comparisons: it remains calculated on the actual
+return, with its actual carryforward. No hypothetical minimum-tax-credit worksheet
+is required for this election. The deferred amount remains a separate payment
+offset even when it exceeds annual tax after credits. The resulting negative
+current tax position contributes to the estimated overpayment; it does not reduce
+annual tax below zero or cancel later installments. Full Form 1116, parent-rate tax and final-return
+coordination also remain unfinished for this election
+and prevent final totals. Leaving the election absent keeps ordinary payment
+treatment. A direct farm sale after its linked owner's death is rejected from
+that owner's final return; a surviving spouse's own sales are checked against
+that spouse's dates. Pre-death receipts still require confirmed final-return
+allocation under [Publication 559](https://www.irs.gov/publications/p559). The App does not file the election or covenant or make payments.
+See [Form 1062](https://www.irs.gov/instructions/i1062). Provisional line mapping
+uses the [2026 draft Form 1040](https://www.irs.gov/pub/irs-dft/f1040--dft.pdf)
+and [Schedule 3](https://www.irs.gov/pub/irs-dft/f1040s3--dft.pdf); final-form
+reconciliation remains required.
+
+Direct sales of purchased or qualifying inherited farm land now calculate gain from closing proceeds,
+selling expenses and retained basis. Inherited land with estate fair-market-value
+basis receives long-term treatment without changing the actual acquisition date;
+only the heir's own later conservation deductions carry into recapture. Prior allowed conservation deductions feed
+section 1252 recapture. Choose confirmed identical property records or enter the separate AMT basis and
+allowed conservation deductions. Complete regular/AMT section 1231 histories
+determine ordinary and capital character independently. A purchased parcel held
+one year or less is ordinary income and does not require unrelated section 1231
+history when no regular or AMT section 1231 amount exists. Supported active-farm sales feed income, QBI,
+NIIT, section 179 limits and final loss histories without becoming Schedule F
+receipts or self-employment income. Enter each sale once. Installment-sale proceeds,
+the unresolved tax-election combinations above, former-passive use, current-parcel conservation deductions, unresolved
+multi-business lookback/excess-loss allocations and Schedule J combinations with
+ordinary land-sale QBI still need additional coordination. Capital-only land sales
+can accompany Schedule J: the land gain stays out of elected farm income and is
+taxed in the current year. For one farm with a loss in only one net character,
+excess-business-loss deferral now preserves the correct property history and
+separate QBI/NOL balances; mixed unresolved loss allocations remain blocked.
+See [Form 4797 instructions](https://www.irs.gov/instructions/i4797).
+
 Unresolved carrybacks, accounting-method changes, cooperatives, other special
 subsidies and remaining special expense elections also remain unfinished and cannot
 produce a completed return. See [Schedule F instructions](https://www.irs.gov/instructions/i1040sf)
@@ -997,12 +1370,19 @@ supply those source amounts separately. The App calculates both gains and losses
 then applies each system's netting and capital-loss limit. It also refigures AMT
 collectible gains, investment-interest limits, ATNOL use and carryovers. Personal
 losses remain disallowed per item in both systems. Omit the AMT facts only when
-the regular amounts also apply; unresolved basis or stock-compensation income
+the regular amounts also apply. An established different AMT holding period
+can also be supplied; the App nets short- and long-term amounts separately for
+each tax system. Unresolved basis or stock-compensation income
 still requires review. See [Form 6251's disposition instructions](https://www.irs.gov/instructions/i6251).
 
 Incentive-stock-option sales derive compensation and regular/AMT basis from
-Form 3921 prices, grant/exercise dates and the shares sold. Both holding periods
+Form 3921 prices, grant/exercise dates and the shares sold. Fractional quantities
+accept up to six decimal places, normalized to integer millionths before lot
+amounts are rounded to cents. Both holding periods
 are checked, and each lot's basis, compensation and gains appear on screen.
+Enter any amount paid for the option itself separately from its exercise price,
+allocated only to the entered shares. This cost reduces the exercise spread and
+is included once in stock basis; it is not interest or a second commission.
 Confirm whether calculated compensation is already in the same filer's W-2
 wages; it is counted once. Otherwise it enters Schedule 1 line 8k as earned
 employee compensation, without self-employment or investment-income tax.
@@ -1013,7 +1393,14 @@ the usual gain limit would be smaller; split partly affected lots.
 A same-year exercise and sale has no ISO AMT adjustment. A later disqualifying
 sale reverses regular compensation for AMT and separately applies AMT capital
 netting and loss limits. Sold shares belong in the sale entry, not the year-end
-held-share exercise list. Restricted shares, special histories and prior
+held-share exercise list. That list also accepts fractional quantities through
+six decimal places and uses integer monetary arithmetic for the AMT spread,
+including any option purchase cost allocated to those held shares. Choose
+recognition on exercise, when rights first become transferable or cease being
+subject to substantial risk of forfeiture, or under a valid timely AMT election.
+The recognition event must fall in 2026; an earlier exercise can qualify when
+restrictions end in 2026. Use fair market value at that event. The App records
+an election already made; it does not file one. Forfeitures, other special histories and prior
 AMT-credit carryovers still need further worksheets. For monthly dependent-care
 earned-income limits, non-W-2 ISO compensation is assigned automatically to the
 sale month before comparison with student/self-care deemed earnings. Reported
@@ -1091,8 +1478,10 @@ complex prior-year tax-benefit recoveries remain unfinished.
 
 Social Security and equivalent railroad box 5 amounts may be negative. The calculation combines the
 return's amounts, including both spouses on a joint return, before figuring
-taxable benefits. Net repayments of $3,000 or less do not reduce current income;
-larger net repayments still need prior-year deduction-versus-credit analysis.
+taxable benefits. Net repayments do not create negative current benefit income.
+The $3,000 review threshold combines these net repayments with entered earlier-year
+unemployment repayments; larger totals need prior-year deduction-versus-credit
+analysis. No deduction or credit is claimed for supported totals at or below $3,000.
 
 For earlier-year Social Security lump sums, the user can retain regular taxation
 or compare the election using prior-return and payment records. The calculation
@@ -1297,9 +1686,69 @@ IRA by year-end. With that owner's IRA basis record, the App adds incoming basis
 automatically and coordinates withdrawals, conversions and QCDs. Do not add it
 again to the prior-basis input. Direct transfers to a qualified employee plan or
 403(b) can include after-tax amounts when separate taxable/nontaxable accounting
-is confirmed; the output identifies basis transferred to that plan. After-tax IRA
-deposits completed the following year, legacy contribution-first rules, employer-stock NUA and special lump-sum elections
-require further calculations. See [IRS qualified-plan distribution rules](https://www.irs.gov/publications/p575).
+is confirmed; the output identifies basis transferred to that plan. An eligible
+employer-plan cash rollover completed in 2027 reports its after-tax portion
+separately as 2027 IRA basis; it does not reduce taxable 2026 IRA withdrawals
+or enter the outstanding IRA-to-IRA rollover balance. Legacy contribution-first rules, employer-stock
+NUA rollover/recovery allocations and special lump-sum tax elections require further calculations. See [IRS qualified-plan distribution rules](https://www.irs.gov/publications/p575).
+
+For nonemployer investment stock distributed and fully sold in 2026, the App
+can allocate retained sale proceeds between pension income and capital gain or
+loss while excluding proceeds rolled into an eligible account. Enter the sale
+and rollover once in the retirement entry. For example, stock distributed at
+$50,000, sold for $40,000, with $25,000 rolled over produces $18,750 pension
+income and a $3,750 capital loss before the annual capital-loss limit. Rolling
+over all proceeds recognizes neither gain nor loss. This path requires no
+after-tax contributions, NUA, wash sale or other special stock treatment.
+See [IRS property-rollover examples](https://www.irs.gov/publications/p575).
+
+For an employer-securities distribution, use the payer-reported taxable amount
+or the NUA calculation with plan-allocated contributions and appreciation.
+The calculation distinguishes a qualifying entire-balance lump sum from other
+distributions, which defer only eligible employee-contribution appreciation.
+It also supports choosing current taxation instead of lump-sum NUA deferral.
+Results show taxable pension income, deferred NUA, recovered contributions and
+securities basis. The App checks event timing from the first payment date and the participant’s
+birth, death, separation or disability date, together with the latest pre-2026
+payment from the same-kind plans. Include actual loan offsets in that history.
+An earlier-year payment after the selected event prevents using that event;
+a later qualifying event can establish eligibility again. [An IRS ruling illustrates
+these distinctions](https://www.irs.gov/pub/irs-wd/0634059.pdf), but private rulings
+are not precedent. Same-kind plan completeness and
+recovery allocations must be known;
+unresolved allocation needs further support. A cash-only rollover is supported
+when you retain all employer securities, timely designate the rollover entirely
+to cash and separately designate recovered contributions between cash and securities,
+and roll over no more than the distributed cash. After-tax cash rolled into a
+traditional IRA by year-end automatically enters its required basis worksheet;
+a direct employer-plan transfer requires separate taxable/after-tax accounting.
+After-tax IRA deposits completed in 2027 use the separate next-year basis
+output described above. A payer-reported direct rollover with zero taxable income uses the existing
+retirement entry; enter separate Forms 1099-R separately when a direct rollover
+accompanies retained NUA stock. Do not combine or repeat the transferred
+amount in the retained-stock entry. Calculating a partial securities rollover
+or rollover of stock-sale proceeds, and missing-designation ratable allocation,
+needs further support.
+Report any later stock
+sale separately from the distribution. The NUA sale input takes
+the sold lot's original distribution value, deferred NUA and net proceeds. It
+separates deferred appreciation from subsequent gain or loss and shows stock
+basis and both gain components. For example, a lot distributed at $100,000 with
+$75,000 deferred NUA has $25,000 basis. A $120,000 sale produces $75,000 long-term
+NUA gain and $20,000 additional gain with the actual post-distribution holding
+period. Only the latter enters net investment income before other applicable
+netting. For shares inherited after the plan distributed them, enter the date
+of death and the estate's applicable value for the sold lot: date-of-death
+value or the executor's valid elected alternate valuation. The App preserves
+deferred NUA, adjusts the remaining basis and treats the sale as long-term.
+This currently requires no allocable federal estate or generation-skipping tax;
+answering Yes or Not sure marks the result unsupported. An alternate valuation
+uses the estate administrator’s applicable value, including an earlier estate
+distribution or disposition; the App does not make the estate election.
+Estate values below deferred NUA, gifts and other basis changes need further
+support. See [the reproduced inherited-stock IRS ruling](https://bradfordtaxinstitute.com/Endnotes/Rev_Rul_75-125.pdf).
+See the [IRS NUA sale rules](https://www.irs.gov/publications/p575) and
+[NIIT instructions](https://www.irs.gov/instructions/i8960).
 
 Qualified pensions can calculate their taxable amount with the IRS Simplified
 Method when the payer has not supplied it. New annuities use original cost,
@@ -1328,11 +1777,153 @@ See [IRS Form 8960 annuity instructions](https://www.irs.gov/instructions/i8960)
 
 For a partial withdrawal before annuity payments begin, enter cash value before
 surrender charges and unrecovered investment immediately before that withdrawal.
-The App allocates the withdrawal to earnings first and shows taxable income,
-recovered investment and remaining basis. Each withdrawal uses its own records.
-Full surrender, loans, pre-August 14, 1982 investment and required aggregation
-with other contracts need separate calculations; they cannot use this choice.
+List the balances of every other annuity required to be combined with the
+paying contract. The App combines their values and investment before allocating
+the withdrawal to earnings, then shows taxable income, recovered investment
+and the group's remaining basis. Do not enter the paying contract twice.
+Each later withdrawal needs updated insurer records for the whole group.
+The ordinary [section 72(e)(12) grouping rule](https://www.govinfo.gov/content/pkg/USCODE-2024-title26/html/USCODE-2024-title26-subtitleA-chap1-subchapB-partII-sec72.htm)
+combines contracts entered into after October 21, 1988, issued by the same
+insurer or affiliates to the same policyholder in one calendar year.
+The original and recipient contracts in a qualifying partial exchange under
+Revenue Procedure 2011-38 section 4.01 remain separate under section 4.03,
+even with the same insurer. Do not combine them merely because of the exchange;
+use each contract's allocated investment and subsequent insurer records.
+Full surrender, exchanges, pre-August 14, 1982 investment and unresolved
+grouping need separate calculations; they cannot use this choice.
 See [IRS nonperiodic distribution rules](https://www.irs.gov/publications/p575).
+
+For payments that stop at death **or** at the end of a maximum term, choose
+**One life, ending no later than a fixed term**. Enter the original nearest-
+birthday age and the contract's maximum term in months. The App selects the
+Table VIII factor; do not use a lifetime-only factor or treat the term as
+payments guaranteed after death. The current worksheet covers ages 5–115 and
+terms of 13–480 months using the unisex table for the entire investment.
+The IRS example—$200 monthly, age 65, five years maximum—has expected return
+of $11,760. A final-annuitant deduction requires death before the term expires.
+See [IRS temporary-life annuity rules](https://www.irs.gov/publications/p939).
+
+For a fixed-payment General Rule annuity, count the monthly installments
+represented by amounts received this year, including delayed installments from
+earlier years. Twelve current installments plus three delayed installments
+means **15**, even if they arrived in one transfer. Enter a delayed fractional
+original first-period payment separately. Keep the original monthly amount and
+exclusion ratio; do not count previously received payments or their recovered
+cost again. Remaining investment still caps recovery for post-1986 contracts.
+For example, an original $100 monthly payment with a 45% exclusion produces
+$675 of recovery for 15 installments, unless remaining investment is lower.
+See [IRS part-year and delayed-payment rules](https://www.irs.gov/publications/p939).
+
+For a General Rule joint-and-survivor annuity with payments to both recipients
+in the year of the first death, use a separate income entry for each recipient.
+On the survivor's worksheet, also enter the **original-payment amount** paid to
+the first annuitant earlier that year, excluding cost-of-living increases. The
+App calculates that earlier recovery before limiting the survivor's exclusion.
+Do not add the first annuitant's receipts to the survivor's gross income or
+repeat their current-year recovery in recovery through 2025. For example, if
+$2,000 of investment remained and the first annuitant recovered $1,551, the
+survivor can recover at most $449. Retain the same common contract records on
+both returns. See [IRS joint-annuitant exclusion rules](https://www.irs.gov/publications/p939).
+
+For a variable commercial annuity, enter original investment, payment frequency
+and scheduled installment count, plus either original expected-payment facts or
+the retained annual exclusion and prior recovery. Include zero-dollar scheduled
+installments. A continuing contract requires a full year's schedule except on
+the owner's final return: enter only installments belonging to the decedent
+through the death date already entered under filer details. Keep beneficiary
+and estate payments separate. The App prorates the annual exclusion, caps it by
+receipts and remaining investment, and displays recovery and remaining cost.
+For example, six monthly installments with a $1,200 annual exclusion allow up
+to $600 of recovery; $300 of actual receipts limits recovery to $300. Any final-
+annuitant deduction requires the separate linked deduction and its eligibility
+facts. If death preceded every installment belonging to the owner, enter zero
+installments and zero gross receipts; current-year recovery is zero. A scheduled
+installment paying zero dollars still counts. Use the first scheduled period's
+start date even if that period would have begun after death. Delayed or
+simultaneous split-recipient receipts need further treatment.
+
+Variable payments that stop at death or term expiration use **One life ending
+no later than a fixed term** in the expected-installment facts. Enter the original
+nearest-birthday age and original months for a new contract. For a supported
+shortfall election, enter current age and months remaining from the current
+payment period. Table VIII uses no ordinary-lifetime timing adjustment. The App
+handles annual, semiannual, quarterly and monthly schedules, limits payments to
+the known term, and distinguishes death from term expiration for the separate
+final deduction. A remaining term below six months for a new shortfall election
+needs further treatment.
+
+For a continuing finite-term contract, retain the expiration date even when no
+shortfall election is made. Choose whether payments continue for a fixed period
+regardless of death, or end at death if earlier. Enter the first date outside the
+contractual term; a new payment period cannot start on or after that date. The
+App uses only the ending year's scheduled installments and retains the annual
+allowance. If a new election also supplies remaining-term facts, its date and
+contract kind must agree. Do not create an election just to enter an ending date.
+See [IRS temporary-life and variable-annuity rules](https://www.irs.gov/publications/p939).
+
+For a joint-life variable annuity whose benefit units and annual exclusion stay
+unchanged after the first death, use separate income entries for each recipient.
+On the survivor's entry, provide the first annuitant's earlier installment count
+and gross receipts, and choose the death exception with the first death date.
+The App computes earlier recovery from those facts, limits the survivor to the
+remaining investment, and displays both amounts separately. Zero-dollar earlier
+installments count, but do not recover investment. Keep the same original cost,
+annual allowance and recovery through 2025 on both records. A new shortfall
+election during this transition or changed benefit units needs further treatment.
+See [IRS variable-annuity survivor rules](https://www.irs.gov/publications/p575). See [IRS variable-annuity rules](https://www.irs.gov/publications/p939).
+
+For an outright gift of an entire annuity, enter surrender value as gross and
+choose the gift calculation. Supply remaining investment, issue date, transfer
+date and any qualifying spouse/divorce treatment. Covered nonspousal transfers
+recognize positive earnings and increase the recipient's investment by the
+same amount; qualifying section 1041 transfers carry investment without income.
+A loss does not become deductible. The App displays recipient investment and
+includes any taxable deemed distribution in income, NIIT and applicable early
+tax. This covers individual-to-individual gifts before annuitization, not gift-tax
+forms, sales, partial interests, trusts, charities or debt. Nonspousal contracts
+issued on or before April 22, 1987 need further analysis. See
+[IRS annuity transfer rules](https://www.irs.gov/publications/p575).
+
+For a direct annuity-to-annuity exchange, enter transferred cash value as gross
+and choose the exchange calculation. Supply original cash surrender value and
+remaining investment. Without cash consideration, the App shows transferred
+and retained investment without recognizing gain or loss, even when investment
+exceeds value. For a full exchange that also returns cash or other property, include both in
+gross and enter them separately in the exchange facts. Value other property at
+exchange-date fair market value, which becomes its basis. Recognized gain is
+limited to realized gain or cash plus property value, whichever is less.
+Replacement annuity investment subtracts cash and property value and adds
+recognized gain; a loss remains deferred. Ordinary income, NIIT
+and applicable early-distribution tax use the recognized amount. Confirm
+unchanged obligees and direct insurer transfer. Partial exchanges
+also require the completed 180-day payment review described in the input;
+this can extend into the following year. An incomplete or failed review remains
+unresolved, rather than automatically taxable. Consideration linked to a partial exchange, debt discharge, assumed liabilities, legacy
+cash allocations and changed ownership require further calculations. Keep original issue-date
+and investment records; an existing recipient contract may have additional
+basis. See [IRS exchange basis allocation](https://www.irs.gov/irb/2003-33_IRB)
+and [partial-exchange safe harbor](https://www.irs.gov/pub/irs-drop/rp-11-38.pdf).
+The [section 1031(b)–(d) rules](https://uscode.house.gov/view.xhtml?req=%28title%3A26+section%3A1031%29)
+expressly cover section 1035 exchanges with money or other property.
+
+For a commercial-annuity loan, assignment or pledge treated as a distribution,
+select that option and enter the new loan amount or newly assigned/pledged
+value as the gross amount. The App calculates income using the same earnings-first rule, then
+increases investment by the taxable portion. The untaxed portion does not
+recover basis, and later loan repayments do not increase basis again. Results
+show the basis increase and the remaining contract or group investment.
+These deemed distributions cannot be rolled over. Legacy contracts still need
+separate treatment. See [IRS loan and investment rules](https://www.irs.gov/publications/p575).
+
+For a pre-August 14, 1982 annuity, choose the legacy withdrawal calculation
+and enter the insurer's separate current value and remaining investment for
+old and later contributions. It allocates a partial cash withdrawal in this
+order: old investment, old earnings, new earnings, new investment. Both earnings
+portions are taxable and enter NIIT; the old-investment earnings are exempt
+from early-distribution tax. Results show each component and remaining basis.
+This path requires complete insurer allocation with no loss within either
+portion. Legacy loans, pledges, exchanges and unresolved allocations remain
+unsupported. See [IRS legacy annuity rules](https://www.irs.gov/publications/p575).
 
 A complete cash surrender, redemption or maturity has its own choice. The App
 subtracts remaining investment from the final payment, preserving ordinary-income
@@ -1343,30 +1934,45 @@ the final-annuitant death deduction. See [IRS contract discharge and loss rules]
 and [Public Law 119-21, section 70110](https://www.govinfo.gov/content/pkg/PLAW-119publ21/html/PLAW-119publ21.htm).
 
 For a fixed-period commercial annuity, the App derives expected return from the
-original monthly payment and contract length, then calculates the tax-free
+original installment amount, payment frequency and contract length, then calculates the tax-free
 portion using original cost and prior recovery. It handles a partial first
 payment and caps cumulative recovery at cost for starts after 1986. Supported
 July–December 1986 starts keep their exclusion even after cost is recovered.
 Qualified pensions that began before November 19, 1996 and retained the General
-Rule use the same calculation, without adding their income to NIIT. Later qualified fixed-term pensions also qualify when the original starting age
-is at least 75 and at least 60 monthly payments are guaranteed. Eligible
+Rule use the same calculation, without adding their income to NIIT. Later qualified fixed-term or single-life guaranteed-installment pensions also qualify when the original starting age
+is at least 75 and at least five years of payments are guaranteed. Eligible
 public-safety insurance exclusions apply afterward. Earlier starts, other later
-qualified-plan contracts, refund features and special ownership need further
+qualified-plan contracts, other refund features and special ownership need further
 calculations; variable contracts use their separate method. See
 [IRS General Rule guidance](https://www.irs.gov/publications/p939).
 
 For a single-life annuity that ends at death, expected return uses the IRS
 Table V factor for the age at the birthday nearest the original starting date.
-The same cost-recovery calculation then applies. Continuing contracts keep that
+Annual, semiannual, quarterly and monthly payments are supported; lifetime
+factors include the original first-payment timing adjustment. The same
+cost-recovery calculation then applies. Continuing contracts keep that
 original factor. Contribution history or an election must establish that the
 newer tables apply to the entire cost. Ages outside the published table and
 allocations to older tables require further treatment.
 
+For a single-life contract with guaranteed installments after death, enter the
+original guaranteed dollar total. It can include a fractional final installment.
+The App calculates the Table VII refund adjustment,
+using the lesser of net cost or guaranteed return and rounding the adjustment
+to whole dollars. It reduces the investment used for the exclusion ratio, while
+recovery limits retain net cost. For example, the IRS age-65 contract costing
+$21,053 with $100 monthly payments guaranteed for 17 years has a $2,856
+adjustment. The deduction for unrecovered cost cannot be claimed while
+installments must continue after death. Cash refunds, fractional original first installments,
+beneficiary receipts and guarantees beyond forty years need
+further treatment. See [IRS refund-feature guidance](https://www.irs.gov/publications/p939).
+
 Joint-and-survivor contracts use both original ages and the contract's primary
 and survivor payments, including reduced survivor payments. The survivor keeps
 the original exclusion ratio and shares the remaining unrecovered cost. A year
-with payments to both recipients, refund guarantees and special death-year
-adjustments still needs further allocation.
+with payments to both recipients uses the earlier-payment allocation described
+above. Joint-life refund guarantees and other special death-year adjustments
+still need further treatment.
 
 
 A qualifying original seller's purchase-price reduction lowers the basis of
@@ -1432,3 +2038,361 @@ limit after directly deductible royalty expenses. Those expenses also reduce
 the AMT limit. Interest on the royalty activity itself needs separate Schedule E
 treatment and is not entered as portfolio borrowing. See
 [Form 4952 instructions](https://www.irs.gov/pub/irs-pdf/f4952.pdf).
+
+
+### Foreign employee housing
+
+For an eligible employee, enter housing expenses once per person and record
+each foreign housing location with its inclusive stay dates. The App applies the published 2026 limit and
+base amount before calculating the earned-income exclusion. Housing can also be
+elected on its own. The result shows each claimant's eligible expenses, location limit, base amount
+and housing exclusion separately, while the
+combined exclusions feed taxable income and tax stacking. Ordinary employee pay
+is the funding source; an employer-designated housing allowance is not required.
+Enter U.S. Government or similar tax-free housing allowances paid for you or your
+spouse during the claim period separately. The App subtracts them after the
+expense limit and base amount, then applies the employer-earnings cap; they do
+not become taxable foreign wages. For example, $50,000 expenses at the 2026
+general limit produce $18,606 before allowances. A $5,000 tax-free allowance
+reduces that amount to $13,606. This follows
+[Publication 54's government-allowance rule](https://www.irs.gov/publications/p54).
+
+
+The location list includes all 109 rows in [Notice 2026-25](https://www.irs.gov/irb/2026-17_IRB)
+and the general limit. Full-year calculations use annual limits; partial-year
+calculations use the published daily column. Eligible expenses and election
+conditions follow [Form 2555](https://www.irs.gov/instructions/i2555).
+Moves combine the limits for each location’s qualifying days; overlapping stays
+and dates outside the qualifying period are rejected. Repeated stays at the same
+location are combined before applying its limit.
+Combined employee/business housing funding, second households and additional
+related-deduction coordination remain outside this employee path. Separate
+self-employed housing claims are described below. Final 2026 form reconciliation and any later-authorized option to use
+2027 limits remain pending.
+
+
+On a joint return, spouses can leave the household claim with one spouse or
+allocate shared expenses between two separate claims. Enter the same total
+household expenses on both entries and each claimant's chosen share; the App
+checks that the shares do not exceed the total. Each claimant uses their own
+qualifying period and full base amount. The App preserves this choice rather
+than automatically choosing a tax-minimizing allocation. Two separate households
+are supported when both spouses confirm the tax-home and household commuting
+distance conditions in [Form 2555's married-couple rules](https://www.irs.gov/instructions/i2555).
+On a joint return, both claims must be entered. On married-filing-separately
+returns, each spouse enters only their own qualifying household and confirms
+the conditions involving both tax homes; the other spouse's full return is not required.
+
+
+For married filing separately with a shared household, use the separate-return
+allocation choice. Enter total household expenses and the spouse's agreed expense
+share from their records, not their calculated exclusion. The App checks those
+expenses against your share and applies your own period, base and income limit.
+Confirm that the allocation is reconciled and contains no double-counted costs.
+
+
+## Foreign service businesses
+
+Enter an ordinary business once, choosing its income source by where services
+were performed, not the payer's address. The wholly foreign service choice
+supports ordinary unexcluded income and an optional earned-income exclusion for
+the qualifying-business cases described below, subject to its stated U.S. SE-tax
+and ordinary-treatment conditions. Receipts and expenses
+remain in the business calculation; the result identifies foreign net income.
+The App excludes that income and its related deductions from QBI while retaining
+self-employment tax. This follows the IRS rules for
+[foreign self-employment](https://www.irs.gov/individuals/international-taxpayers/self-employment-tax-for-businesses-abroad)
+and [qualified business income](https://www.irs.gov/instructions/i8995).
+
+Domestic and wholly foreign service businesses can coexist. Ordinary owner
+health deductions and the existing eligible owner-only SEP path remain available
+when that business does not claim the exclusion.
+Mixed-source businesses, foreign property/vehicle/home-office treatment, foreign
+business credit allocation, additional exclusion coordination and excess-loss attribution
+when mixed-character losses coexist with profitable businesses still need calculation support; unresolved cases do not publish
+a completed estimate. This is calculation support in the prototype, not a
+filing-readiness claim.
+
+
+When the business loss is entirely from supported foreign service activities,
+the App applies the annual excess-business-loss limit and reports the resulting
+NOL carryforward. It separately identifies the suspended amount as nonqualified
+for QBI, without adding it a second time to the carryforward. Current allowed
+foreign losses likewise do not create a QBI loss carryforward. Mixed domestic/foreign returns are also supported when losses occur on only
+one side: foreign losses stay nonqualified despite domestic profit, and ordinary
+fully eligible domestic losses stay qualified despite foreign profit. The result separates
+suspended qualified loss from the current QBI loss carryforward. Losses on both
+sides are supported for ordinary domestic businesses when every business
+has zero income or a loss: the App applies any specified-service eligibility
+percentage for the loss year, allocates the suspended amount between qualified
+and nonqualified losses, and reports both. The nonqualified amount can include
+ineligible domestic service-business loss as well as foreign loss. Mixed-character losses with profitable
+businesses, and special entity/property combinations, still need allocation support.
+
+
+On a joint return, the other spouse may independently claim the supported
+employee earned-income and housing exclusions. The App tracks the election by
+person while applying the joint return's tax-stacking and credit rules. Foreign business income and employee pay for the same person can share an
+exclusion when their confirmed election and qualifying period agree and that
+person has no housing claim.
+
+
+For foreign service businesses, including loss activities, select the earned-income exclusion
+and enter the qualifying residence or presence facts. All foreign service businesses owned by
+the same person must use the same confirmed election and qualifying period;
+the App combines their receipts and expenses under one exclusion limit. All entered
+receipts must belong to that qualifying period. The App uses gross receipts for
+the prorated exclusion limit, then calculates the business expenses and half-SE
+deduction allocable to excluded income. The result shows gross exclusion,
+disallowed deductions and the net Schedule 1 exclusion. SE tax remains based on
+full profit; excluded profit cannot absorb another business's loss.
+
+This path permits an independent employee or business exclusion for the other
+spouse. Same-person foreign employee pay shares the business exclusion cap and
+ratio. It currently requires no housing claim for that person
+and no owner health or retirement-plan deduction for the excluded business. Those combinations, a single business with mixed domestic/foreign operations and
+combined employee/self-employed housing funding still require coordinated calculation support.
+The method follows [Form 2555 lines 20 and 44–45](https://www.irs.gov/instructions/i2555),
+using the published 2026 exclusion limit; final 2026 form reconciliation remains
+pending.
+
+
+When wages and service-business receipts belong to the same claimant, the App
+reports each source's share of the one gross exclusion. Only business expenses
+and attributable half-SE deductions enter the business-related deduction
+adjustment. The business's net excluded amount adjusts the regular and AMT
+business-loss limit; the employee share does not. A combined housing exclusion
+or deduction remains a separate unfinished calculation.
+
+
+When related expenses exceed excluded receipts, the net exclusion is negative:
+it restores expenses to income. For example, $20,000 of fully excluded receipts
+and $30,000 of expenses produce a negative $10,000 net exclusion, leaving no
+business loss to offset other income. With $200,000 receipts, $300,000 expenses
+and the full $132,900 exclusion cap, $199,350 of expenses are disallowed and
+$33,550 of loss remains. These adjustments do not create IRA compensation or
+U.S. QBI. Regular tax and AMT use zero, rather than a negative amount, for tax-rate
+stacking. See [Publication 54, deductions related to excluded income](https://www.irs.gov/publications/p54).
+
+
+A claimant can also have separately entered U.S. businesses. Their receipts stay
+outside the foreign exclusion. The App allocates the deductible half of SE tax
+once between the businesses, uses only the foreign share for Form 2555, and
+retains the U.S. share in QBI. For example, $50,000 profit in each source produces
+$14,130 SE tax. With the U.S. record receiving the rounding dollar, its half-SE
+share is $3,533 and the foreign share is $3,532; the net foreign exclusion is
+$46,468 and AGI is $46,467. This case still requires no owner health or retirement
+plan deduction for that person. Mixed operations within one business require
+additional source allocation.
+
+
+A foreign service-business owner with no foreign employee pay can enter a housing
+claim on one business entry. It uses the same location, dates, expenses, allowance
+and household rules as employee housing. A housing deduction can be elected with
+or without FEIE. All applicable claims must use a consistent qualifying period;
+do not repeat the household claim for each business.
+
+The App limits the current housing deduction to foreign earned income remaining
+after gross exclusions. If a 2025 amount remains, enter the retained housing
+amount before its income limit and the amount deducted that year. Current-year
+housing uses the available income first; any unused 2025 balance expires after
+2026. The result separately shows the current deduction, prior balance used,
+expired prior balance and current amount carried into 2027.
+
+The housing deduction appears in income adjustments, separately from the
+foreign exclusion. It reduces neither SE tax nor IRA compensation. For example,
+$200,000 foreign service receipts, $50,000 business expenses and $50,000 housing
+expenses at the general location limit produce a $18,606 housing deduction,
+$28,164 AGI and $24,090 total tax, including unchanged $21,194 SE tax. This follows
+[Form 2555 Part IX](https://www.irs.gov/instructions/i2555) and
+[Publication 54's IRA compensation rule](https://www.irs.gov/publications/p54).
+
+Prior self-employed housing carryovers can also use remaining foreign employee
+income. Combined employee/business funding now allocates one housing claim between
+exclusion and deduction. Creating a new carryover without foreign earnings
+remains unsupported. A valid prior carryover can be used with no current housing
+amount, subject to available foreign income; with no income capacity it expires. For NIIT, the separate MAGI
+calculation adds back FEIE less related disallowed deductions; it does not add
+back the housing exclusion or deduction, following the
+[Form 8960 MAGI worksheet](https://www.irs.gov/instructions/i8960).
+
+For a second foreign household maintained for a spouse or dependents because
+conditions at the taxpayer's tax home are dangerous, unhealthful or otherwise
+adverse, select the corresponding household choice. Confirm eligibility and
+include its eligible expenses in the housing total without duplicating claims
+or adding tax-free employer lodging. The current calculation supports
+general-limit locations with one expense cap and one base amount; high-cost
+or differing-location combinations remain unsupported. This follows the
+[Form 2555 second-household instructions](https://www.irs.gov/instructions/i2555).
+
+Ordinary sales of nonstatutory-option shares or vested stock awards can use the
+capital-sale input when compensation was correctly reported as wages and the
+adjusted basis and holding period are established. Use the complete adjusted
+basis, which may differ from the broker's reported basis; do not tax the same
+compensation twice or add it twice to basis. This route does not calculate
+unresolved compensation from grant, vesting or exercise facts, or handle
+special deferral elections or unresolved restricted-property histories. See
+[IRS Topic 427](https://www.irs.gov/taxtopics/tc427).
+
+The ordinary employee stock-sale worksheet also accepts acquisition and sale
+records directly: amount paid, fair market value when unrestricted shares were
+acquired, acquisition fees and sale proceeds. It derives compensation, basis
+and holding period for ordinary nonstatutory-option shares and vested awards
+whose compensation was fully reported as wages in the acquisition year. The
+compensation is displayed but not taxed again. Enter one sold lot and do not
+repeat it as another capital sale. Valid, timely section 83(b) elections use transfer-date value and the original
+transfer date; later vesting does not reset basis or tax compensation again.
+This covers ordinary sales after vesting with complete wage reporting. An
+explicit forfeiture option also handles still-unvested stock under an effective
+election: only the amount paid less the amount returned can create a capital
+loss; previously taxed compensation is not deducted. This path currently requires
+no transaction fees and no payment exceeding the amount paid. Revoked elections
+and section 83(i) deferrals remain unsupported. See
+[IRS Revenue Procedure 2012-29](https://www.irs.gov/irb/2012-28_IRB).
+ESPP dispositions use the separate worksheet below.
+
+For an ordinary employee stock purchase plan sale, the section 423 worksheet
+uses Form 3922 and sale records to calculate compensation, stock basis and
+capital gain. It distinguishes qualifying and early sales and avoids adding
+compensation already in W-2 wages twice. Otherwise, compensation enters
+Schedule 1 line 8k. Share quantities accept up to six decimal places and are normalized to
+integer millionths before computing lot amounts, rounded to cents. Current
+support requires shares acquired by the employee on exercise;
+a later transfer to a broker does not restart the holding period. Use the fixed
+grant price when Form 3922 box 8 is blank for a fixed-price option. Special
+dispositions require further worksheets. See [Publication 525](https://www.irs.gov/publications/p525).
+
+ISO and section 423 worksheets also recognize the statutory holding-period
+exception for an eligible person's sale under a qualifying federal certificate
+of divestiture. This does not turn a short-term capital gain into a long-term
+gain, and ordinary employer conflict policies do not qualify. A separate
+section 1043 gain-deferral election remains unsupported. See
+[26 U.S.C. 421(d)](https://www.govinfo.gov/content/pkg/USCODE-2024-title26/html/USCODE-2024-title26-subtitleA-chap1-subchapD-partII-sec421.htm).
+
+ISO sales can include a restriction history when shares vested before sale.
+The statutory qualification test still uses the transfer date, while regular
+compensation on a disqualifying sale uses vesting value and its capital holding
+period starts at vesting. AMT follows its own recognition date and value; a
+valid AMT election does not fix regular compensation at exercise. A recognition
+event in the sale year is included once, without repeating sold shares in the
+year-end held-share list. See
+[the final ISO regulations, example 2](https://www.irs.gov/irb/2004-36_IRB).
+Restricted-ISO forfeitures and sales before vesting remain separate cases.
+
+
+Historical repayment comparisons can include ordinary railroad pension income
+from the original RRB-1099-R and its Simplified Method worksheet. Enter original
+gross and contributory benefits separately; tax-free employee-cost recovery
+cannot reduce vested dual benefits or supplemental annuities. Historical dates,
+months and prior recovery belong to the selected original year. Enter current-year box 8 repayments separately, identifying original year and
+whether the repaid benefit was contributory or from boxes 5/6. Do not net these
+against current pension income or repeat same-year repayments already netted in
+payment boxes. Fully taxable prior benefits can use the shared deduction/credit
+comparison, including the combined $3,000 threshold with unemployment repayments.
+The original year, recipient and benefit component must reconcile; historical
+worksheets currently cover 2023–2025 within their stated limits. Repayments
+involving tax-free employee-cost recovery or unknown years need further analysis.
+
+
+Confirmed permanent-and-total railroad disability payments taxable as wages
+before minimum retirement age use the disability-pension entry. Enter only the
+non-Social-Security-equivalent portion documented for that treatment; RRB-1099
+SSEB benefits use the Social Security entry. Do not infer the split from age
+alone or include either amount twice. Occupational disability alone, unresolved
+basis and payments straddling retirement-age treatment need further analysis.
+See [RRB component rules](https://rrb.gov/Benefits/TXB-85/SectionB) and
+[IRS disability-pension reporting](https://www.irs.gov/publications/p575).
+
+
+A younger railroad survivor can use the Railroad pension entry with the death
+exception and documented death/payment dates. The payment must follow death;
+survivor pension income stays separate from both disability wages and SSEB.
+Any employee-cost recovery must use the survivor's correctly allocated records.
+The App does not determine eligibility for an RRB benefit award. Shared
+Simplified Method recovery requires the common records described below. See [RRB survivor benefits](https://rrb.gov/Benefits/Survivor/GeneralInfoSurvivor/Articles/TypesofSurvivorBenefits).
+
+
+For an ordinary railroad spouse or divorced-spouse annuity, leave the employee
+cost worksheet absent: these benefits are fully taxable and do not share the
+employee's exclusion. This differs from a spouse's own employee annuity or a
+survivor annuity. On a joint return, enter each recipient's statement separately;
+do not duplicate employee contributions. See
+[RRB employee-contribution rules](https://www.rrb.gov/Benefits/TXB-85/SectionD).
+
+
+Simultaneous pension annuitants can enter the original recipient payment and
+total payments that established their share of the monthly exclusion. Use the
+whole contract's cost, combined prior recovery and monthly exclusion before
+allocation; entering an already allocated amount would reduce it twice.
+Results show both monthly amounts and remaining whole-contract cost. For
+example, an $840 share of $1,500 total payments receives $84 of a $150 monthly
+exclusion. This recipient must receive payments throughout the entered months, with
+complete common recovery history. For fractional cents, keep one beneficiary
+order in the common allocation record. Enter the sum of original monthly
+payments preceding this recipient (zero for the first); use the same record on
+every recipient's return. The App allocates rounding cents consistently so the
+shares add up to the common exclusion, including its final cost limit. This
+ordering is the App's rounding convention, not an IRS ordering requirement.
+For a documented entitlement change, such as a child's annuity ending, add the
+payment-month number and new share. Month 2 means the second payment month in
+this worksheet, not necessarily February. Leave the new share absent when this
+recipient becomes the sole remaining annuitant. The App applies changes in
+month order and stops recovery when common cost runs out; cost-of-living
+increases alone do not establish a new allocation. The final monthly exclusion
+is shown for retained records. If other annuitants received payments earlier in the same year, enter those
+earlier common payment months separately. The App reduces available cost before
+calculating this recipient's exclusion; do not also include those months in this
+recipient's count or in prior-year recovery. The common monthly exclusion must
+be unchanged. A changed common monthly amount and excess-exclusion carryovers
+still need further calculations. Remaining cost is the balance after the entered
+months; reconcile any later payments to other annuitants before next year's
+worksheet.
+See [IRS survivor allocation examples](https://www.irs.gov/publications/p721).
+
+
+A temporary CSRS/FERS survivor annuity for one nondisabled child, without a
+surviving-spouse annuity, uses a separate worksheet. Enter original cost and the
+payment period to age 22, prior cost recovered, prior unused exclusion and each
+2026 monthly payment in order, including zero payments. The App limits the
+monthly exclusion to the payment, carries unused exclusion forward and stops
+recovery at the remaining cost. Results show exclusion, unused exclusion and
+remaining investment. An unused amount does not itself authorize benefits after
+termination or a deduction. If the annuity ends early, enter the plan's last
+entitled payment date and include payments only through that month. Keep the
+original recovery period; ending early does not accelerate cost recovery.
+Any final lump sum must be entered separately. Multiple temporary children,
+changed recovery periods need further worksheets. A final-annuitant deduction
+uses the separate linked deduction entry described below. See
+[IRS temporary-child-annuity rules](https://www.irs.gov/publications/p721).
+
+
+For a CSRS/FERS child permanently disabled at the annuity starting date, with no
+surviving-spouse annuity, use the pension Simplified Method with **One lifetime**
+and the child's age at that starting date. If other temporary child beneficiaries
+share the annuity, enter their payment shares against this common lifetime
+exclusion. Do not combine a temporary sibling's age into a joint-life factor.
+Use the death exception for survivor payments; these remain pension income,
+not the child's disability wages. See
+[IRS disabled-child survivor rules](https://www.irs.gov/publications/p721).
+
+
+For an ordinary CSRS/FERS regular-contribution death-benefit lump sum, enter the
+full gross payment, original employee cost and all earlier tax-free annuity
+recovery. The App calculates the taxable excess and identifies any cost left
+unrecovered. For example, $38,400 paid plus $1,000 previously recovered against
+$45,000 cost produces no taxable lump sum. This worksheet covers the entire
+final benefit paid to one individual, with death-exception treatment. Split
+beneficiaries, transfers, special lump-sum elections and separately treated
+voluntary contributions need their own calculations. A deduction on the
+annuitant's final return is separate from this beneficiary's income. See
+[IRS civil-service lump-sum worksheets](https://www.irs.gov/publications/p721).
+
+
+On the final annuitant's own final return, link an unrecovered-annuity-cost
+deduction to that person's periodic pension entry. Enter original cost, prior
+year recovery and other tax-free payouts. The App subtracts current recovery;
+a linked Simplified Method worksheet includes its earlier/common annuitant
+recovery. Cost and history must agree between the records. A temporary child's
+annuity must end in the death month. The result enters itemized deductions;
+it is not a deduction on a beneficiary's death-benefit lump-sum entry. See
+[IRS unrecovered-cost guidance](https://www.irs.gov/publications/p575).
