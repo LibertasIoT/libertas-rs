@@ -10,8 +10,33 @@ This App prepares individual-return estimates, including Schedule C sole-proprie
 businesses and ordinary cash- or accrual-method Schedule F farms. Corporate and partnership entity returns are outside its scope;
 ordinary U.S. S-corporation K-1 businesses are supported when their required
 records are complete. Ordinary partnership Form 1065 records can now be saved,
-but partnership return calculations remain unfinished and prevent a complete
-estimate. Estate/trust Form 1041 K-1s remain unsupported. Do not enter either
+including separate participation, self-employment and ordinary-versus-trading
+business classifications, the ordinary section 199A statement, and separate
+qualified-loss histories for basis, at-risk and passive limits. Gross SE income
+and its qualified portion support QBI deduction allocation. Partner health
+insurance uses the shared deduction and medical-expense checks. Taxable premiums
+paid or reimbursed by the partnership are reconciled with guaranteed service
+payments and counted once. Premiums under partnership-named policies charged
+against distributions reconcile with the basis records instead of adding
+guaranteed income. A partner-named policy requires reimbursement and
+guaranteed-payment reporting to qualify as established under the partnership.
+Current cash guaranteed service and business-capital payments enter income
+separately, without becoming QBI or releasing passive losses. Capital payments
+use the established partner classification for self-employment and investment-tax
+treatment. Special guaranteed-payment arrangements remain unsupported.
+Partnership-established traditional SEP contributions use the shared plan-limit
+and deduction calculations. Ordinary partnership excess losses retain their qualified and nonqualified
+portions for loss-only sources, including ordinary domestic Schedule C
+and ordinary nonpassive S-corporation losses. Current partnership profit offsets
+support one loss source with its own qualified fraction, or multiple sources
+with equal qualified fractions. Confirmed wholly foreign service losses without separate exclusions
+or special deductions join the loss-only calculation as nonqualified amounts;
+foreign profit offsets are supported for a single loss source with an established
+qualified fraction, or when all loss sources share fully qualified or wholly
+nonqualified character;
+other mixed allocations remain unfinished.
+Partnership return calculations remain unfinished
+and prevent a complete estimate. Estate/trust Form 1041 K-1s remain unsupported. Do not enter either
 as S-corporation income; identify unentered items in the uncovered-income check.
 
 Native phone and web interfaces present the same guided interview, with
