@@ -1019,7 +1019,10 @@ An unmarked struct, union, or list may show a down arrow, but tapping it or open
 menu cannot collapse the fields. A marked value starts expanded, or collapsed
 when `initially_open` is false, and permits manual collapse and expansion; a
 collapsed value shows only its row, its promoted or data title and value
-included. Each nested value owns its folding permission;
+included. The initial state applies to rows that exist when a page is
+displayed. A value the user creates while the page is open, such as a new
+List member or a materialized nullable, always opens, whatever its marker
+says, so its fields are visible to fill in. Each nested value owns its folding permission;
 a marker does not grant permission to its descendants. Lists follow the same explicit-permission rule. Changing a union variant reveals its new fields. Union selectors
 remain editable independently of folding.
 
