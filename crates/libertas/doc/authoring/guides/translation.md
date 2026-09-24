@@ -84,10 +84,26 @@ follows the same native declaration path rather than its old array position or
 numeric ID. A baseline is trusted only while its recorded target-document hash
 matches the locale currently open in the editor.
 
+## Choosing a translation method
+
+Select **Translate…** in the editor's header. A searchable list offers every
+method:
+
+- **Translate automatically**: **Claude Code**, **Codex**, or **Claude API**
+  translates the document for you. See
+  [automatic translation](#automatic-translation).
+- **Translate with another assistant**: **Codebot prompt** or **Chatbot
+  prompt** prepares a prompt for an assistant you run yourself, and **Import
+  translation…** brings its result back. See
+  [manual bot handoff](#manual-bot-handoff).
+
+**Remove Translation** stays beside **Translate…** and applies to the locale
+open in the editor.
+
 ## Choosing a locale
 
-**+ New Locale...**, **Translate with Codex**, **Codebot Prompt**, and **Chatbot
-Prompt** offer popular locales searchable by tag or language name. Choose
+**+ New Locale...**, each automatic translation service, and both prompts offer
+popular locales searchable by tag or language name. Choose
 **Other locale...** to enter any locale tag accepted by the
 [translation contract](../reference/translation.md), such as `uk-UA` or `sr-Latn-RS`.
 The popular Chinese choices are `zh-Hans` (Simplified) and `zh-Hant`
@@ -99,10 +115,11 @@ default locale cannot be a translation target. **+ New Locale...** excludes all
 existing locales and then asks which existing locale to copy from. These
 restrictions also apply to manually entered tags.
 
-## Translate with Codex
+## Automatic translation
 
 1. Open the **Schema Editor** for the package you intend to translate.
-2. Select **Translate with Codex**, check one or more target locales, and confirm
+2. Select **Translate…** and choose **Claude Code**, **Codex**, or **Claude
+   API**. Check one or more target locales, and confirm
    the selection. Choose **Other locales...** to add tags separated by commas or
    spaces, such as `uk-UA, sr-Latn-RS, fr-CA`. Duplicate tags are translated once.
    If the selection includes existing locales, keep **Automatic update** or
@@ -116,37 +133,36 @@ restrictions also apply to manually entered tags.
      every localizable value in the workset.
    - A trusted existing locale uses an incremental workset containing only new
      values and values whose default-locale source text changed.
-4. Studio uses **GPT-5.6 Sol** with **medium** reasoning to translate the text
-   directly, with shell commands, agent delegation, and web access disabled.
-   The Codex client is forced to use **Sign in with ChatGPT**;
-   Studio never requests, stores, or forwards an OpenAI API key.
+4. The chosen service translates the text directly, with shell commands, agent
+   delegation, and web access disabled. Its account, billing, and model are
+   described under [translation services](#translation-services).
 5. Progress identifies the current locale and its position in the queue, then
-   shows the number of translated values as each batch completes. Codex returns
-   translated strings directly;
+   shows the number of translated values as each batch completes. The service
+   returns translated strings directly;
    it does not read or write project files. Incremental translation sends only
    new or changed values, avoiding retranslating unchanged document text.
 6. After all batches succeed, Studio validates the exact result paths and
    values, saves `TRANSLATION-RESULT.json`, merges the complete document,
    writes `developer-package.<locale>.doc.json`, and
    validates its locale, complete structural hash, and schema migration before
-   adding it to the editor. Codex never merges or rewrites unchanged values.
+   adding it to the editor. The service never merges or rewrites unchanged values.
 7. In a Hub-connected editor, Studio immediately uploads each finished
    translation to that Hub, retaining all other locales. It waits for that
-   upload to succeed before starting the next queued locale. It also saves
-   the normal `.doc.json` project file when a
-   local project is open. A purely local editor saves locally; it has no Hub
+   upload to succeed before starting the next queued locale. The translated
+   document stays in the `translations/` workspace; Studio never writes
+   documents beside the project's source. A purely local editor has no Hub
    destination and does not claim an upload.
    Import does not wait for **OK**, **Submit**, or an editor acknowledgement.
    The imported locale remains open for review after the upload succeeds.
 
 You can cancel the queue from the progress notification. Cancellation stops
 the active translation and skips the remaining locales. An upload already in
-progress is allowed to finish. A translation failure, a batch taking more than
-three minutes, or an upload failure also stops the queue and identifies the
+progress is allowed to finish. A translation failure, a batch exceeding its
+service's time limit, or an upload failure also stops the queue and identifies the
 failed locale. Earlier saves and uploads are retained. An incomplete
 locale is not uploaded; a complete locale whose upload failed remains available
-in its `.doc.json` file for import and retry. Select **Translate with Codex**
-again to queue unfinished locales. While a queue runs, finish or cancel it
+in its `.doc.json` file for import and retry. Choose the same method from
+**Translate…** again to queue unfinished locales. While a queue runs, finish or cancel it
 before starting another translation or saving other document changes.
 
 Each locale keeps its own `.doc.json` file and incremental baseline. Shared
@@ -154,19 +170,42 @@ workset and prompt files are replaced for each locale; `TRANSLATION-RESULT.json`
 is replaced only when a translation finishes.
 
 If a trusted baseline produces no changed values, Studio synchronizes document
-structure without invoking Codex and persists it through the same immediate
+structure without invoking a translation service and persists it through the same immediate
 import path. A successful import records the translation baseline; subsequent
 saved edits refresh its target hash. Closing the editor cancels the remaining
 queue without undoing an imported translation. The Hub handles fresh and
 incremental translations in the same way.
 
-The user must already be signed into Codex with ChatGPT. Codex CLI and the Codex
-IDE extension share the local login cache. An API-key login is rejected for this
-workflow so translation cannot silently become separately billed API usage.
+## Translation services
+
+| Service | Account and billing | Model | Batches at once | Batch time limit |
+| --- | --- | --- | --- | --- |
+| **Claude Code** | The Claude Code account signed in on this computer | Claude Opus 5.5 | 1 | 10 minutes |
+| **Codex** | The Codex account signed in with ChatGPT | GPT-5.6 Sol, medium reasoning | 1 | 3 minutes |
+| **Claude API** | An Anthropic API key, billed as API usage | Claude Opus 5.5 | 4 | 10 minutes |
+
+**Claude Code** runs the `claude` command installed on this computer. Install
+Claude Code and sign in with `claude` first. Studio removes any Anthropic API
+key from the command's environment, so the translation always uses the
+signed-in account and never becomes separately billed API usage. Your plan's
+usage limits apply; if a limit stops a batch, the queue stops and keeps the
+locales already finished.
+
+**Codex** requires that you are already signed into Codex with ChatGPT. Codex
+CLI and the Codex IDE extension share the local login cache. An API-key login is
+rejected, and Studio never requests, stores, or forwards an OpenAI API key.
+
+**Claude API** asks for an Anthropic API key the first time and keeps it in VS
+Code secret storage; later translations reuse it. If the API rejects the key,
+Studio forgets it and asks again on the next translation. Studio retries a
+batch when the API reports a rate limit or a temporary server error.
+
+Every service receives only the workset text; none reads or writes project
+files.
 
 ## Manual bot handoff
 
-Select **Codebot Prompt** or **Chatbot Prompt**, then
+Select **Translate…**, choose **Codebot prompt** or **Chatbot prompt**, then
 [choose the target locale](#choosing-a-locale).
 Studio refreshes the source artifacts and both target-specific handoff prompts,
 then opens the selected prompt so you can use the service whose cost and
@@ -183,7 +222,8 @@ capabilities fit the translation:
 The generated prompt already contains the selected locale and exact output
 filename. Generating both prompts avoids coupling manual translation to one
 billing model: code agents and chat services can have materially different
-costs. After the locale file is present, select **Import Translation** and choose
+costs. After the locale file is present, select **Translate…**, choose
+**Import translation…**, and choose
 an exact package translation newer than the exported baseline.
 
 The filename supplies the imported locale. Studio verifies that the candidate's
@@ -211,10 +251,9 @@ locale set. Concurrent editors are therefore last-writer-wins; refresh or reopen
 the Schema Editor before editing or removing a locale. After the Hub accepts the
 metadata update or deployment, it removes the omitted locale from its
 current locale set. Historical App
-version data remains available. Studio then deletes only the exact canonical
-project document (`index.<locale>.doc.json` or `lib.<locale>.doc.json`) and the
-exact `translations/<package>.<locale>.doc.json` handoff file. A failed Hub
-operation leaves both local files intact so the removal can be retried safely.
+version data remains available. Studio then deletes only the exact
+`translations/<package>.<locale>.doc.json` file. A failed Hub operation leaves
+it intact so the removal can be retried safely.
 
 
 The [translation document contract](../reference/translation.md) owns exact

@@ -1845,7 +1845,14 @@ separate Cargo crates even when their package names and versions match.
 For local paths, Studio uploads the transitive source graph once per canonical
 crate directory, including local App crates. It rewrites paths only in the
 upload copy, so direct and transitive users of the same SDK resolve to one
-crate. Workspace-inherited settings are materialized for that upload. Public
+crate. Workspace-inherited settings are materialized for that upload. The
+upload is content-addressed: the Hub keeps each file's content by SHA-256, and
+Studio transfers only contents the Hub does not already hold, so a shared SDK
+is sent once and redeploying unchanged files transfers no file bytes. The
+schema and localized documents travel the same way, so no deployment is
+limited by the size of its translations. Source
+size is limited only by the Hub's free disk space, which the Hub checks before
+accepting the upload; an upload may contain at most 4096 files. Public
 Git dependencies retain their authored repository and revision selectors;
 Studio does not replace them with private workspace paths. When moving to a
 public release, align SDK Git pins throughout the graph.

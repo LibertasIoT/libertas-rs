@@ -48,7 +48,8 @@ The Admin Panel features a management layout with:
 The **My Hub** tab is the landing page and provides hardware status, operating system stats, and basic control operations for the connected Hub.
 
 ### Information Sections
-- **Hub Information**: Details the Hub's custom friendly name, IP address on the network, Client ID, active User ID, and runtime Platform (e.g., Libertas OS).
+- **Hub Information**: Details the Hub's custom friendly name, IP address on the network, Client ID, active User ID, Hub Type (**Local Hub** or **Cloud Hub**), and runtime Platform (e.g., Libertas OS).
+- **Hub Settings** and **Advanced** (super users): **Connection Settings** and **Reconfigure Thread** configure a Local Hub's home network and Thread radio, so the panel omits them for a Cloud Hub.
 - **Firmware & Runtime Details**: Displays the kernel version, active firmware version, and the internal IP address.
 - **Operations & Management**:
   - **Reboot Hub (Soft)**: Reboots the Libertas software runtime daemon without power cycling the device.
