@@ -1002,14 +1002,24 @@ for labels such as Accept and Decline. Display labels never change wire values.
 
 ## Folding structs and unions
 
-Structs (`Table`), unions, and lists remain expanded unless `Foldable=true` is declared
+Structs (`Table`), unions, and lists remain expanded unless `Foldable` is declared
 on their type or field. Author it as `@LibertasFoldable` in TypeScript or
-`#[libertas_foldable]` in Rust, without arguments. Studio permits this marker
+`#[libertas_foldable]` in Rust, with an optional Boolean `initially_open`
+that defaults to true: `@LibertasFoldable(initially_open=false)` or
+`#[libertas_foldable(initially_open = false)]`. Studio permits this marker
 only on an effective Table, Union, or List. It changes presentation, not encoded data.
 
+In schema JSON the attribute's Boolean string value carries the option:
+`{"Name":"Foldable","Value":"true"}` starts expanded and `"false"` starts
+collapsed. Presence enables folding; `false` does **not** disable it.
+Existing schemas carry `Foldable=true`, so updated clients read them as
+`initially_open=true` without rewriting.
+
 An unmarked struct, union, or list may show a down arrow, but tapping it or opening its
-menu cannot collapse the fields. A marked value starts expanded and permits
-manual collapse and expansion. Each nested value owns its folding permission;
+menu cannot collapse the fields. A marked value starts expanded, or collapsed
+when `initially_open` is false, and permits manual collapse and expansion; a
+collapsed value shows only its row, its promoted or data title and value
+included. Each nested value owns its folding permission;
 a marker does not grant permission to its descendants. Lists follow the same explicit-permission rule. Changing a union variant reveals its new fields. Union selectors
 remain editable independently of folding.
 
@@ -1018,14 +1028,16 @@ the owning Table or the promoted union has Foldable on its type or field.
 TableHeader promotion and union-child flattening remain independent of folding.
 
 When a struct's own row is suppressed by `TableHeader` with `use_parent_name=false`
-on its type declaration, the dropdown passes to the first row the struct still
-produces: its [data-titled row](#uiname-data-titled-rows) from `UIName`, else
-its promoted `TableHeader` field's row, else the row of its first visible
-field. That row carries the fold arrow and, when the struct is Foldable,
-collapses the remaining sibling rows beneath it; its own value stays editable
-as usual. Hidden fields produce no row and are skipped; a struct that produces
-no rows folds nothing. A List member whose struct row is suppressed keeps its
-position and membership controls on that same row.
+on its type declaration, the struct still assigns a dropdown owner, in this
+order: the row of a child carrying the `TableHeader` field marker, which is
+the struct's surviving value row, else the row of its first visible child.
+That row carries the fold arrow and, when the struct is Foldable, collapses
+the struct's remaining rows beneath it; its own value stays editable as usual.
+Hidden fields produce no row and are skipped; a struct that produces no rows
+folds nothing. A struct with a [data-titled row](#uiname-data-titled-rows)
+is not suppressed: that row is its own and owns its dropdown. A List member
+whose struct row is suppressed keeps its position and membership controls on
+the row that owns its dropdown.
 
 A marker that hides the dropdown icon, making a container visibly unfoldable,
 is reserved for a later revision; until then an unmarked container may still

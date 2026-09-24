@@ -1648,7 +1648,7 @@ Libertas supports full localization of your package documentation. If your prima
 
 **No manual alignment is required**: The IDE automatically updates the structure of all localized documentation files when you save changes to your TypeScript source code, guaranteeing your translations stay in sync.
 
-`@LibertasFoldable` permits manual folding on a struct, union, or list type or field. See [folding structs and unions](../presentation.md#folding-structs-and-unions).
+`@LibertasFoldable` permits manual folding on a struct, union, or list type or field; `@LibertasFoldable(initially_open=false)` starts it collapsed. See [folding structs and unions](../presentation.md#folding-structs-and-unions).
 
 ## Backend-constrained choices
 

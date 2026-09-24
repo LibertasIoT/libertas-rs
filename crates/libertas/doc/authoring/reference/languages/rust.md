@@ -1969,7 +1969,7 @@ directly and waits for the user to submit. Cookie responses instead use the
 ordinary `libertas_endpoint_response` helper and `#[libertas_workflow_request]`.
 See the [workflow contract](../protocols.md#workflow-interactions).
 
-`#[libertas_foldable]` permits manual folding on a struct, union, or list type or field. See [folding structs and unions](../presentation.md#folding-structs-and-unions).
+`#[libertas_foldable]` permits manual folding on a struct, union, or list type or field; `#[libertas_foldable(initially_open = false)]` starts it collapsed. See [folding structs and unions](../presentation.md#folding-structs-and-unions).
 
 ## Backend-constrained choices
 
