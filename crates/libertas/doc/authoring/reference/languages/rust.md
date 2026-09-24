@@ -453,6 +453,8 @@ sharing one resolved
 
 `#[libertas_ui_header(use_parent_name = true)]` has an optional Boolean that defaults to true (parent display name); false selects the promoted field display name. Attribute presence enables promotion or flattening by direct declaration lookup. Existing `TableHeader=true` schemas keep the default. See [header promotion and nested Union selectors](../presentation.md#tableheader-promoted-fields-and-union-selectors) for its tree-data presentation. On a struct declaration, false also hides its name-only row while keeping children visible.
 
+`#[libertas_ui_name(value_field)]` on a ReadOnly or Hidden `String` or formatted-text field makes that field's value the struct row's title and the named sibling's value the row's value; neither field has a row of its own. `#[libertas_suppress_title]` on a `Vec` of structs, or on its type alias, stops the list from titling its member rows. See [data-titled rows](../presentation.md#uiname-data-titled-rows) and [untitled list members](../presentation.md#suppresstitle-untitled-list-members); Studio enforces the placement rules.
+
 - When applied to a primitive field within a Table, the field visually replaces the table node. Its own title is replaced by the table’s title, and its value is displayed as the table node’s value.
 - When applied to a Table node, the table’s outer enclosure is removed and all of its fields are promoted to appear alongside the table’s former siblings.
 
@@ -1977,7 +1979,7 @@ backend-provided integer list in the current request. See the
 initialization, immutability, validation, and payload editing.
 
 
-Default endpoint entry uses `#[libertas_default_request]` on an effective-Nil Request variant. Response-level ConstrainedBy filters NextRequest through a hidden integer array. See [default entry and dynamic actions](../protocols.md#default-request-entry-and-dynamic-actions).
+Default endpoint entry uses `#[libertas_default_request]` on a Request variant whose payload needs no user input (Nil, or only hidden/read-only Fixed or Default fields, such as a hidden `#[libertas_fixed("current-user")]` caller). Response-level ConstrainedBy filters NextRequest through a hidden integer array. See [default entry and dynamic actions](../protocols.md#default-request-entry-and-dynamic-actions).
 
 ### Union member identity and payload constraints
 

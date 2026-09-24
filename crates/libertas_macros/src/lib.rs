@@ -171,59 +171,62 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
             pat_type.attrs.retain(|attr| {
                 // Parameter documentation is consumed by schema extraction. Rust
                 // does not permit doc attributes on compiled function parameters.
-                if attr.path().is_ident("doc") ||
-                   attr.path().is_ident("libertas_workflow_request") ||
-                   attr.path().is_ident("libertas_prev_request") ||
-                   attr.path().is_ident("libertas_calculation_request") ||
-                   attr.path().is_ident("libertas_copy_from") ||
-                   attr.path().is_ident("libertas_constrained_by") ||
-                   attr.path().is_ident("libertas_default_request") ||
-                   attr.path().is_ident("libertas_copy_to") ||
-                   attr.path().is_ident("libertas_append_to") ||
-                   attr.path().is_ident("libertas_append_index") ||
-                   attr.path().is_ident("libertas_validation_rules") ||
-                   attr.path().is_ident("libertas_range_min") ||
-                   attr.path().is_ident("libertas_range_max") ||
-                   attr.path().is_ident("libertas_enum_source") ||
-                   attr.path().is_ident("libertas_bitflags") ||
-                   attr.path().is_ident("libertas_date_only") ||
-                   attr.path().is_ident("libertas_format") ||
-                   attr.path().is_ident("libertas_money") ||
-                   attr.path().is_ident("libertas_formatted_text") ||
-                   attr.path().is_ident("libertas_chart") ||
-                   attr.path().is_ident("libertas_chart_channel") ||
-                   attr.path().is_ident("libertas_chart_scale") ||
-                   attr.path().is_ident("libertas_chart_guide") ||
-                   attr.path().is_ident("libertas_chart3d") ||
-                   attr.path().is_ident("libertas_chart3d_channel") ||
-                   attr.path().is_ident("libertas_chart3d_scale") ||
-                   attr.path().is_ident("libertas_chart3d_guide") ||
-                   attr.path().is_ident("libertas_chart3d_view") ||
-                   attr.path().is_ident("libertas_physical_unit") ||
-                   attr.path().is_ident("libertas_endpoint_schema") ||
-                   attr.path().is_ident("libertas_endpoint_base_objects") || 
-                   attr.path().is_ident("libertas_endpoint_server") || 
-                   attr.path().is_ident("libertas_permissions") ||
-                   attr.path().is_ident("libertas_access_host") ||
-                   attr.path().is_ident("libertas_data_schema") || 
-                   attr.path().is_ident("libertas_default") || 
-                   attr.path().is_ident("libertas_fixed") ||
-                   attr.path().is_ident("libertas_device_type") || 
-                   attr.path().is_ident("libertas_foldable") ||
-                   attr.path().is_ident("libertas_cache_identity") ||
-                   attr.path().is_ident("libertas_ui_header") || 
-                   attr.path().is_ident("libertas_ui_include_description") ||
-                   attr.path().is_ident("libertas_read_only") || 
-                   attr.path().is_ident("libertas_hidden") || 
-                   attr.path().is_ident("libertas_exclude_ui") ||
-                   attr.path().is_ident("libertas_number") || 
-                   attr.path().is_ident("libertas_size") ||
-                   attr.path().is_ident("libertas_time_interval") || 
-                   attr.path().is_ident("libertas_enum") || 
-                   attr.path().is_ident("libertas_unordered") || 
-                   attr.path().is_ident("libertas_unique") || 
-                   attr.path().is_ident("libertas_virtual_device_type") ||
-                   attr.path().is_ident("content") {
+                if attr.path().is_ident("doc")
+                    || attr.path().is_ident("libertas_workflow_request")
+                    || attr.path().is_ident("libertas_prev_request")
+                    || attr.path().is_ident("libertas_calculation_request")
+                    || attr.path().is_ident("libertas_copy_from")
+                    || attr.path().is_ident("libertas_constrained_by")
+                    || attr.path().is_ident("libertas_default_request")
+                    || attr.path().is_ident("libertas_copy_to")
+                    || attr.path().is_ident("libertas_append_to")
+                    || attr.path().is_ident("libertas_append_index")
+                    || attr.path().is_ident("libertas_validation_rules")
+                    || attr.path().is_ident("libertas_range_min")
+                    || attr.path().is_ident("libertas_range_max")
+                    || attr.path().is_ident("libertas_enum_source")
+                    || attr.path().is_ident("libertas_bitflags")
+                    || attr.path().is_ident("libertas_date_only")
+                    || attr.path().is_ident("libertas_format")
+                    || attr.path().is_ident("libertas_money")
+                    || attr.path().is_ident("libertas_formatted_text")
+                    || attr.path().is_ident("libertas_chart")
+                    || attr.path().is_ident("libertas_chart_channel")
+                    || attr.path().is_ident("libertas_chart_scale")
+                    || attr.path().is_ident("libertas_chart_guide")
+                    || attr.path().is_ident("libertas_chart3d")
+                    || attr.path().is_ident("libertas_chart3d_channel")
+                    || attr.path().is_ident("libertas_chart3d_scale")
+                    || attr.path().is_ident("libertas_chart3d_guide")
+                    || attr.path().is_ident("libertas_chart3d_view")
+                    || attr.path().is_ident("libertas_physical_unit")
+                    || attr.path().is_ident("libertas_endpoint_schema")
+                    || attr.path().is_ident("libertas_endpoint_base_objects")
+                    || attr.path().is_ident("libertas_endpoint_server")
+                    || attr.path().is_ident("libertas_permissions")
+                    || attr.path().is_ident("libertas_access_host")
+                    || attr.path().is_ident("libertas_data_schema")
+                    || attr.path().is_ident("libertas_default")
+                    || attr.path().is_ident("libertas_fixed")
+                    || attr.path().is_ident("libertas_device_type")
+                    || attr.path().is_ident("libertas_foldable")
+                    || attr.path().is_ident("libertas_cache_identity")
+                    || attr.path().is_ident("libertas_ui_header")
+                    || attr.path().is_ident("libertas_ui_name")
+                    || attr.path().is_ident("libertas_suppress_title")
+                    || attr.path().is_ident("libertas_ui_include_description")
+                    || attr.path().is_ident("libertas_read_only")
+                    || attr.path().is_ident("libertas_hidden")
+                    || attr.path().is_ident("libertas_exclude_ui")
+                    || attr.path().is_ident("libertas_number")
+                    || attr.path().is_ident("libertas_size")
+                    || attr.path().is_ident("libertas_time_interval")
+                    || attr.path().is_ident("libertas_enum")
+                    || attr.path().is_ident("libertas_unordered")
+                    || attr.path().is_ident("libertas_unique")
+                    || attr.path().is_ident("libertas_virtual_device_type")
+                    || attr.path().is_ident("content")
+                {
                     // Get the parameter name for logging
                     if let Pat::Ident(ref id) = *pat_type.pat {
                         println!("Consuming attr on argument: {}", id.ident);
@@ -313,6 +316,22 @@ pub fn libertas_chart(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// the arguments; Studio owns semantic validation, as for derive helpers.
 #[proc_macro_attribute]
 pub fn libertas_ui_header(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+/// Data-titled row metadata on standalone type aliases: the field's value
+/// titles its struct's row and the argument names the sibling that supplies
+/// the row's value. Schema extraction owns the argument; Studio owns the
+/// placement rules.
+#[proc_macro_attribute]
+pub fn libertas_ui_name(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+/// Marks a List of structs whose member rows take no title from the List.
+/// Presentation metadata only; Studio owns the placement rule.
+#[proc_macro_attribute]
+pub fn libertas_suppress_title(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
@@ -513,6 +532,8 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_device_type,
     libertas_virtual_device_type,
     libertas_ui_header,
+    libertas_ui_name,
+    libertas_suppress_title,
     libertas_foldable,
     // Requests that clients render the long description beside the short
     // display name. This is presentation metadata only.

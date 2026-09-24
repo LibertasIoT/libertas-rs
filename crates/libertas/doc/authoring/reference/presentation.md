@@ -111,6 +111,16 @@ exception: look it up directly on the field declaration for promotion and
 directly on any type declaration with children for flattening. Do not inherit or merge
 these markers through ordinary attribute resolution; neither overrides `Hidden`.
 
+`ReadOnly` restricts the user only: clients present the value and offer no
+ordinary editing control for it. It never restricts the platform or the
+application. Schema initialization (Fixed, Default, localized defaults),
+`CopyFrom` from a Response or the reference context, `EditRequest` values,
+calculation `CopyTo` results, draft restoration and the application's own
+handling of the submitted value all write a ReadOnly field exactly as they
+write an editable one. A value that must not change after initialization is
+`Fixed`, not ReadOnly. Hidden fields are ReadOnly in effect, since no editor
+shows them, and are written the same way.
+
 `ReadOnly` on an Array/List prevents changing its membership or order: no Add,
 Remove, or reorder action may mutate that list. It does not recursively make
 member values read-only; members and their fields keep their own editability.
@@ -282,8 +292,9 @@ declaration**, `use_parent_name=false` also omits its name-only row; its childre
 remain visible and editable at the flattened level. A promoted field still has
 a value row, using its own field name when the struct name is suppressed. A
 List member retains its position and membership controls without the struct
-name. A suppressed struct row cannot collapse its children. Hidden still
-suppresses the whole subtree.
+name. The dropdown of a suppressed struct row passes to the first row the
+struct still produces, as [folding](#folding-structs-and-unions) describes.
+Hidden still suppresses the whole subtree.
 
 On Union and Array/List declarations the option does not hide their selector or
 collection row. The field's direct option controls ordinary promotion naming;
@@ -328,6 +339,80 @@ Protocol actions remain owned by the enclosing protocol variant, even when its
 header is another Union. See [protocol transaction stack](endpoint-presentation.md#protocol-transaction-stack).
 Separate same-indent Union rows retain their own edit/removal ownership;
 sharing an indentation level does not make them the same data object.
+
+## UIName: data-titled rows
+
+`@LibertasUIName(value_field)` in TypeScript and `#[libertas_ui_name(value_field)]`
+in Rust mark one String or FormattedText field of a struct as its **name
+field** and name a sibling as its **value field**. Wherever the struct is
+presented as a row, the name field's value is the row's title and the value
+field's value is the row's value. The schema carries
+`{"Name":"UIName","Value":"<value field native name>"}` on the name field.
+Use direct lookup on the declaration, as for `TableHeader`; resolving a type
+reference does not transfer the marker.
+
+`TableHeader` gives a row a documentation title and one promoted value;
+`UIName` gives it a data title and one named value. A struct declares one or
+the other.
+
+### Placement
+
+Studio rejects the marker unless all of these hold:
+
+- It is on a field declared directly in an effective Table, of effective type
+  String or FormattedText, nullable or not. Not on a type, a Union, a List, a
+  function parameter, or a protocol root.
+- Its value is the native name of another field declared directly in the same
+  effective Table, inherited fields included: not a path, not the name field
+  itself, not Hidden, and not a union tag field or discriminator.
+- At most one name field per effective Table, counting inherited fields.
+- The Table has no promoted `TableHeader` field. Both would claim the row's
+  value.
+- The name field is ReadOnly or Hidden. Its value is server-supplied; nothing
+  edits a title.
+
+### Presentation
+
+The row is the same node that owns the fold arrow, the menu and, for a List
+member, the position and membership controls. Only what it shows changes:
+
+- The title is the name field's value.
+- The value slot follows the promotion rules for the value field's kind: a
+  scalar keeps its formatting and editor, a Union shows its selected variant
+  and opens the selector, a composite keeps its children.
+- Neither the name field nor the value field has a row of its own. The value
+  field's display name and description title its editor, its help and its
+  accessibility description; the name field's do the same for the title.
+- The other visible children render beneath the row as usual. Type-level
+  flattening and [folding](#folding-structs-and-unions) apply independently.
+- A List member keeps the List's title, "member name #n", in front of the
+  name: the row reads List title, then name value, then value. Only
+  [`SuppressTitle`](#suppresstitle-untitled-list-members) removes the List's
+  part; nothing is inferred from the member.
+- A null or empty name falls back to the ordinary title, with its position for
+  a List member, so a row is never blank. A client that does not understand
+  the marker shows the ordinary presentation.
+
+### SuppressTitle: untitled List members
+
+`@LibertasSuppressTitle` in TypeScript and `#[libertas_suppress_title]` in Rust
+mark a List field or List type whose effective member type is a Table. The
+schema carries `{"Name":"SuppressTitle","Value":"true"}`. Studio rejects the
+marker on any other host, including a List of primitives or Unions, whose
+member rows have no title but the List's.
+
+The marked List contributes no title to its member rows: no member name and
+no position. Each member row shows only what its struct produces, its
+`UIName` value as the title when it has one, and its value slot; a struct
+without a name field shows an untitled row with its promoted value. The
+membership controls, the menu and the fold arrow stay on the row. The marker
+changes no data and is ignored by a client that does not understand it.
+
+### Presentation only
+
+Encoding, paths, `CopyFrom`, `CopyTo`, `EnumSource`, validation, comparison,
+digests, ordering, uniqueness and generated documents are unchanged. The
+marker supplies no default and makes no field optional.
 
 ## Date and time
 
@@ -931,6 +1016,20 @@ remain editable independently of folding.
 For a TableHeader-promoted union, the shared owning row may fold when either
 the owning Table or the promoted union has Foldable on its type or field.
 TableHeader promotion and union-child flattening remain independent of folding.
+
+When a struct's own row is suppressed by `TableHeader` with `use_parent_name=false`
+on its type declaration, the dropdown passes to the first row the struct still
+produces: its [data-titled row](#uiname-data-titled-rows) from `UIName`, else
+its promoted `TableHeader` field's row, else the row of its first visible
+field. That row carries the fold arrow and, when the struct is Foldable,
+collapses the remaining sibling rows beneath it; its own value stays editable
+as usual. Hidden fields produce no row and are skipped; a struct that produces
+no rows folds nothing. A List member whose struct row is suppressed keeps its
+position and membership controls on that same row.
+
+A marker that hides the dropdown icon, making a container visibly unfoldable,
+is reserved for a later revision; until then an unmarked container may still
+show an inert arrow as described above.
 
 ## Unanswered fields and null
 

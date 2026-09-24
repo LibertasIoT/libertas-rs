@@ -34,6 +34,12 @@ Hub, so the return can be reopened later from any device. Large pages can
 restore field edits that were completed on the same device; unfinished typing
 is discarded.
 
+Each person's return is their own. Every request carries the signed-in user's
+identity in a hidden field that the Hub verifies against the session before
+the App sees it, and the App keeps each user's return in that user's own
+database, so two people using the same task never see or touch each other's
+answers.
+
 The sections, in the order a filer meets them:
 
 1. **About this return** — tax year, filing status and the basic choices that
@@ -124,29 +130,30 @@ It calculates the common ones completely and reports the others as
 unsupported. The lists below name forms; the interview asks in plain language
 and maps the answers to them.
 
-**Calculated:** Form 1040 with Schedules 1, 2, 3, A, B, C, D, E (page 1), EIC,
-SE, H, R and 8812; income documents W-2, W-2G, 1098, 1098-E, 1098-T, 1099-INT,
-1099-DIV, 1099-OID, 1099-G, 1099-K, 1099-NEC, 1099-MISC, 1099-R, 1099-SA and
-1099-B with Form 8949; and Forms 2439, 2441, 4137, 4952, 5329, 6198, 7203,
-8582, 8606, 8615, 8839, 8853, 8863, 8880, 8889, 8936, 8959, 8960, 1099-Q and
-8396.
+**Calculated:** Form 1040 with Schedules 3, A, C, D, EIC, H, R and 8812;
+income documents W-2, W-2G, 1098-E, 1098-T, 1099-R, 1099-SA and 1099-B with
+Form 8949; and Forms 2439, 2441, 2555, 4136, 4137, 4952, 5695, 7203, 8396,
+8582, 8606, 8615, 8834, 8839, 8853, 8859, 8863, 8880, 8889, 8936 and 8959.
 
-**Calculated for the common situations, with named exceptions:** Schedules F
-and J; Schedules K-1 from partnerships, S corporations and estates or trusts;
-Forms 1116, 2555, 3800, 4136, 4562, 4684, 4797, 4972, 5695, 6251, 7206, 8283,
-8801, 8814, 8829, 8958, 8962, 8995 and 8995-A, and Form 982 debt cancellation.
-The interview names the exception when one applies.
+**Calculated for the common situations, with named exceptions:** Schedules 1,
+2, B, E (page 1), F, J and SE; income documents 1099-INT, 1099-DIV, 1099-G,
+1099-K, 1099-NEC, 1099-MISC, 1099-Q and 1098; Schedules K-1 from partnerships,
+S corporations and estates or trusts; Forms 1116, 3800, 4562, 4684, 4797,
+5329, 6198, 6251, 7206, 8283, 8801, 8911, 8958, 8960, 8962, 8995 and 8995-A,
+and Form 982 debt cancellation. The interview names the exception when one
+applies.
 
 **Not yet calculated:** Form 2210 underpayment penalties and the next-year
-estimated-tax computation; Forms 2106, 3903, 8815, 8862, 8332 and 2120, 1310;
-Forms 4835, 6252, 6781, 8824, 8915-F, 8938, 8379, 8857 and the Schedules K-3;
-and the small-employer, investment, housing and alternative-fuel credits
-(Forms 3468, 4255, 8586, 8881, 8910, 8911, 8941, 8994). Nonresident returns
+estimated-tax computation; Forms 1099-OID, 2106, 3903, 4972, 8814, 8815,
+8829 (the simplified home-office method is calculated on Schedule C), 8862,
+8332 and 2120; Forms 4835, 6252, 6781, 8824, 8915-F, 8938, 8379, 8857 and the
+Schedules K-3; and the small-employer, investment, housing and alternative-fuel
+credits (Forms 3468, 4255, 8586, 8881, 8910, 8941, 8994). Nonresident returns
 (Form 1040-NR) and foreign partnership reporting (Form 8865) are outside the
 prototype's scope.
 
 **Deferred with filing:** vouchers, extensions, amended returns, direct deposit,
-identity-theft affidavits and the other filing-administration forms.
+identity-theft affidavits, Form 1310 and the other filing-administration forms.
 
 ## Sources and limits
 

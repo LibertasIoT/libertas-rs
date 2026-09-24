@@ -583,7 +583,13 @@ Every direct input field has CopyFrom under the
 [shared source contexts](schema.md#context-and-syntax): calculation inputs may
 read the current editor first, then reference objects in the
 [interaction context order](#interaction-reference-context). Native
-discriminators are transport metadata, not calculation inputs.
+discriminators are transport metadata, not calculation inputs. Neither is a
+Fixed field: it is filled by ordinary initialization, never by copying editor
+data, so it needs no CopyFrom and is never a dependency. A
+`Fixed("current-user")` User field is resolved from the authenticated session
+and verified by the Hub on the calculation request under the
+[security constraint](schema.md#fixed-current-user-security-constraint) as on
+any other request; every other Fixed input takes its declared value.
 Only the constructed calculation request must be complete and valid to send;
 the parent editor may still contain undefined, unencodable fields.
 
@@ -632,7 +638,8 @@ requirement.
 Studio validates typed paths in every reachable invoking request occurrence,
 including reusable record types and nested arrays. It resolves named types and
 each declared ancestor selector symbolically under the [Libertas Schema Path rules](schema.md#typed-ancestors-and-bound-occurrences), then validates suffixes, input coverage, type and
-nullability compatibility, Fixed/ConstrainedBy protection, overlapping writers,
+nullability compatibility, Fixed protection, overlapping writers including the
+implicit writers of [calculated allowed sets](#calculated-allowed-sets),
 and direct/indirect cycles. Distinct instances writing their own array items are
 not overlapping writers; an enclosing whole-list write overlaps those items.
 Runtime checks still enforce actual values, bounds, and stale-instance ownership.
@@ -724,7 +731,9 @@ field types, nullability, numeric semantics and money currency. Distinct
 calculations cannot write overlapping destinations: writing a Table/List also
 writes its descendants. Mutually exclusive response variants of the same
 calculation may write the same destination. Assignments within one response
-must not overlap. Studio rejects direct and indirect calculation cycles.
+must not overlap. Studio rejects direct and indirect calculation cycles,
+including cycles through a ConstrainedBy source, since writing a source counts
+as writing every field it constrains ([calculated allowed sets](#calculated-allowed-sets)).
 ReadOnly prevents user edits, not calculation assignments. Fixed destinations and Fixed descendants
 cannot be overwritten (Union discriminators remain transport metadata). Applications own meaningful default values and whether
 an editable destination is appropriate for an automatically assigned result.
@@ -1732,12 +1741,13 @@ and resolves against the **current request's selected payload**.
 It is not an expression, an interaction reference context lookup, or a list of alternatives.
 
 The source is a non-nullable list of non-nullable integers. It must be Hidden,
-either directly or inside a hidden cookie. Populate it from backend response
-data through CopyFrom, including copying its containing cookie, or supply it
-directly in EditRequest. It is immutable for that editor's lifetime without an
-additional ReadOnly annotation. Neither user edits nor calculation replies may
-replace the source or containing data to change the set. The backend supplies a
-new set by opening a new editor.
+either directly or inside a hidden cookie. The service writes it and the user
+never does: populate it from backend response data through CopyFrom, including
+copying its containing cookie, supply it directly in EditRequest, or assign it
+from a field calculation reply through CopyTo under the
+[calculated allowed sets](#calculated-allowed-sets) rules. Between those
+writes the set is stable; ordinary editing never replaces the source or its
+containing data.
 
 For an Enumeration, entries are its declared numeric values. For a Union,
 entries are its original schema discriminants, never positions in the filtered
@@ -1756,30 +1766,70 @@ submission with a field error. Clients do not silently replace a conflicting
 prefill; the application must supply consistent values and cookies.
 
 Studio checks field placement, effective enum/union type, root-path resolution,
-integer-list source shape, hidden source ancestry, and calculation CopyTo
-conflicts in every request occurrence. Runtime clients check actual cookie
-values, selection membership, and immutability. These are ordinary client data
-constraints; the backend continues to own application-level combination rules.
+integer-list source shape, hidden source ancestry, and the calculation writers
+of each source in every request occurrence. Runtime clients check actual cookie
+values and selection membership, and reject user edits of a source. These are
+ordinary client data constraints; the backend continues to own
+application-level combination rules.
 Historical edits must follow the [saved-page consistency rule](#saved-page-consistency-after-historical-edits)
 so resumed values and allowed sets remain consistent.
+
+### Calculated allowed sets
+
+A successful [field calculation](#field-calculation-requests) Response field
+may `CopyTo` a ConstrainedBy source, or data containing it, under the ordinary
+CopyTo rules. This lets the service change which choices a page offers while
+the page stays open, from what has been entered so far.
+
+Studio treats such a calculation as a writer of every field the source
+constrains, in addition to the source itself, for the overlapping-writer and
+cycle checks. Consequently two calculations cannot write the same source, a
+calculation cannot also write a field whose allowed set another calculation
+writes, and a calculation cannot read, directly or through other calculations,
+a field whose allowed set it writes. The last rule is what makes a reply unable
+to trigger itself: the acyclic dependency graph is proved with the constrained
+fields counted as outputs.
+
+When a client applies a result that changes a source, it re-filters every
+chooser reading that source. A current selection inside the new set, and its
+payload, are untouched. A current selection outside the new set is reset
+through ordinary initialization exactly as a calculation destination is reset,
+discarding a removed Union branch's payload with it; that reset is an input
+change for calculations reading the field and propagates through the
+dependency graph like any other result. The reset and the assignment are one
+atomic editor change. A source reset while its calculation is pending, because
+an input changed, does not reset the selection: the chooser offers the reset
+set until the reply arrives, the selection is retained, and submission
+validates it against the current set as usual.
+
+A restored [draft](annotations.md#cacheidentity) brings its calculated
+sources with it and the seeded calculations recompute them; a source no
+calculation writes must still match the current editor.
 
 
 ## Default request entry and dynamic actions
 
 `#[libertas_default_request]` / `@LibertasDefaultRequest` marks at most one
-Request variant in an Endpoint protocol Union. Its effective payload must be
-Nil, it must carry Request, and it cannot be ExcludeUI. It supplies no user
-input and requires no reference context. A chart-producing request cannot be
+Request variant in an Endpoint protocol Union. It must carry Request, cannot
+be ExcludeUI, and its effective payload must need no user input: Nil, or a
+Table whose every field is Hidden or ReadOnly and carries Fixed (including
+`Fixed("current-user")`) or a Default, applied recursively to nested Tables.
+The client initializes such a payload and sends it without opening an editor;
+a `Fixed("current-user")` field is filled with the authenticated user under
+its [security constraint](schema.md#fixed-current-user-security-constraint),
+so a per-user endpoint can identify the caller from its first request. It
+requires no reference context. A chart-producing request cannot be
 DefaultRequest: none of its declared NextResponse payloads may contain Chart or
 Chart3D, including referenced types and nested fields. Studio validates these
-conditions. DefaultRequest is optional; it is never inferred from a Nil payload.
+conditions. DefaultRequest is optional; it is never inferred from an
+input-free payload.
 
 An explicit DefaultRequest owns initial interactive entry, including when the
 protocol also has a default subscription. Without the explicit marker, the
 existing default subscription remains the initial data source. With neither,
 the landing presents the available requests in declaration order, using chart
-previews instead of rows for chart requests with executable inputs. A Nil
-payload alone never makes a Request the default. Invoke an explicit default
+previews instead of rows for chart requests with executable inputs. An
+input-free payload alone never makes a Request the default. Invoke an explicit default
 request as a client-owned correlated
 Request, never as a pooled subscription. While pending, show loading; an error
 keeps retry available. A late or duplicate reply cannot reopen an interaction

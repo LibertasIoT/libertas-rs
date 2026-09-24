@@ -73,7 +73,9 @@ the complete [hidden-context rule](../reference/protocols.md#hidden-protocol-con
 
 - A parameterless Request is not implicitly a default. Without a default entry,
   the landing lists requests, with executable chart requests shown as previews.
-- Mark at most one effective-Nil Request with `DefaultRequest`; it owns initial
+- Mark at most one input-free Request with `DefaultRequest` (Nil, or only
+  hidden/read-only Fixed or Default fields such as a hidden
+  `Fixed("current-user")` caller); it owns initial
   entry without needing user input or a reference context. Chart-producing
   requests cannot carry this marker. With no explicit marker, retain default
   subscription behavior; with neither, present the request-list landing.
@@ -195,6 +197,21 @@ new change removes that instance's queued entry and appends it to the tail.
 Keep the in-flight transaction's invoking node immutable; rebuild and validate
 deferred requests only at dispatch. See [ordering](../reference/protocols.md#request-and-response-ordering)
 and [deferred calculations](../reference/protocols.md#changes-resets-and-deferred-calculation).
+
+A calculation request's Fixed inputs need no CopyFrom: a hidden
+`Fixed("current-user")` User field is resolved from the session and verified by
+the Hub like any request, and any other Fixed input takes its declared value;
+every non-Fixed input declares CopyFrom.
+
+A calculation reply may `CopyTo` a field-level `ConstrainedBy` source and so
+change a page's allowed choices while it is open. Studio counts that
+calculation as a writer of every field the source constrains, so it cannot
+read such a field directly or through other calculations, and no other
+calculation may write it. Applying the reply re-filters the chooser: a
+selection outside the new set resets through ordinary initialization and
+triggers the calculations reading it; one inside it is untouched; a source
+reset while pending never resets the selection. See
+[calculated allowed sets](../reference/protocols.md#calculated-allowed-sets).
 
 Array removal uses dependency scope, not later row positions: cancel removed-item
 work, preserve unaffected surviving item-local work, and reschedule calculations

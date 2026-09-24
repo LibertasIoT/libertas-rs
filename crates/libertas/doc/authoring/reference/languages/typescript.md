@@ -425,6 +425,7 @@ they are not additional public authoring forms. `@LibertasFormattedText` and
   their native declarations; these attributes have independent meanings.
   On `LibertasUser`, Fixed is a [Hub-enforced security constraint](../schema.md#fixed-current-user-security-constraint); only `current-user` is valid, at a request root or within nested request values outside Lists, optionally Hidden.
 - **`@LibertasUIHeader(use_parent_name=true)`**: The optional Boolean defaults to true (parent display name); false selects the promoted field display name. Attribute presence enables field promotion or type-child flattening by direct declaration lookup. Existing `TableHeader=true` schemas keep the default. See [header promotion and nested Union selectors](../presentation.md#tableheader-promoted-fields-and-union-selectors). On a struct declaration, false also hides its name-only row while keeping children visible.
+- **`@LibertasUIName(value_field)`**: On a ReadOnly or Hidden `string` or formatted-text field, the field's value titles the struct's row and the named sibling's value is the row's value; neither field has a row of its own. **`@LibertasSuppressTitle`** on an array of structs, or on its type alias, stops the array from titling its member rows. See [data-titled rows](../presentation.md#uiname-data-titled-rows) and [untitled list members](../presentation.md#suppresstitle-untitled-list-members); Studio enforces the placement rules.
 - **`@LibertasUIIncludeDescription`**: No-argument client presentation marker for a schema data field or type. The UI node displays its localized long description inline together with its short display name. It does not change the typed value or wire encoding.
 - **`@LibertasPermissions(CONST_NAME)`**: Resolves a const string array into the comma-delimited `Permissions` schema attribute. Valid on functions, where every permission needs a matching non-empty string-resource reason, and on built-in Endpoint servers, where no reason resource is required.
 - **`@LibertasAccessHost("host1,host2")`**: Function-only network declaration. Concrete DNS names and reserved `{network_access_local}` / `{network_access_external}` grants each need a non-empty same-key reason in package `StringResources`. See [App network access](../network-access.md).
@@ -1654,10 +1655,10 @@ Libertas supports full localization of your package documentation. If your prima
 `@LibertasConstrainedBy("$.allowed_choices")` constrains an enum or union request field using a hidden,
 backend-provided integer list in the current request. See the
 [complete contract](../protocols.md#backend-constrained-choices) for numeric identity,
-initialization, immutability, validation, and payload editing.
+initialization, calculated allowed sets, validation, and payload editing.
 
 
-Default endpoint entry uses `@LibertasDefaultRequest` on an effective-Nil Request variant. Response-level ConstrainedBy filters NextRequest through a hidden integer array. See [default entry and dynamic actions](../protocols.md#default-request-entry-and-dynamic-actions).
+Default endpoint entry uses `@LibertasDefaultRequest` on a Request variant whose payload needs no user input (Nil, or only hidden/read-only Fixed or Default fields). Response-level ConstrainedBy filters NextRequest through a hidden integer array. See [default entry and dynamic actions](../protocols.md#default-request-entry-and-dynamic-actions).
 
 For large workflow request payloads, `@LibertasCacheIdentity` marks direct root-record
 identity fields for opt-in draft recovery. Small requests omit it. See the
