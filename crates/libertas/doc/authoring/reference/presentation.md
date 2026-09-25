@@ -1030,6 +1030,15 @@ For a TableHeader-promoted union, the shared owning row may fold when either
 the owning Table or the promoted union has Foldable on its type or field.
 TableHeader promotion and union-child flattening remain independent of folding.
 
+The collapsed task editor value is a short presentation summary, never a
+recursive JSON-like rendering of its children. A Table with a promoted value
+field shows that field's normal formatted value. A Union shows its selected
+variant name, including when the variant has a scalar payload. A List shows its
+visible item count (for example, “3 items” or “0 items” when empty); a List
+whose members are all hidden shows no count. An ordinary Table with no promoted
+value shows no value text beside its title and fold control. Null remains
+distinct from an empty List or a Table without a summary.
+
 When a struct's own row is suppressed by `TableHeader` with `use_parent_name=false`
 on its type declaration, the struct still assigns a dropdown owner, in this
 order: the row of a child carrying the `TableHeader` field marker, which is

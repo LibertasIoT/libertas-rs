@@ -14,6 +14,9 @@ is mandatory for CodeBot-authored Apps. See the
 
 After saving schema-affecting source changes, use Studio’s `compile_schema`
 tool when available and follow the [compiler workflow and result contract](../reference/app-contract.md#schema-compilation-with-codex).
+Deploy only when the user requests it. The MCP deployment tools require an
+exact Hub choice and report the result through a job; follow the
+[MCP deployment contract](../reference/deployment.md#mcp-deployment).
 
 ## Application model
 

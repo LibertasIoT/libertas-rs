@@ -1883,6 +1883,20 @@ invocation. Existing explicit DefaultRequest entry, default subscriptions, and
 chart previews retain their own rules. WorkflowRequest and EditRequest
 continue to require their existing explicit editor submission.
 
+### Request editor variant identity
+
+A request editor composes exactly one protocol variant, fixed by its entry
+point: a chooser selection, a direct link, an explicit DefaultRequest, or a
+server-delivered EditRequest or WorkflowRequest. The editor's root row is that
+variant, never a selector over the Endpoint protocol Union. Android, iOS, and
+Libertas Studio must not offer the protocol's other variants from the root
+row, on tap, long-press, or any other row action, and must not render the
+root with a selectable-union affordance. Changing the request type means
+leaving the editor and choosing another action. Unions inside the request
+payload keep their ordinary variant selection. The **Actions** surface belongs
+to an accepted response only; a request editor has none, so nothing in it may
+open an action chooser or navigate to another request.
+
 ### Control endpoint landing and native Back
 
 A task with multiple endpoints opens an **endpoint list**. Default subscription

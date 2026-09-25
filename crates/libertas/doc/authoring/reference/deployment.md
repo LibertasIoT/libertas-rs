@@ -47,6 +47,30 @@ If any deployment or read-back fails, Studio stops before submitting its
 dependents. It never predicts the Hub version, and `0.0.0.0` is not a valid
 dependency entry.
 
+## MCP deployment
+
+Studio's MCP server exposes `list_deployment_hubs`, `deploy_app`, and
+`deployment_status` to Codex and Claude Code. Deployment requires an explicit
+request from the user, a saved local Rust or TypeScript App project directory,
+and an exact registered Hub ID returned by `list_deployment_hubs`. VS Code and
+Libertas Studio must remain open. Hub credentials remain in Studio and are not
+returned by the tools.
+
+`deploy_app` returns a job ID immediately. Studio parses and validates the
+schema, confirms developer mode on the selected Hub, plans the complete
+dependency closure, prepares localized documents, and compiles an executable
+TypeScript App before submission. If preflight fails, the job reports a
+failure without starting the deployment queue. After preflight, Studio deploys
+automatically; there is no schema review or Submit step. Poll
+`deployment_status` for the current phase, package audit, progress, and final
+success or error. A failed package stops later packages. Rust source is built
+by the Hub during deployment. If it needs native build packages that require
+approval, the MCP job fails and reports the plan; use Studio's interactive
+deployment to review and approve that installation.
+
+`compile_schema` remains a separate, Hub-independent validation tool. Its
+success alone does not establish exact Hub dependency pins or deploy the App.
+
 ## Schema availability and task requirements
 
 At runtime, `AppDependencies` is both the client's complete package-fetch list and

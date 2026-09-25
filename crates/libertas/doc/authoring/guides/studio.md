@@ -12,25 +12,34 @@ tasks, and clients; [developing Apps](developing-apps.md) introduces source work
 The Hub runs the task. Studio's deployment prepares the software that a task
 will use; deployment alone does not create a configured task.
 
-## Using the schema compiler with Codex
+## Using Studio MCP with Codex or Claude Code
 
-You can check App schemas before connecting a Hub. Install Node.js so `node`
-is available on your PATH, install the project's dependencies, and open Studio.
+You can check App schemas before connecting a Hub, then ask your coding agent
+to deploy after the App passes validation. Install Node.js so `node` is
+available on your PATH, install the project's dependencies, and open Studio.
 
-1. Run **Libertas: Configure Schema Compiler for Codex** from the Command Palette.
-   This registers Studio's compiler in your Codex user configuration, preserving
-   unrelated settings. It applies to Codex CLI and its IDE extension.
-2. Restart Codex or its IDE extension to load the `compile_schema` tool.
-3. Ask Codex to edit the App and validate its saved source. For example:
-   “Add the requested configuration field, then use compile_schema to fix any
-   schema errors and run the App's tests.”
+1. Run **Libertas: Configure Studio MCP for Codex** or **Libertas: Configure
+   Studio MCP for Claude Code** from the Command Palette. The Codex command
+   preserves unrelated user settings; the Claude Code command requires its
+   `claude` command to be installed and available on your PATH.
+2. Restart the selected coding agent to load the MCP tools.
+3. Ask it to edit the App and validate saved source. For example: “Add the
+   requested configuration field, use `compile_schema` to fix schema errors,
+   then run the App's tests.”
+4. When ready, explicitly ask it to deploy to a named registered Hub. The
+   agent uses `list_deployment_hubs` to get the exact Hub ID, calls
+   `deploy_app` with that ID and the absolute project directory, and polls
+   `deployment_status` until the job succeeds or fails. Keep VS Code and
+   Libertas Studio open throughout deployment.
 
-The server supplies the validation workflow to Codex automatically. Request
+The server supplies the validation and deployment workflow to the agent. Request
 artifacts when you want to inspect the root and all dependent schemas; ordinary
 checks return compact diagnostics. See the
 [schema compilation contract](../reference/app-contract.md#schema-compilation-with-codex)
-for inputs, dependency completeness, and validation limits. After updating
-Studio, activate it once to refresh the registered compiler launcher.
+for inputs, dependency completeness, and validation limits. The
+[MCP deployment contract](../reference/deployment.md#mcp-deployment) covers
+automatic submission, progress, and errors. After updating Studio, activate
+it once to refresh the registered MCP launcher.
 
 ## Managing Libertas Hubs
 
@@ -78,36 +87,42 @@ publishing to Plaza is a separate workflow.
 
 ### 1. The Deployment Workflow
 
-When you initiate a deployment using the `Libertas: Deploy to a Hub` command or the **Deploy** button in the Libertas Sidebar:
+When you initiate a deployment using the `Libertas: Deploy to a Hub` command or the **Deploy** button in the Libertas Sidebar, select a project if prompted:
 
-1. **Compilation Validation**:
-   Studio compiles TypeScript projects locally (`tsc`) to verify there are no
-   syntax or semantic errors. Rust applications are uploaded as source and built
-   natively by the selected Hub.
-2. **Local Schema Parsing**:
-   Studio extracts the schema and default-locale documentation from TypeScript
-   JSDoc or Rust source/rustdoc. The declared `DefaultLocale` applies; omission
-   means `en`.
-3. **Dependency preflight**: Review the complete dependency-first plan. It
+1. **Local schema parsing**: A deployment tab opens immediately and shows an
+   indeterminate waiting screen while Studio extracts and validates the schema
+   and default-locale documentation from TypeScript JSDoc or Rust source/rustdoc.
+   Parsing can take several dozen seconds. The declared `DefaultLocale` applies;
+   omission means `en`. Parsing errors appear in this tab.
+2. **Hub selection**: After parsing, choose a registered Hub in the same tab.
+   A deployment started from a Hub card preselects that Hub. Studio then confirms
+   developer mode and shows any failure in the tab.
+3. **Dependency preflight**: Studio prepares the complete dependency-first plan. It
    distinguishes deployable local projects, package-cache comparison inputs,
    and exact Plaza transitive releases. Missing source, incompatible schemas,
    cycles, unresolved exact releases, or conflicting pins stop before install.
-4. **Dependency installation**: Studio installs and verifies the approved
-   closure before submitting the local App. The
-   [dependency contract](../reference/deployment.md) defines the exact checks,
-   version rules, and read-back behavior. A failed dependency stops its dependents.
-5. **Hub Metadata Synchronization & Patching**:
-   * The extension connects to your selected Hub and fetches any existing metadata, schemas, and translated localized documents.
-   * **Automatic Structural Patching**: If the app already exists on the Hub, the extension automatically patches existing localized translation files. It aligns translated text by native schema identity where possible and warns
-     when changed structure needs review. See the
-     [translation migration guarantees](../reference/translation.md#migration-guarantees).
-6. **Finalizing with the Schema Editor**:
-   The Schema Editor Panel opens in Deploy/Submit mode, allowing you to preview and finalize your metadata.
-7. **Git-Friendly Local Workspace Sync**:
+4. **Compilation validation**: Studio type-checks and bundles executable
+   TypeScript projects locally. Rust source is built natively by the Hub after
+   submission. Types-only packages skip executable compilation. Preparation
+   progress and errors remain in the deployment tab.
+5. **Hub metadata and translations**: Studio uses current Hub metadata and
+   patches existing localized documents against the new structure, preserving
+   translated text by native schema identity where possible. Review changed
+   structure as described in the
+   [translation migration guarantees](../reference/translation.md#migration-guarantees).
+6. **Schema review**: The Schema Editor replaces the preparation screen in the
+   same tab. Review the requested package and any read-only referenced packages.
+   For a multi-package deployment, its notice shows the dependency-first queue
+   and explains that a failure stops later packages. Choose **Submit** to start.
+7. **Local workspace sync**:
    When you click **Submit**, the extension synchronizes and saves all finalized localized translation files (`.doc.json`) directly back into your local workspace folder, so you can review and commit the changed files. Studio does not commit them for you.
-8. **Upload and native prerequisite check**:
-   Studio securely uploads the compiled schema signature and patched localized
-   documents. For an executable Rust package, the Hub parses the uploaded
+8. **Deployment and build progress**: The tab becomes the Build Monitor. Studio
+   installs and verifies exact Plaza dependencies first, then deploys local
+   packages in dependency order. A failed dependency stops its dependents. The
+   [dependency contract](../reference/deployment.md) defines the exact checks,
+   version rules, and read-back behavior. Studio uploads the generated schema,
+   localized documents, and executable code or Rust source. For an executable Rust
+   package, the Hub parses the uploaded
    `Cargo.toml` before admitting the build. If explicitly declared native build
    packages are missing, deployment automatically opens a modal containing the
    complete APT plan. **Install and Continue** applies that short-lived plan and

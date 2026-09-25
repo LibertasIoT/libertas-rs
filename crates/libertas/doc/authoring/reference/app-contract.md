@@ -89,9 +89,10 @@ source or generated files, or deploy. No Hub connection is required. Success
 means source schema validation passed; it does not establish exact deployed
 dependency-version bindings or replace Studio's deployment checks.
 
-The tool's instructions tell Codex to follow this edit-and-validate workflow.
-See [Studio setup](../guides/studio.md#using-the-schema-compiler-with-codex)
-for registration and an example prompt.
+The tool's instructions tell Codex and Claude Code to follow this
+edit-and-validate workflow. See [Studio setup](../guides/studio.md#using-studio-mcp-with-codex-or-claude-code)
+for registration and an example prompt. Deployment uses the separate
+[MCP deployment contract](deployment.md#mcp-deployment).
 
 ## Type model
 
