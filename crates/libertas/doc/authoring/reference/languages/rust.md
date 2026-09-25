@@ -1970,6 +1970,7 @@ ordinary `libertas_endpoint_response` helper and `#[libertas_workflow_request]`.
 See the [workflow contract](../protocols.md#workflow-interactions).
 
 `#[libertas_foldable]` permits manual folding on a struct, union, or list type or field; `#[libertas_foldable(initially_open = false)]` starts it collapsed. See [folding structs and unions](../presentation.md#folding-structs-and-unions).
+`#[libertas_inline_choices]` on an enum declaration or an enum-typed field shows its choices inline as radio controls; see [inline choices](../presentation.md#inline-choices).
 
 ## Backend-constrained choices
 

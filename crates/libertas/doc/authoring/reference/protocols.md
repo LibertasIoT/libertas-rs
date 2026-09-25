@@ -1902,6 +1902,91 @@ invocation. Existing explicit DefaultRequest entry, default subscriptions, and
 chart previews retain their own rules. WorkflowRequest and EditRequest
 continue to require their existing explicit editor submission.
 
+### Row actions
+
+A displayed Response offers some of its NextRequest actions on its data rows.
+The candidates are the Response's actions after the
+[constrained, access, and ExcludeUI filtering](#response-action-constraints).
+On an endpoint list or landing with no installed Response, each displayed
+endpoint value that declares NextRequest offers its actions the same way.
+For each candidate Request, the client collects every CopyFrom in the Request
+payload, including nested fields and referenced types, and resolves each one
+against the displayed value as ordinary CopyFrom would: the first alternative
+that yields an available value, including a valid null. That value's row
+carries the Request as its tap action; a Request whose CopyFrom paths resolve
+to several rows is offered on each of them. A tap is a direct link: the client
+constructs the Request through ordinary CopyFrom with the displayed value's
+[interaction reference context](#interaction-reference-context) and then
+applies the [single-action presentation rule](#single-action-confirmation-and-input-presentation),
+so a Request with no editable input field sends at once. When several
+Requests land on one row, the tap opens the existing request chooser, and the
+chosen Request remains a direct link. The Actions surface keeps offering every
+candidate.
+
+<a id="row-actions-bound-to-a-list-member"></a>
+
+**Bound List member.** An ordinary CopyFrom on a Request that a Response names
+in NextRequest may bind the tapped member of a List in that Response, using
+either [typed-ancestor form](schema.md#typed-ancestors-and-bound-occurrences)
+that calculations use for their invoking item:
+
+- The relaxed member type `^<Type>`, where `Type` is the element type of
+  exactly one List reachable in that Response through Table fields and selected
+  Union branches without crossing another List. A name that matches a protocol
+  variant selects that variant instead.
+- The strict member selector `^<ResponseVariant.field.item>`, which names the
+  Response variant, then Table fields and selected Union branches down to one
+  List, and ends with that List's element native name; it crosses no other List.
+
+Both forms denote the tapped member, and ordinary field and literal index
+suffixes follow them. Real schemas use the relaxed form today: both parsers
+emit an empty native name for a List element, so no strict selector can name
+it yet, and calculations already bind their invoking item the relaxed way
+(`^<IncomeDocumentItem>.document`). The strict form becomes usable once the
+parsers emit element names.
+
+```rust
+#[libertas_response]
+#[libertas_next_request("OpenTopic")]
+Hub {
+    topics: Vec<TopicRow>,
+    #[libertas_hidden]
+    suggested: TaxSection,
+},
+
+#[libertas_request]
+OpenTopic {
+    #[libertas_hidden]
+    #[libertas_copy_from("^<TopicRow>.section,$.suggested")]
+    section: TaxSection,
+},
+```
+
+Every member row of that List carries the action, and a tap constructs the
+Request with the tapped member bound: `^<TopicRow>.section` reads that
+member's `section`. Every member selector of the same List in the Request binds
+the same member; a selector of another List is unbound on that tap. The
+remaining alternatives follow the ordinary row rule above with the selector
+unbound, so `$.suggested` also gives the `suggested` row the action. From
+Actions, a menu, automatic singleton selection, or any other entry with no
+tapped member, the selector is unbound and unavailable: the next alternative in
+the CopyFrom list applies, or the field keeps its ordinary initialization,
+including undefined, when none remains. The binding belongs to that one request
+construction. It is not a reference object, is never stored or transmitted, and
+a later construction in the same interaction, including another tap, does not
+inherit it.
+
+Studio rejects a member selector on a Request that no Response names in
+NextRequest and an incompatible source type or nullability. It rejects a
+relaxed member type that no List of a naming Response holds, and one held by
+several Lists of one Response as ambiguous. It rejects a strict selector whose
+variant is not a Response naming that Request, or that does not resolve to a
+List member on that Response or crosses another List.
+
+A constrained singleton is still [selected automatically](#response-action-constraints),
+and its presentation covers the rows. A Response that wants tappable rows
+therefore declares no ConstrainedBy on its actions.
+
 ### Request editor variant identity
 
 A request editor composes exactly one protocol variant, fixed by its entry

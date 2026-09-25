@@ -102,6 +102,12 @@ the complete [hidden-context rule](../reference/protocols.md#hidden-protocol-con
   cannot send. Never auto-submit workflow editors.
   Invalid entries reject the update without an unrestricted
   fallback. Existing access and ExcludeUI checks still apply.
+- Rows offer actions: a legal Request whose CopyFrom resolves to a displayed
+  row is that row's tap action (a direct link). To make every member of a
+  Response List tappable, copy through its member type
+  `^<TopicRow>.section,$.suggested`; with no tapped member (Actions,
+  menus, automatic selection) the next alternative applies. Such a Response
+  declares no `ConstrainedBy`. See [row actions](../reference/protocols.md#row-actions).
 - A response with no visible content presents only its legal actions while
   retaining hidden cookies for CopyFrom. Visible content presents a data
   screen. WorkflowRequest and EditRequest open editors without auto-submission.

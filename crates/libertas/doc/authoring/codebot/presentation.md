@@ -23,10 +23,15 @@ behavior; configuration-only examples need no invented protocol or persistence.
 
 Use `Default` only for initial data, `UIHeader` for [field promotion and flattening types with children](../reference/presentation.md#tableheader-promoted-fields-and-union-selectors),
 `UIIncludeDescription` when a UI node must show both its short display name and
-long description inline, `ReadOnly` and `Hidden` for presentation, `Unordered`
+long description inline, `InlineChoices` on an Enumeration or Union field or
+type (not Bitflags) whose few choices should render as [inline radio controls](../reference/presentation.md#inline-choices),
+`ReadOnly` and `Hidden` for presentation, `Unordered`
 and `Unique` for List semantics, `Size` for bounds, and `EnumSource` only on an
 unsigned integer storing a same-tree List index. Check the
 [annotation catalog](schema_annotations.md) before adding source syntax.
+A chooser with more than twelve choices — Enumeration, Bitflags, EnumSource, or
+a Union variant chooser — automatically shows a text filter field; no
+attribute is needed. See [filtering long choosers](../reference/presentation.md#common-field-metadata).
 
 ## Date and time
 

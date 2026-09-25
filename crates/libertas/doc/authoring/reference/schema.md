@@ -138,6 +138,7 @@ handling.
 | --- | --- | --- |
 | EnumSource; EndpointBaseObjects/BaseObjects | `$`, `@`, or one or more `^`, followed by named child segments | Root, annotated host, or actual parents in that schema-data tree. EnumSource takes one path; BaseObjects takes a comma-delimited list. |
 | Ordinary CopyFrom | Strict `^<Variant>` or `^<Variant.field...>` with a field/index suffix; `$` root-relative shorthand also remains supported; comma-delimited alternatives | The [current interaction reference context](protocols.md#interaction-reference-context), when present. |
+| Ordinary CopyFrom: row-action member | Relaxed `^<Type>` naming the element type of exactly one List in the Response, or strict `^<ResponseVariant.field...item>` whose last name is one List's element; either with a field/index suffix, on a Request named in that Response's NextRequest; neither crosses another List | The tapped member of that List in the displayed Response when the Request is constructed from that member's row; otherwise unbound, so the next alternative applies. See [row actions](protocols.md#row-actions-bound-to-a-list-member). |
 | CopyFrom when constructing a PrevRequest action | The same variant-rooted or root-relative copy syntax | The construction context contains the current edited request as its reference object. |
 | Calculation CopyFrom/CopyTo | Root-relative copy syntax, parent-relative `^`/`^^`, relaxed `^<Type>`, or strict `^<Variant.field.item>` with a field/index suffix | Inputs use the current-editor-first lookup defined by the [interaction reference-context owner](protocols.md#interaction-reference-context); the editor and a reference object may designate the same value. CopyTo addresses the corresponding bound current-request destination. See [calculation requests](protocols.md#field-calculation-requests). |
 | AppendTo | Exactly one `Variant.field` using native names | A root array of an admitting working SubscriptionData; see [array append](protocols.md#subscriptiondata-array-append). |
@@ -217,6 +218,24 @@ permit CalculationRequest on protocol variants. These current-request bindings
 do not exclude calculation inputs from the interaction reference context; see
 [calculation requests](protocols.md#field-calculation-requests). The two logical
 contexts do not require separate stored copies.
+
+Ordinary CopyFrom accepts one bound occurrence: the **tapped member** of a
+[row action](protocols.md#row-actions-bound-to-a-list-member). The relaxed
+`^<TopicRow>.section` names the element type of exactly one List in the
+Response, reached through Table fields and selected Union branches without
+crossing another List; a name matching a protocol variant selects that variant
+instead. In the strict `^<Hub.topics.topic>.section`, the first name is a
+Response variant and the last name is the element of a List in it; the names
+between select Table fields and selected Union branches and cross no other
+List. Real schemas use the relaxed form today: both parsers emit an empty
+native name for a List element (the same holds for calculation selectors), so
+the strict form becomes usable once they emit element names. The Response remains the
+reference object; the binding only selects which of its members the selector
+denotes, namely the member whose row the user tapped. With no tapped member,
+from Actions, a menu, automatic selection, or any other entry, the selector is
+unbound, which is unavailable rather than null, and CopyFrom continues with the
+next alternative. Parent-relative `^` remains calculation-only, and a relaxed
+`^<Type>` in ordinary CopyFrom denotes only this tapped member.
 
 Bindings belong to the operation. A later reply cannot retarget another item
 because it occupies the same index; different items remain distinct invocation
@@ -607,6 +626,7 @@ by the current parsers and shared validator.
 | `TableHeader` | Presence enables [header promotion/type flattening](presentation.md#tableheader-promoted-fields-and-union-selectors). Its Boolean string value encodes use_parent_name: true (default and existing schemas) uses the parent display name; false uses the field name. On a struct declaration, false hides its name-only row. Union values remain selected-variant display names. |
 | `UIName` | Its value names a sibling field. The marked String or FormattedText field's value titles the struct's row and the named field's value is the row's value ([data-titled rows](presentation.md#uiname-data-titled-rows)); neither has a row of its own, and a List member so titled drops its position. Studio enforces the placement rules there. |
 | `SuppressTitle` | Marker on a List whose effective member type is a Table: the List contributes no title to its member rows, neither member name nor position ([untitled List members](presentation.md#suppresstitle-untitled-list-members)). |
+| `InlineChoices` | Exact marker value `true` on an Enumeration or Union field or type declaration, never a Bitflags catalog. Clients show the permitted choices inline as radio controls ([inline choices](presentation.md#inline-choices)). |
 | `UIIncludeDescription` | Exact marker value `true`. Clients render the node's localized long `Description` inline together with its short `DisplayName`; it changes presentation only, not the typed value or wire encoding. |
 | `TimeInterval` | Displays a numeric value as a duration. It does not create a distinct wire type. |
 | `DateOnly` | Exact marker value `true` on an integer `Number`. The stored and wire value is a valid Gregorian calendar date in decimal `yyyyMMdd` form; clients present a date chooser and localized calendar-date labels without applying a timezone. |

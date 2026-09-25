@@ -141,6 +141,16 @@ uses the item's scalar display value or its promoted `TableHeader`; a composite
 without a scalar header uses its display name. Numbered labels distinguish
 repeated names. Money and explicit scalar formats retain their normal display.
 
+A chooser with more than twelve permitted choices — this EnumSource picker, an
+Enumeration picker, a [Bitflags](#bitflags) multiple-choice picker, or the
+[Union variant chooser](#tableheader-promoted-fields-and-union-selectors) that
+opens when a promoted or unpromoted value is tapped — shows a text filter
+field above its list. Typing filters the visible choices by a case-insensitive
+substring match against each choice's localized display name and description;
+it never changes the permitted set, its order, or the selection, and clearing
+the field shows every choice again. The current selection stays visible and
+selected even when the query would otherwise filter it out.
+
 The source uses a [Libertas Schema Path](schema.md#context-and-syntax) in the
 current data tree; it does not read the interaction reference context. An explicit Default or
 Fixed retains ordinary initialization; otherwise the selection is unanswered.
@@ -200,7 +210,8 @@ the row label, uniformly for scalar, Table, List, and Union fields:
 
 For a promoted Union, the selected variant's display name supplies the row value;
 the option changes the label, not that selected value. Tapping that value opens
-the choice selector. Selecting another variant replaces the applicable fields.
+the choice selector, unless the Union shows [inline choices](#inline-choices).
+Selecting another variant replaces the applicable fields.
 The selector remains available even when the selected variant has no fields.
 A List member appends its one-based position to the chosen row label
 (for example, “Household #1” with the default or “Marital status #1” with
@@ -999,6 +1010,38 @@ Required Booleans without a default are explicit, initially unselected choices.
 An explicit Boolean Default permits a switch only when no custom labels exist.
 Use localized [TrueText and FalseText document properties](documentation.md#standard-properties)
 for labels such as Accept and Decline. Display labels never change wire values.
+
+## Inline choices
+
+`InlineChoices` shows an Enumeration's or Union's choices in its row as radio
+controls, the way [Boolean answer controls](#boolean-answer-controls) render,
+instead of a value that opens the choice selector. Author it as
+`@LibertasInlineChoices` in TypeScript or `#[libertas_inline_choices]` in
+Rust. It takes no argument and emits `{"Name":"InlineChoices","Value":"true"}`.
+
+Place it on an Enumeration or Union field, or on an Enumeration or Union type
+declaration. As for [TableHeader](#tableheader-promoted-fields-and-union-selectors),
+each declaration is read directly, not through effective-attribute resolution:
+a marker on either the field or its type enables inline choices, and a field
+cannot switch off its type's marker. Studio rejects the marker on any other
+effective type and on a Bitflags catalog, including a field typed by one.
+
+- The radio controls offer the choices that remain after
+  [ConstrainedBy](protocols.md#backend-constrained-choices) filtering, with
+  their localized display names. Selecting one is the same edit as choosing it
+  in the selector; an unanswered field shows no selected control.
+- For a Union, the selected branch's payload renders beneath the row as it does
+  after choosing in the selector. Selecting another choice replaces the
+  applicable fields.
+- The singleton allowed set and answered-Union rules of
+  [backend-constrained choices](protocols.md#backend-constrained-choices) are
+  unchanged.
+- Visibility, read-only, TableHeader promotion, and folding rules still apply;
+  the marker does not make a read-only value editable.
+
+There is no size threshold: a row grows with its choices, so mark only fields
+whose choices fit. The marker changes presentation only, never data, encoding,
+or paths. A client without inline support keeps the choice selector.
 
 ## Folding structs and unions
 
