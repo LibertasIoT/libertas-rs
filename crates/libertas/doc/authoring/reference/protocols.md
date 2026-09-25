@@ -1765,6 +1765,25 @@ data, an empty allowed set, or a prefilled choice outside the set blocks
 submission with a field error. Clients do not silently replace a conflicting
 prefill; the application must supply consistent values and cookies.
 
+**Singleton allowed set.** When a non-nullable field is undefined and its
+current allowed set has exactly one entry, the client selects that choice
+through ordinary initialization, exactly as a Union
+[`Default`](schema.md#43-value-constraint-and-presentation-attributes) selects
+its variant. The field is not locked: a Union branch's payload stays editable,
+submission still validates membership, and nothing is submitted automatically.
+A nullable field is not selected, because null is a complete answer. When a
+[calculated allowed set](#calculated-allowed-sets) shrinks to one entry while
+the field is undefined, the same selection is part of that atomic editor
+change; if the set later widens, the selection stays as an ordinary one.
+
+**Answered selections.** A Union with a selected branch is answered, whether
+the branch came from a `Default`, a singleton allowed set, or a restored
+[draft](annotations.md#cacheidentity). When an editor opens, the client opens
+the first unanswered value; when a List member is added while the page is
+open, it opens the member's header field only while that field is unanswered.
+Neither opens the chooser of an answered Union: only a Union with no selection
+is a candidate.
+
 Studio checks field placement, effective enum/union type, root-path resolution,
 integer-list source shape, hidden source ancestry, and the calculation writers
 of each source in every request occurrence. Runtime clients check actual cookie
