@@ -11,6 +11,9 @@ struct Editor {
 #[test]
 fn constrained_by_preserves_native_values() {
     // Helpers consume source metadata; Studio, not rustc, validates schema hosts.
-    let value = Editor { allowed: vec![0, 2], choice: 2 };
+    let value = Editor {
+        allowed: vec![0, 2],
+        choice: 2,
+    };
     assert!(value.allowed.contains(&value.choice));
 }

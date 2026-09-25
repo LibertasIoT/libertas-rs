@@ -10,7 +10,10 @@ struct MoreEntries {
 
 #[test]
 fn append_annotations_preserve_payload_and_index() {
-    let report = MoreEntries { added_entries: vec![Some("new".into()), None], start_index: u64::MAX };
+    let report = MoreEntries {
+        added_entries: vec![Some("new".into()), None],
+        start_index: u64::MAX,
+    };
     assert_eq!(report.added_entries.len(), 2);
     assert_eq!(report.added_entries[1], None);
     assert_eq!(report.start_index, u64::MAX);

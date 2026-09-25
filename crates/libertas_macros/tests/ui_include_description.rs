@@ -1,4 +1,4 @@
-use libertas_macros::{libertas_export, libertas_ui_include_description, LibertasExport};
+use libertas_macros::{LibertasExport, libertas_export, libertas_ui_include_description};
 
 #[libertas_ui_include_description]
 type Mode = u32;

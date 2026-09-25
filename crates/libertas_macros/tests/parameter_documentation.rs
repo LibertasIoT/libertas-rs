@@ -1,4 +1,4 @@
-use libertas_macros::{libertas_export, libertas_data_error_status};
+use libertas_macros::{libertas_data_error_status, libertas_export};
 
 /// Example function
 /// Accepts a documented configuration value.

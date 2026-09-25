@@ -1,6 +1,4 @@
-use libertas_macros::{
-    libertas_export, libertas_range_max, libertas_range_min, LibertasExport,
-};
+use libertas_macros::{LibertasExport, libertas_export, libertas_range_max, libertas_range_min};
 
 #[libertas_range_min("{$.minimum} | null")]
 #[libertas_range_max("{$.maximum} | null")]
@@ -15,7 +13,9 @@ struct Settings {
 
 #[libertas_export]
 fn configure(
-    #[libertas_range_min("0")] #[libertas_range_max("100")] percentage: Percentage,
+    #[libertas_range_min("0")]
+    #[libertas_range_max("100")]
+    percentage: Percentage,
 ) -> Settings {
     Settings { percentage }
 }

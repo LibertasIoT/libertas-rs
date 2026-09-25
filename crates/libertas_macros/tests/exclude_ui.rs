@@ -1,4 +1,4 @@
-use libertas_macros::{libertas_export, LibertasExport};
+use libertas_macros::{LibertasExport, libertas_export};
 
 #[derive(LibertasExport)]
 enum Protocol {

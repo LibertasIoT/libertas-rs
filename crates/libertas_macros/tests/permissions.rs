@@ -1,4 +1,4 @@
-use libertas_macros::{libertas_export, libertas_permissions, LibertasExport};
+use libertas_macros::{LibertasExport, libertas_export, libertas_permissions};
 
 #[allow(dead_code)]
 const APP_PERMISSIONS: &[&str] = &["devices.read", "devices.control"];

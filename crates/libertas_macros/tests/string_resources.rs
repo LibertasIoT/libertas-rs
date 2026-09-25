@@ -23,6 +23,8 @@ struct ReusableOutput {
 #[test]
 fn invalid_resource_placements_pass_through_for_studio_validation() {
     assert!(run());
-    let value = ReusableOutput { value: String::new() };
+    let value = ReusableOutput {
+        value: String::new(),
+    };
     assert!(value.value.is_empty());
 }
