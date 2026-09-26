@@ -69,6 +69,22 @@ responses are not searched. First entry must work without prior context.
 Hidden is not authorization; validate submitted context on the server. Follow
 the complete [hidden-context rule](../reference/protocols.md#hidden-protocol-context).
 
+## Where a Request is offered
+
+One table decides how the user reaches each Request and what keeps it off a
+menu. A Request is reached only through the mechanisms its declarations name;
+nothing is inferred.
+
+| The Request is … | The user reaches it through | Not offered anywhere else |
+| --- | --- | --- |
+| named in the displayed Response's `NextRequest` | the **Actions** menu, filtered by `ConstrainedBy`, access and `ExcludeUI`; a lone survivor is selected automatically | |
+| the target of a `Link` on a displayed value (it must also be in that `NextRequest`) | one tap on that row while it is in the filtered set | add `LinkOnly` and it leaves Actions, menus, landings and the singleton count |
+| the target of a `Link` on a request-editor field | the row's link button; a plain reply returns through `CopyTo`, a NextRequest/EditRequest/WorkflowRequest reply replaces the editor | |
+| named by `CalculationRequest` on an editor field | automatically when that input changes; the reply is applied, never shown | never in Actions, since it is not in any `NextRequest` |
+| the `DefaultRequest` | sent at endpoint entry with no editor | cannot be `LinkOnly` or `ExcludeUI` |
+| delivered as `EditRequest` or `WorkflowRequest`, or named in `PrevRequest` | the server opens it; Back constructs a `PrevRequest` target | |
+| none of the above | the request-list landing, only when the endpoint has no default entry and the Request is not `LinkOnly` | `ExcludeUI` removes it everywhere, links included |
+
 ## Default entry and backend-selected actions
 
 - A parameterless Request is not implicitly a default. Without a default entry,
