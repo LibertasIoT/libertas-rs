@@ -211,6 +211,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     || attr.path().is_ident("libertas_device_type")
                     || attr.path().is_ident("libertas_foldable")
                     || attr.path().is_ident("libertas_inline_choices")
+                    || attr.path().is_ident("libertas_link")
                     || attr.path().is_ident("libertas_cache_identity")
                     || attr.path().is_ident("libertas_ui_header")
                     || attr.path().is_ident("libertas_ui_name")
@@ -426,6 +427,14 @@ pub fn libertas_inline_choices(_attr: TokenStream, item: TokenStream) -> TokenSt
     item
 }
 
+/// Names the one Request a tap on this field or named type declaration opens.
+/// Parser-only metadata: this macro does not alter the Rust value or its wire
+/// encoding, and Studio owns target resolution and placement.
+#[proc_macro_attribute]
+pub fn libertas_link(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 /// Declares pure Libertas data validation expressions on a function, named
 /// type, field, parameter, or other schema data-type node. Studio owns parsing
 /// and semantic validation; this macro deliberately leaves Rust code intact.
@@ -545,6 +554,8 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_foldable,
     // Renders an Enumeration's or Union's permitted choices inline.
     libertas_inline_choices,
+    // Names the Request a tap on this field or named type declaration opens.
+    libertas_link,
     // Requests that clients render the long description beside the short
     // display name. This is presentation metadata only.
     libertas_ui_include_description,
