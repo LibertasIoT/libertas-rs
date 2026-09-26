@@ -13,6 +13,72 @@ container text above `----` and singular item text below it. Put custom
 `[PropertyName]` blocks after ordinary text and before TypeScript schema tags.
 Follow the [documentation invariants](documentation_invariants.md).
 
+## Display Template
+
+This contract precedes its implementation: until Studio, the Hub, and the
+clients ship the template, published schemas keep the presentation attributes
+and clients render from them as today.
+
+Every package has one mandatory [Display Template](../reference/presentation.md#display-template),
+the sole runtime owner of how values are arranged and styled; it is not schema
+and never changes the App version. With no `display.json` and no presentation
+attributes the package compiles to the valid empty template, which renders the
+platform default. Presentation source attributes (`UIHeader`, `Foldable`,
+`InlineChoices`, `SuppressTitle`, `UIIncludeDescription`, `Format`, chart scale
+`kind` and guide `position`) remain the way to author defaults: Studio compiles
+them into the template at the lowest specificity and drops them from the
+schema. Device-specific arrangement goes in `display.json` at the project root,
+beside `Cargo.toml` or `package.json`; never edit the compiled template.
+
+Write each rule as four relations:
+
+- **Where the node is:** `select`, a [selector](../reference/schema.md#display-template-selectors):
+  `^<Variant>`, strict `^<Variant.field...>`, `^<function...>`, `$.field`, or
+  relaxed `^<Type>`; `[]` after a List selects its members and ` ...` every
+  descendant. A bare name matching both a variant or function and a named type
+  is rejected: write `package::Type`.
+- **What arranges it:** `layout` from the closed [catalog](../reference/presentation.md#display-template-catalog):
+  `rows` (default), `form-grid`, `card`, `table`, `tabs`, `master-detail`,
+  `accordion`, `stepper`, or `split`. Every layout except `rows` applies only
+  where a rule asks; `table` and `master-detail` also need the widening gate
+  (`form` `tablet` or `desktop`, or `width: expanded` without `height:
+  compact`) and otherwise render as `rows`. `master-detail` needs a `Link` on
+  the member type. `split` nests at most three levels and renders as `rows` on
+  phones unless a phone rule asks for it.
+- **What styles it:** `style` tokens (`density`, `emphasis`, `align`, `role`,
+  `color`, `spacing`, `span`, `icon`) and behavior hints (`inline`, `fold`,
+  `promote`, `suppress_title`, `include_description`, `format`, `scale`,
+  `guide`, `palette`). No CSS, pixels, literal colors, or fonts. `media` is
+  deferred until bytes fields have a MIME-type attribute.
+- **What changes it per device:** `when` with `width`, `height`,
+  `orientation`, `pointer`, `theme`, and `form`, evaluated against the nearest
+  pane; a list value means any, several keys must all hold. Widen layouts by
+  `form`, or `width` with `height`, never `width` alone.
+
+Data may also change presentation: `:condition(expression)` on the selector,
+or an ordered `switch` of cases with an optional `else`, uses ValidationRules
+expressions rooted at the node; `:pending`, `:error`, and `:selected` change
+style only. A condition may change style, layout, or fold state, never hide a
+field, make it read-only, or change a value: those are schema. Later rules win
+among equals in the [cascade](../reference/presentation.md#display-template-cascade), above
+source defaults; strict beats relaxed, and within each a `when` rule beats one
+without. Unknown tokens or layouts fall back to the
+platform default.
+
+Decide arrangement with this procedure:
+
+- A List of small records: `table` with `when` `form` `tablet` or `desktop`,
+  and `card` with `form: phone`.
+- An Enumeration or Union with at most four record-or-unit choices: `inline`.
+- A hub Response with a List whose member type has a `Link`:
+  `master-detail` with `form` `tablet` or `desktop`, `rows` on phones,
+  whatever the orientation.
+- More than about eight fields on a page: `sections` (groups of direct
+  children, each optionally titled by a `StringResources` key) with `tabs` or
+  `stepper`.
+- Numbers compared down a column: `align: end`.
+- A status value: `:condition(...)` or `switch` with `color` and `icon`.
+
 ## Common field metadata
 
 Proactively complete applicable metadata on every authored App: useful initial
@@ -21,16 +87,17 @@ inline help, and grouping. Review these choices before delivery without waiting
 for a separate user request. Each annotation must serve the App's actual
 behavior; configuration-only examples need no invented protocol or persistence.
 
-Use `Default` only for initial data, `UIHeader` for [field promotion and flattening types with children](../reference/presentation.md#tableheader-promoted-fields-and-union-selectors),
+Schema attributes: `Default` only for initial data, `Link` to make a row open a
+Request: it keeps the label and value, renders a non-editable value as link
+text with the whole row as tap target and an editable one with a trailing link
+button ([link rendering](../reference/presentation.md#link-rendering)), `ReadOnly` and `Hidden` for
+presentation, `Unordered` and `Unique` for List semantics, `Size` for bounds,
+and `EnumSource` only on an unsigned integer storing a same-tree List index.
+Template defaults: `UIHeader` for [field promotion and flattening types with children](../reference/presentation.md#tableheader-promoted-fields-and-union-selectors),
 `UIIncludeDescription` when a UI node must show both its short display name and
-long description inline, `InlineChoices` on an Enumeration or Union field or
-type (not Bitflags) whose few choices should render as [inline radio controls](../reference/presentation.md#inline-choices),
-`Link` to make a row open a Request: it keeps the label and value, renders a
-non-editable value as link text with the whole row as tap target and an
-editable one with a trailing link button ([link rendering](../reference/presentation.md#link-rendering)),
-`ReadOnly` and `Hidden` for presentation, `Unordered`
-and `Unique` for List semantics, `Size` for bounds, and `EnumSource` only on an
-unsigned integer storing a same-tree List index. Check the
+long description inline, and `InlineChoices` on an Enumeration or Union field
+or type (not Bitflags) whose few choices should render as
+[inline radio controls](../reference/presentation.md#inline-choices). Check the
 [annotation catalog](schema_annotations.md) before adding source syntax.
 A chooser with more than twelve choices — Enumeration, Bitflags, EnumSource, or
 a Union variant chooser — automatically shows a text filter field; no
@@ -48,7 +115,8 @@ runtime values must remain valid for the declared meaning.
 `Format` is one portable Unicode LDML display pattern. It never changes raw
 storage, parsing, validation, comparison, requests, persistence, or chart
 geometry. Use number grammar for ordinary Numbers and the applicable date/time
-grammar for DateOnly, DateTime, or TimeOnly; follow the
+grammar for DateOnly, DateTime, or TimeOnly. It compiles into the template's
+`format` hint, which a rule may change per device; follow the
 [full presentation contract](../reference/presentation.md#display-formats)
 for the supported subset.
 
@@ -94,7 +162,8 @@ braces, and apostrophe escapes in translation. See
 Charts belong on Response or SubscriptionData output. A primitive chart is a
 List of row Tables; the List owns the mark and direct row fields own channels.
 Compositions contain independently valid charts. Keep the ordinary structured
-view meaningful.
+view meaningful. Scale `kind`, guide `position`, and palette are template
+appearance; channels and every other chart property are schema.
 
 Every visible text value retains its semantic type: use an Enumeration for a
 closed vocabulary, `FormattedText` Bytes for dynamic App wording, and a typed

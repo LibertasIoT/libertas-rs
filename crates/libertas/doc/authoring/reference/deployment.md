@@ -21,7 +21,7 @@ dependency has successfully deployed. Studio therefore constructs
    dependencies** and exact **Plaza transitive dependencies**.
 2. Studio reads the selected Hub's exact Plaza distribution/architecture keys,
    searches Plaza for each direct package's latest target, downloads and verifies
-   its schema and selected localized document, and compares the source-generated
+   its schema, selected localized document, and Display Template, and compares the source-generated
    schema with the Plaza schema after removing deployment-owned dependency locks
    and revision metadata. The programming-language dependency version is never
    interpreted as a Plaza pin. A mismatch stops before Hub mutation.
@@ -47,6 +47,19 @@ If any deployment or read-back fails, Studio stops before submitting its
 dependents. It never predicts the Hub version, and `0.0.0.0` is not a valid
 dependency entry.
 
+## Display Template preflight and synchronization
+
+Every package deploys with its compiled
+[Display Template](presentation.md#display-template). Preflight compiles it
+from source and compares its digest with the Hub's current template for that
+package, as it compares the schema and the selected localized document. A
+template difference alone is a document-only change: the Hub stores the new
+template, advances `targetVersion`, and preserves the App version, schema, and
+artifact, with no rebuild. A schema or code change deploys the template with
+the new App version. Synchronization converges the template with the
+documents under the [document rules](publication.md#display-template-identity),
+and an unchanged template writes nothing.
+
 ## MCP deployment
 
 Studio's MCP server exposes `list_deployment_hubs`, `deploy_app`, and
@@ -58,7 +71,7 @@ returned by the tools.
 
 `deploy_app` returns a job ID immediately. Studio parses and validates the
 schema, confirms developer mode on the selected Hub, plans the complete
-dependency closure, prepares localized documents, and compiles an executable
+dependency closure, prepares localized documents and the Display Template, and compiles an executable
 TypeScript App before submission. If preflight fails, the job reports a
 failure without starting the deployment queue. After preflight, Studio deploys
 automatically; there is no schema review or Submit step. Poll

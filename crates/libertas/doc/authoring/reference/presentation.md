@@ -2,7 +2,9 @@
 
 Presentation attributes preserve the underlying typed value and wire encoding.
 They tell Studio and clients how to validate, edit, localize, summarize, or
-chart the value.
+chart the value. How a value is arranged and styled on a device belongs to the
+package's [Display Template](#display-template); the attributes that only
+change that are compiled into it.
 
 ## Source documentation
 
@@ -76,6 +78,380 @@ These hints describe the tool JSON representation. They do not change App
 storage or protocol encoding, supply missing values or dynamic choices, or
 execute copying or calculations.
 
+## Display Template
+
+This contract precedes its implementation. Until Studio, the Hub, Android, and
+iOS ship the Display Template, published schemas keep carrying the
+presentation attributes and clients render from them as today. Because the
+modern Hub is unreleased, the transition happens in one step: the template
+arrives and the attributes leave the schema together, with no mixed period or
+compatibility path.
+
+Every App package has exactly one **Display Template**, version 0.1: the
+presentation layer that decides how the values its schema describes are drawn
+on a given device. The schema owns what the App accepts, sends, computes,
+protects, or means; the template owns only how the same value is arranged and
+styled. A template can make a correct App look worse, never make it incorrect.
+This section owns the template's file, compiled form, cascade, conditions,
+catalog, and behavior hints. The [Libertas Schema Path](schema.md#display-template-selectors)
+owns its selector grammar and [publication](publication.md#display-template-identity)
+owns its identity and delivery.
+
+- **Mandatory.** Every package has a template, including a TypesOnly package.
+  A package with no presentation attributes and no `display.json` compiles to
+  the empty template. The empty template is valid, has a digest and a
+  documents-manifest entry, and renders exactly the platform default.
+- **Sole runtime owner of presentation.** Clients read TableHeader promotion
+  and flattening, folding, inline choices, SuppressTitle, UIIncludeDescription,
+  the `Format` display pattern, and chart appearance only from the template.
+  The source attributes remain the authoring convenience: Studio validates
+  them, compiles every occurrence into a template rule at the lowest
+  specificity, and removes them from the final schema. Each attribute's section
+  below keeps its authoring text and meaning; the template is where that
+  meaning reaches a client.
+- **Not part of the schema.** The template is absent from the schema JSON, its
+  revision digest, and the App version. A template change is a document-only
+  revision: it never rebuilds the App or allocates an App version.
+- **Opt-in arrangement.** `rows`, one row per child, is the default layout.
+  Every other layout applies only where a rule asks for it and, for a gated
+  layout, only while its gate holds; otherwise the node renders as `rows`.
+- **Presentation only.** No rule, condition, or device state can hide a field,
+  make it read-only, change a value, or change what is sent. A condition may
+  change style, layout, or fold state only. Hidden, ReadOnly, and every other
+  schema rule apply before and regardless of the template.
+- **Forward tolerant.** A client that meets a token value, layout, hint, or
+  member it does not know uses the platform default for that item and applies
+  the rest of the rule, so a newer template never breaks an older client.
+
+### Template boundary
+
+An attribute belongs in the schema when changing it would change what the App
+accepts, sends, computes, protects, or means. It belongs in the template when
+changing it would only change how the same value is drawn on one device. Apply
+three tests in order:
+
+1. **Does the server or the wire depend on it?** Encoding, defaults,
+   nullability, ranges, uniqueness, validation, copies, calculations, action
+   sets, access, and identity are schema.
+2. **Does it state what the value is or means?** Money and currency, units,
+   dates, formatted text, labels, help text, and which fields a chart encodes
+   are schema; meaning is content, localized with the strings.
+3. **Would a different choice be right on another screen size?** Promotion,
+   folding, inline choices versus a chooser, an inline description, density,
+   arrangement, and chart appearance are template, with the source attribute as
+   the default rule.
+
+| Schema only | Compiled into the template (the source attribute is the default rule) |
+| --- | --- |
+| Hidden, ReadOnly, Fixed, Default, Nullable, Size, Number ranges, Unique, Unordered | TableHeader promotion and flattening, with `use_parent_name` |
+| ValidationRules, RangeMin, RangeMax, EnumSource, ConstrainedBy | Foldable and `initially_open` |
+| CopyFrom, CopyTo, CalculationRequest, Link, LinkOnly | InlineChoices |
+| NextRequest, NextResponse, PrevRequest, WorkflowRequest, DefaultRequest, ExcludeUI | SuppressTitle, UIIncludeDescription |
+| AccessPrivilege, CacheIdentity | `Format` display pattern and precision, never the value or currency |
+| Money, PhysicalUnit, DateOnly, FormattedText, UIName, descriptions | Chart scale type, guide position, and palette |
+| Chart channel bindings: which field is x, y, color, or tooltip | Template-only concepts: layout, density, emphasis, device conditions |
+
+Unordered and ExcludeUI look presentational, but the wire and the protocol
+depend on them, so they stay in the schema. `Format` looks semantic, but
+`Money` already carries the currency and the precision that matter to the
+value, so the display pattern moves. Studio enforces the table: a rule member
+that is not in the [catalog](#display-template-catalog), including every
+schema-only attribute, is rejected.
+
+### Display Template file
+
+The source of truth is `display.json` at the project root, beside
+`Cargo.toml` or `package.json`, under version control. There is one file per
+project; device variance is expressed inside it as conditions, never as a
+second template for a locale or platform. A missing file is valid and compiles
+to a template holding only the rules derived from source attributes. Studio's
+editor writes this file in place through the same validated writer as a hand
+edit, never a second copy. The Hub stores only the compiled, published copy
+and never accepts a template Studio did not compile from source.
+
+```json
+{
+  "DisplayVersion": 1,
+  "rules": [
+    { "select": "^<Hub.topics>[]", "layout": "rows", "style": { "emphasis": "primary" } },
+    { "select": "^<Hub>", "when": { "form": "tablet" }, "layout": "master-detail",
+      "detail": "^<Hub.topics>[]" },
+    { "select": "^<Review.return_lines>", "when": { "form": "desktop" }, "layout": "table",
+      "columns": ["form_line", "amount"] },
+    { "select": "^<IncomeDocumentItem>", "layout": "card", "when": { "form": "phone" } },
+    { "select": "^<Answer>", "inline": true },
+    { "select": "^<Business.expenses>", "fold": { "initially_open": false } },
+    { "select": "$.estimate:pending", "style": { "emphasis": "muted" } },
+    { "select": "^<TopicRow>:condition([status] is NeedsAttention)", "style": { "color": "error", "icon": "warning" } },
+    { "select": "^<Employee>", "when": { "form": ["tablet", "desktop"], "orientation": "landscape" }, "layout": "split", "direction": "row",
+      "regions": [
+        { "fields": ["photo"], "ratio": 1, "style": { "align": "center" } },
+        { "fields": ["name", "date_of_birth", "employee_id"], "ratio": 2, "layout": "form-grid", "columns": 2 }
+      ] }
+  ]
+}
+```
+
+The example is schematic: its names stand for an App's own variants, types,
+and fields. `DisplayVersion` is the JSON format version, like a document's
+`DocumentVersion`; version 0.1 of the template is `DisplayVersion` 1, and the
+number never chooses a winner in convergence. `rules` is an ordered array.
+
+A rule is one JSON object with these members:
+
+| Member | Required | Meaning |
+| --- | --- | --- |
+| `select` | Yes | One [selector](schema.md#display-template-selectors), optionally ending in a pseudo-state or a `:condition(...)` [data condition](#display-template-conditions). |
+| `when` | No | A [device condition](#display-template-conditions). Without it the rule applies on every device. |
+| `layout` | No | One [catalog layout](#display-template-catalog), with the layout-specific members its row names. |
+| `style` | No | An object of [style tokens](#style-tokens). |
+| `inline`, `fold`, `promote`, `suppress_title`, `include_description`, `format`, `scale`, `guide`, `palette` | No | [Behavior hints](#behavior-hints). |
+| `switch` | No | A [conditional switch](#display-template-switch) whose chosen case supplies the presentation members. A rule with `switch` has no other presentation member. |
+
+A rule has exactly one `select` and at least one presentation member, directly
+or through its switch. Members it does not name keep their inherited or
+default values. Studio rejects any other member.
+
+### Compiled template
+
+Studio compiles one template document per package, in this order:
+
+1. **Defaults:** one rule per occurrence of a source presentation attribute,
+   at the lowest specificity. A field attribute becomes a rule selecting that
+   field: `^<Type>.field` for a field of a named type, the strict path of each
+   occurrence for a field of an inline type, or `^<function>.parameter` for a
+   function parameter. A type-declaration attribute becomes a relaxed-type rule,
+   `^<Type>`. Type-derived defaults precede field-derived ones, so a field's
+   own attribute wins where both set the same hint.
+2. **Rules:** the rules of `display.json`, validated, in file order.
+
+```json
+{ "DisplayVersion": 1, "defaults": [], "rules": [] }
+```
+
+That is the empty template. Each derived rule reproduces its source
+attribute's meaning exactly, including direct declaration lookup: a TableHeader
+on a field yields a field `promote` rule and one on a type yields a type
+`promote` rule, and neither is inherited through effective-attribute
+resolution. The compiled template is derived and never edited by hand. Its
+identity is the SHA-256 digest of its canonical JSON, computed with the same
+canonicalization as the [schema revision digest](schema.md#113-revision-digest).
+`compile_schema` with `includeArtifacts` returns it beside each package's
+default document.
+
+### Display Template cascade
+
+A rule applies to a node when its selector matches the node, its `when` holds,
+its data condition or pseudo-state holds, and, for a switch, a case or `else`
+is chosen. Every presentation member resolves independently: the
+highest-ranked applicable rule that sets that member wins, and a layout
+resolves together with its layout-specific members. Ranks, lowest first:
+
+1. the platform default;
+2. a rule derived from a source attribute (`defaults`);
+3. a relaxed-type rule: a selector whose first form is `^<Type>`, or any
+   selector using `...`;
+4. the same with a `when` condition;
+5. a strict-path rule: `^<Variant>`, `^<Variant.field...>`, `^<function...>`,
+   or `$.field`, with or without `[]`;
+6. the same with a `when` condition.
+
+Among rules of equal rank, the later rule in compiled order wins. Data
+conditions, pseudo-states, and switches gate a rule; they never change its
+rank. The style tokens `density` and `emphasis` inherit down the value tree
+unless a descendant resolves its own; no other member inherits, and a layout
+never does.
+
+A screen uses the full template of the package that owns its displayed root:
+the Endpoint protocol Union's package for a protocol screen, and the function's
+package for a configuration editor or stored data. Nodes declared by another
+package additionally receive that package's `defaults`, so a type keeps its
+authored presentation wherever it is shown; the other package's `display.json`
+rules do not apply outside its own screens. Every package template a screen
+needs arrives with its schema.
+
+### Display Template conditions
+
+A `when` object accepts only these keys, each with a closed value set. A value
+may be a list, meaning any of the listed values (`"form": ["tablet",
+"desktop"]`); several keys in one `when` must all hold.
+
+| Key | Values | Meaning |
+| --- | --- | --- |
+| `width` | `compact` (under 600 dp), `medium` (600 dp up to 840 dp), `expanded` (840 dp and up) | How much fits across the pane now: the platform's window size class. |
+| `height` | `compact`, `medium`, `expanded`, with the same bounds | How much fits down the pane now. |
+| `orientation` | `portrait`, `landscape` | The pane's orientation. |
+| `pointer` | `coarse`, `fine` | Touch, or a mouse or trackpad. |
+| `theme` | `light`, `dark` | The active color theme. |
+| `form` | `phone`, `tablet`, `desktop`, `tv` | What the device is, not the window: `phone` when its smallest width in portrait is under 600 dp; `tablet` at 600 dp and up with a coarse pointer; `desktop` with a fine pointer and a resizable window; `tv` for a lean-back display. |
+
+Conditions use size classes and a form factor, never pixels. A 2160 px phone
+in landscape is about 800 dp wide (`width: medium`, `height: compact`,
+`form: phone`); a 32-inch monitor is `width: expanded`, `height: expanded`,
+`form: desktop`. A rule that widens a layout reads `form`, or `width` together
+with `height`, never `width` alone. The **widening gate** of `table` and
+`master-detail` holds when `form` is `tablet` or `desktop`, or when `width` is
+`expanded` and `height` is not `compact`.
+
+Conditions have container semantics: `width`, `height`, and `orientation` are
+evaluated against the nearest enclosing pane, not the window, while `form`,
+`pointer`, and `theme` describe the device. A list rendered
+in the left pane of a `master-detail` layout on a tablet sees that pane's width
+class.
+
+A selector may end in one runtime state or one data condition:
+
+| Condition | Holds when | May change |
+| --- | --- | --- |
+| `:pending` | The node owns an operation still awaiting its reply and shows the existing pending indicator: a submit, a link, or a calculation. | Style only |
+| `:error` | The node currently shows validation or submission feedback. | Style only |
+| `:selected` | The node is the selected member: the member shown in a `master-detail` detail pane, or the current `tabs` or `stepper` section. | Style only |
+| `:condition(expression)` | The expression, evaluated on the displayed value, is true. | Style, layout, or fold state |
+
+A data condition uses the [ValidationRules expression language](validation-rules.md)
+rooted at the selected node: `[]` is the node, `[status]` a child, curly
+references read the [interaction reference context](protocols.md#interaction-reference-context),
+and the same `|`, `is`, and comparison operators apply. The expression must be
+Boolean and reads only the selected node and the reference context. Absent
+data follows the expression language's null rules, and a condition that does
+not yield true does not apply.
+`^<TopicRow>:condition([status] is NeedsAttention)` with `color` and `icon`
+declares a status badge; no schema attribute is needed.
+
+A condition is re-evaluated whenever its inputs change. It may change style,
+layout, or fold state only. It can never hide a field, make it read-only,
+change a value, or change what is sent; those are schema.
+
+### Display Template switch
+
+A rule may carry a `switch` instead of a `:condition(...)` on its selector: an
+ordered `cases` list, each with a `condition` (a Boolean ValidationRules
+expression rooted at the selected node, with the same reads as a data
+condition) and its presentation members, and an optional `else`. Cases are
+evaluated in file order; the first true case applies and evaluation stops, so a
+later case never repeats an earlier test. When no case is true, `else`
+applies, and without `else` the rule does not apply. `when` stays at the rule
+level and gates the whole switch. `:condition(...)` on the selector is the
+one-case shorthand.
+
+```json
+{ "select": "^<TopicRow>", "switch": {
+    "cases": [
+      { "condition": "[status] is NeedsAttention", "style": { "color": "error", "icon": "warning" } },
+      { "condition": "[status] is Done",           "style": { "color": "primary", "icon": "check" } }
+    ],
+    "else": { "style": { "emphasis": "muted" } } } }
+```
+
+A switch has at least one case and at most one `else`; every case has a
+Boolean condition, and no case or `else` lacks a presentation member. A rule
+cannot have both a `:condition(...)` selector and a `switch`. Cases and `else`
+carry the same members as a rule except `select`, `when`, and `switch`.
+
+### Display Template catalog
+
+The catalog is closed: every renderer implements each layout, token, and hint
+below. There is no free-form CSS, pixel value, literal color, or font. Studio
+rejects a layout on a node kind its row does not allow.
+
+| Layout | Applies to | Behavior |
+| --- | --- | --- |
+| `rows` | Any node | The default: one row per child. |
+| `form-grid` | Table | Fields flow in declaration order into `columns` (1 to 4) per row, each as label and value. A field's `span` token takes more columns. `columns: 1` is the label-and-value form. |
+| `card` | Table or List member | A bordered block titled by the node's header text. |
+| `table` | List of Tables with scalar fields | One row per member; `columns` names the member fields shown, in order; an optional `sort` names one of them and orders the rows ascending by it for display only, never changing the List. Applies only while the [widening gate](#display-template-conditions) holds; otherwise `rows`. |
+| `tabs` | Union, or Table with `sections` | One tab per Union branch or section. |
+| `master-detail` | Response with one List | `detail` selects the List's members. The List shows in the leading pane; the tapped member's linked page shows in the trailing pane. The member type requires a [`Link`](protocols.md#links). Applies only while the widening gate holds; otherwise `rows`. |
+| `accordion` | Table or List | Folding sections with the [folding](#folding-structs-and-unions) behavior and `initially_open`. |
+| `stepper` | Table with `sections` | One section at a time with Previous and Next. A workflow's Submit stays on the last step. |
+| `split` | Table | Two or three `regions` in a `direction`, `row` or `column`. See below. |
+
+`sections` is an ordered list of `{ "fields": [...], "title": "KEY" }`
+objects. `fields` names direct children by native name; `title` optionally
+names a package [`StringResources`](#string-resources-and-formatted-output)
+key whose localized text titles the section, and without it the section is
+titled by its first field's display name. A child appears in at most one
+section, and unlisted children go to the last section.
+
+`split` is the one composable layout. Each region has a positive `ratio`, the
+direct children it holds as `fields`, optional `style`, and its own nested
+layout: `rows` (the default), `card`, `form-grid` with its `columns`, or
+another `split` with its own `direction` and `regions`. Splits nest at most
+three levels deep. A child appears in at most one region, and unlisted children
+go to the last region. On `form: phone` a split renders as `rows` unless a rule
+whose `when` holds on a phone asks for it. A split is how a photo on the left
+with name, date of birth, and employee ID as rows on the right is expressed;
+every other layout arranges all children one way.
+
+#### Style tokens
+
+| Token | Values |
+| --- | --- |
+| `density` | `compact`, `comfortable` |
+| `emphasis` | `primary`, `secondary`, `muted` |
+| `align` | `start`, `end`, `center` |
+| `role` | Typography role: `title`, `body`, `label` |
+| `color` | Platform color roles only: `primary`, `secondary`, `tertiary`, `error`, `surface`, `on-surface-variant` |
+| `spacing` | A five-step scale, `0` to `4` |
+| `span` | `1` to `4`: the columns a field takes inside a `form-grid` |
+| `icon` | One of `check`, `warning`, `info`, `lock`, `link`, drawn before the value; with `:condition(...)` it makes a status badge |
+
+Android maps tokens to Material 3 roles and window size classes, iOS to SwiftUI
+roles and size classes, and Studio to its control-view variables. A `media`
+token that renders a bytes field as a picture is **deferred**: the schema has
+no MIME-type attribute for bytes fields yet, and the token needs one to know
+what the bytes are. Until that schema attribute exists, `media` is not part of
+the catalog and a bytes field renders as it does today.
+
+#### Behavior hints
+
+Each hint has exactly the meaning its source attribute has; the linked section
+keeps that meaning and the authoring syntax.
+
+| Hint | Value | Source attribute and meaning |
+| --- | --- | --- |
+| `inline` | `true` or `false` | [InlineChoices](#inline-choices) on an Enumeration or Union node. |
+| `fold` | `true`, `false`, or `{ "initially_open": Boolean }` | [Foldable](#folding-structs-and-unions) on a Table, Union, or List; `true` means `initially_open` true, `false` makes the node unfoldable. |
+| `promote` | `true`, `false`, or `{ "use_parent_name": Boolean }` | [TableHeader](#tableheader-promoted-fields-and-union-selectors). On a rule selecting a field it promotes that field; on a relaxed-type rule selecting a type with children it flattens it, and `use_parent_name` false also hides a Table's name-only row. `true` means `use_parent_name` true. |
+| `suppress_title` | `true` or `false` | [SuppressTitle](#suppresstitle-untitled-list-members) on a List of Tables. |
+| `include_description` | `true` or `false` | [UIIncludeDescription](#common-field-metadata). |
+| `format` | One pattern string | [`Format`](#display-formats): only the portable pattern grammar that section defines, checked against the node's effective type; no other string is accepted. |
+| `scale` | One scale type token | The chart scale type of a scale-bearing chart field, under the [chart specification's](charts/2d.md#6-chartscale) type matrix. |
+| `guide` | One guide position token | The position of the selected field's chart guide, under the [guide position matrix](charts/2d.md#64-chartguide-generic-guides). |
+| `palette` | `auto`, `categorical`, `sequential`, or `diverging` | The color palette of a chart root; `auto` is the chart specification's default palette. |
+
+Every hint keeps its source attribute's placement rules, including the node
+kinds it may select, and a hint never makes a read-only value editable.
+
+### Template validation
+
+Studio's shared validator owns every template rule. It rejects a compiled
+template unless:
+
+- `DisplayVersion` is known and every rule has exactly one `select` and at
+  least one presentation member;
+- every selector resolves against the package schema under the
+  [selector grammar](schema.md#display-template-selectors), including its
+  name-collision rule;
+- a pseudo-state appears only on a rule whose only presentation member is
+  `style`;
+- every data condition and switch case parses under the ValidationRules
+  grammar, is Boolean, and reads only the selected node and the reference
+  context, and every switch meets the rules [above](#display-template-switch);
+- no rule member is outside the catalog, including every schema-only
+  attribute;
+- every layout selects a node kind its row allows; `master-detail` members
+  carry a `Link`; `table` columns and `sort` name scalar fields of the member
+  type; `sections`, `regions`, and `fields` name direct children; a `title`
+  names a package `StringResources` key; and splits nest at most three levels;
+- every hint satisfies its source attribute's placement rules and value
+  grammar, and every `when` key and value is from the closed sets.
+
+Rules of equal rank that set the same member on the same node are allowed, the
+later one winning, and are reported as a warning. Studio additionally lints
+minimum touch targets, the number of fields per screen, a required field folded
+closed on `width: compact`, and contrast by color role.
+
 ## Common field metadata
 
 `SizeMin`/`SizeMax` apply to Lists, Strings, and Bytes: respectively element
@@ -102,6 +478,9 @@ candidate. Declare an explicit default using the
 | Live Number/DateTime minimum | `@LibertasRangeMin("expression")` | `#[libertas_range_min("expression")]` |
 | Live Number/DateTime maximum | `@LibertasRangeMax("expression")` | `#[libertas_range_max("expression")]` |
 | Data-backed choice index | `@LibertasEnumSource("$.items")` | `#[libertas_enum_source("$.items")]` |
+
+The summary/header and inline-description rows are compiled into the
+[Display Template](#display-template); the others are schema.
 
 `Hidden` suppresses the complete value subtree, including list elements and
 controls, nested fields, summaries, and promoted values. Hidden data remains
@@ -180,6 +559,8 @@ UI node keeps its localized short `DisplayName` and also renders its localized
 long `Description` inline. Without the marker, clients retain their ordinary
 compact short-name presentation, including a description tooltip where one is
 available. The marker does not affect stored values, requests, or wire encoding.
+Studio compiles it into the [Display Template](#display-template) as the
+`include_description` hint, which clients read at runtime.
 
 For `Unordered`, AI tool-call descriptions automatically explain that order has
 no semantic meaning and that this attribute does not prohibit duplicates.
@@ -193,7 +574,10 @@ Use direct lookup on each declaration, not effective-attribute resolution:
 the field declaration controls promotion; any type declaration with children
 (Union, Struct/Table, Array/List) controls flattening. Resolving a type reference locates the declaration but does not
 transfer a field marker to it.
-Neither changes the encoded data hierarchy.
+Neither changes the encoded data hierarchy. Studio compiles each occurrence
+into the [Display Template](#display-template) as a `promote` rule, which is
+the runtime owner: clients read promotion and flattening only from the
+template, and a template rule may change either per device.
 
 ### Field promotion
 
@@ -241,15 +625,15 @@ The source declarations are:
 #[libertas_ui_header(use_parent_name = false)]
 ```
 
-In schema JSON, the attribute's Boolean string value carries this option:
+In the parser result, the attribute's Boolean string value carries this option:
 `{"Name":"TableHeader","Value":"true"}` selects the parent name and
 `{"Name":"TableHeader","Value":"false"}` selects the field name when placed on a field,
 or hides a struct declaration's name row as described below. Attribute
 presence enables promotion or flattening; `false` does **not** disable TableHeader.
-Omitting the source argument emits `Value="true"`. Existing schemas already
-carry `TableHeader=true`, so updated clients read them as `use_parent_name=true`
-without rewriting those schemas. Older clients need not understand the new
-explicit-false form. Removing the attribute disables its layout effect.
+Omitting the source argument emits `Value="true"`. Studio validates the
+attribute, compiles it into the template's `promote` hint with the same
+`use_parent_name`, and removes it from the final schema. Removing the source
+attribute removes its default rule.
 
 ### Example: use the parent name to identify the record
 
@@ -408,7 +792,9 @@ member, the position and membership controls. Only what it shows changes:
 
 `@LibertasSuppressTitle` in TypeScript and `#[libertas_suppress_title]` in Rust
 mark a List field or List type whose effective member type is a Table. The
-schema carries `{"Name":"SuppressTitle","Value":"true"}`. Studio rejects the
+parser result carries `{"Name":"SuppressTitle","Value":"true"}`; Studio
+compiles it into the [Display Template](#display-template) as the
+`suppress_title` hint and removes it from the final schema. Studio rejects the
 marker on any other host, including a List of primitives or Unions, whose
 member rows have no title but the List's.
 
@@ -417,7 +803,7 @@ no position. Each member row shows only what its struct produces, its
 `UIName` value as the title when it has one, and its value slot; a struct
 without a name field shows an untitled row with its promoted value. The
 membership controls, the menu and the fold arrow stay on the row. The marker
-changes no data and is ignored by a client that does not understand it.
+changes no data, and a client that does not understand the hint ignores it.
 
 ### Presentation only
 
@@ -448,7 +834,10 @@ values in the table above unchanged.
 
 `Format` accepts one double-quoted, programming-language-neutral Unicode LDML
 pattern. It never changes parsing, storage, comparison, bounds, defaults,
-requests, persistence, or chart geometry.
+requests, persistence, or chart geometry. Studio validates the pattern, compiles
+it into the [Display Template](#display-template) as the `format` hint, and
+removes it from the final schema; clients read the display pattern only from
+the template, where a rule may choose another portable pattern per device.
 
 AI tool-call descriptions automatically warn that `Format` affects display
 only: arguments use the underlying tool value without display formatting or
@@ -910,6 +1299,16 @@ Fields sharing a nonempty scale ID must have compatible scalar type, channel,
 Format, and PhysicalUnit. Different but convertible units are still different
 scales unless the App emits one common unit.
 
+Chart appearance belongs to the [Display Template](#display-template). Studio
+validates the complete chart metadata on the parser result, then compiles the
+scale `type` of each `ChartScale` and `Chart3DScale` into a `scale` hint and
+the `position` of each `ChartGuide` into a `guide` hint, and removes those
+properties from the final schema; an attribute left with no property is
+removed. Channels, scale IDs, domains, and every other chart property remain
+schema. A template rule may also choose a chart `palette`. Clients read the
+effective scale type, guide position, and palette only from the template, and
+a template value is validated under the same chart matrices as the source.
+
 Use `@LibertasChartGuide(target=..., source=...)` or
 `#[libertas_chart_guide(target = ..., source = ...)]` only for an explicit
 guide. Targets are `x`, `y`, `xOffset`, `yOffset`, `theta`, `radius`, `color`,
@@ -1017,7 +1416,10 @@ for labels such as Accept and Decline. Display labels never change wire values.
 controls, the way [Boolean answer controls](#boolean-answer-controls) render,
 instead of a value that opens the choice selector. Author it as
 `@LibertasInlineChoices` in TypeScript or `#[libertas_inline_choices]` in
-Rust. It takes no argument and emits `{"Name":"InlineChoices","Value":"true"}`.
+Rust. It takes no argument and emits `{"Name":"InlineChoices","Value":"true"}`
+into the parser result; Studio compiles it into the
+[Display Template](#display-template) as the `inline` hint and removes it from
+the final schema.
 
 Place it on an Enumeration or Union field, or on an Enumeration or Union type
 declaration. As for [TableHeader](#tableheader-promoted-fields-and-union-selectors),
@@ -1040,8 +1442,9 @@ effective type and on a Bitflags catalog, including a field typed by one.
   the marker does not make a read-only value editable.
 
 There is no size threshold: a row grows with its choices, so mark only fields
-whose choices fit. The marker changes presentation only, never data, encoding,
-or paths. A client without inline support keeps the choice selector.
+whose choices fit, or let a template rule turn inline choices on or off per
+device. The marker changes presentation only, never data, encoding, or paths.
+A client without inline support keeps the choice selector.
 
 ## Link rendering
 
@@ -1079,11 +1482,12 @@ that defaults to true: `@LibertasFoldable(initially_open=false)` or
 `#[libertas_foldable(initially_open = false)]`. Studio permits this marker
 only on an effective Table, Union, or List. It changes presentation, not encoded data.
 
-In schema JSON the attribute's Boolean string value carries the option:
+In the parser result the attribute's Boolean string value carries the option:
 `{"Name":"Foldable","Value":"true"}` starts expanded and `"false"` starts
-collapsed. Presence enables folding; `false` does **not** disable it.
-Existing schemas carry `Foldable=true`, so updated clients read them as
-`initially_open=true` without rewriting.
+collapsed. Presence enables folding; `false` does **not** disable it. Studio
+compiles it into the [Display Template](#display-template) as the `fold` hint
+and removes it from the final schema; clients read folding only from the
+template, where a rule may also change it per device.
 
 An unmarked struct, union, or list may show a down arrow, but tapping it or opening its
 menu cannot collapse the fields. A marked value starts expanded, or collapsed

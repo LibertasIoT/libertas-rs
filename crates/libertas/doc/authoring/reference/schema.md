@@ -44,7 +44,8 @@ implementation of the full JSONPath query language. Standard JSONPath defines
 slices, filters, and descendant queries. Libertas uses its own context rules,
 including host-relative `@`, parent `^`, and typed-ancestor selection where
 specified below. Those Libertas forms do not imply support for general JSONPath
-queries. See [JSONPath, RFC 9535](https://www.rfc-editor.org/rfc/rfc9535.html).
+queries; the descendant combinator of [Display Template selectors](#display-template-selectors)
+exists only in that context. See [JSONPath, RFC 9535](https://www.rfc-editor.org/rfc/rfc9535.html).
 
 ### Shared CopyFrom and CopyTo rules
 
@@ -147,6 +148,7 @@ handling.
 | CopyTo-directed reduced SubscriptionData | One or more comma-delimited strict `^<StableVariant>` or `^<StableVariant.field...>` destinations | Each admitted stable working value, subject to the shared destination-uniqueness rule above. |
 | ValidationRules, RangeMin, RangeMax: current-data reference | `[name/child]`, `[items/0/name]`, or `[]`; an in-scope cursor can be the first segment | The attribute owner's evaluation root or the concrete node bound to that cursor. |
 | ValidationRules, RangeMin, RangeMax: external reference | `{$.name}` or `{$.first,$.fallback}`; dot-separated fields only | The same interaction reference context in its defined source order, including editable-request and inherited rules. |
+| Display Template selector | The forms and extensions of [Display Template selectors](#display-template-selectors); no literal index and no comma alternatives | Studio resolves it statically against the package schema; a client matches every displayed node the selector names. A `:condition(...)` reads the selected node and the interaction reference context. |
 
 For host-relative schema paths, a child can use `.name`, `[name]`, `["name"]`,
 or `['name']`. `$` selects the current value-tree root; `@` selects the host;
@@ -198,7 +200,10 @@ segments. Calculation CopyFrom and CopyTo also accept two selector forms:
 
 Both forms cover the active variant itself: `^<EditOrder>` selects its entire
 payload, including a primitive payload. A bare name matching the active variant
-selects that root before named-type lookup; qualification can disambiguate a
+selects that root before named-type lookup (a
+[Display Template selector](#display-template-selectors) instead checks the
+collision statically and accepts it only when the type occurs solely as that
+variant's payload); qualification can disambiguate a
 named type. Strict paths must start at the variant, not an arbitrary package
 root type. Within a selected source tree, neither form can select a sibling
 value, another active variant, or climb into the enclosing protocol Union. Missing bindings are unavailable, not
@@ -324,6 +329,55 @@ containing attribute defines assignment, validation, and lifecycle behavior.
 ConstrainedBy, EnumSource, BaseObjects, and calculation rules retain those
 operation-specific requirements in their owning sections.
 
+## Display Template selectors
+
+A [Display Template](presentation.md#display-template) rule selects the nodes
+it styles with one selector. Selectors reuse the Libertas Schema Path forms, and
+Studio validates each one against the package schema exactly as it validates
+CopyFrom paths. A template is not evaluated inside one active interaction, so a
+selector names schema occurrences: at runtime it matches every displayed node
+that is such an occurrence, and it never binds a single value.
+
+| Form | Selects | Rank in the [cascade](presentation.md#display-template-cascade) |
+| --- | --- | --- |
+| `^<Variant>` | The whole value of a variant of an Endpoint protocol Union or a function data Union: a protocol screen or a stored record. | Strict |
+| `^<Variant.field...>` | One schema occurrence, explicit at every level including selected Union branches, with the [strict-path rules](#typed-ancestors-and-bound-occurrences). | Strict |
+| `^<function>`, `^<function.parameter...>` | An App function's configuration editor, the synthetic Table of its arguments, or one occurrence inside it. | Strict |
+| `$.field...` | Root-relative in whichever variant or configuration is displayed. | Strict |
+| `^<Type>`, `^<Type>.field...` | Every occurrence of a named type, or that field in every occurrence. Named types use `package::Type` qualification; a Rust `crate::Type` maps to it. | Relaxed |
+
+Template selectors add these extensions, valid only in a template:
+
+| Extension | Meaning |
+| --- | --- |
+| `[]` after a List | Every member of that List, as in `^<Hub.topics>[]`, optionally followed by field segments. Parsers emit an empty native name for a List element, so the strict element form cannot be written; `[]` stands for it. |
+| ` ...` descendant combinator | Every node beneath the selected one, as in `^<Review> ...`. A selector using it ranks as relaxed. |
+| `:pending`, `:error`, `:selected` | A runtime state that no data expresses, as the [conditions](presentation.md#display-template-conditions) define. Style only; never on layout. |
+| `:condition(expression)` | A data condition: a Boolean ValidationRules expression rooted at the selected node, with `[]` the node, `[status]` a child, and curly references reading the interaction reference context. |
+
+```text
+selector  = base [ " ..." ] [ state ]
+base      = "^<" name { "." name } ">" { suffix } | "$" suffix { suffix }
+suffix    = "." identifier | "[]"
+state     = ":pending" | ":error" | ":selected" | ":condition(" expression ")"
+```
+
+`name` is a native name, or a qualified `package::Type` in the relaxed form. A
+state applies to each selected node. Literal indices, comma-delimited
+alternatives, and parent-relative `^` steps are not selector syntax.
+
+Name collisions follow the rule for [typed ancestors](#typed-ancestors-and-bound-occurrences):
+a bare name in `^<...>` that matches a variant selects the variant, and a named
+type with the same name is written qualified, `package::Type`. Because a
+template rule is not evaluated inside one active variant, Studio checks
+collisions statically across every protocol and data Union of the App and its
+functions. A bare `^<Name>` that matches both a protocol variant and a named
+type is accepted when that type occurs in the protocol only as that variant's
+payload, since the variant and the type then denote the same node; whenever the
+type occurs anywhere else, the name is rejected and the diagnostic names the
+qualified form. A bare name that matches both a function and a named type, or
+more than one variant or function, is likewise rejected.
+
 ## 1. Artifact model
 
 A Libertas App version has two related, independently useful JSON artifacts:
@@ -334,6 +388,12 @@ A Libertas App version has two related, independently useful JSON artifacts:
 2. The **package document** is the localized presentation layer. It describes
    package, function, type, field, enumeration, and string-resource text without
    changing wire identity or field order.
+
+Each package also has one locale-independent
+[Display Template](presentation.md#display-template), which decides how the
+schema's values are arranged and styled on a device. It is not part of the
+schema: it is absent from the schema JSON and its revision digest, and it is
+published and versioned as a [document](publication.md#display-template-identity).
 
 The Hub assigns an application version when deployed code or schema changes. It
 captures one UTC timestamp and encodes the version as
@@ -354,8 +414,8 @@ TypeScript or Rust source
     -> Studio dependency-first deployment and authoritative Hub version read-back
     -> complete flattened AppDependencies list
     -> deterministic schema sorting and revision digest
-    -> document normalization/localization
-    -> deployment as schema + documents + code
+    -> document normalization/localization and Display Template compilation
+    -> deployment as schema + documents (including the template) + code
 ```
 
 The separation is deliberate. `NativeName` remains a stable programmatic name in
@@ -629,27 +689,28 @@ by the current parsers and shared validator.
 | `Unordered` | Declares list ordering semantically irrelevant to management/UI behavior. |
 | `ReadOnly` | Value is displayed but not user-editable. Initialization, CopyFrom, EditRequest, calculation CopyTo and draft restoration still write it; only `Fixed` protects a value. See the [ReadOnly rule](presentation.md#common-field-metadata). |
 | `Hidden` | Value is hidden from ordinary editors. On a chart carrier table, composition, or chart-bearing Union variant wrapper, it also marks direct non-chart fields as preserved transaction context that renderers exclude from chart projection. |
-| `TableHeader` | Presence enables [header promotion/type flattening](presentation.md#tableheader-promoted-fields-and-union-selectors). Its Boolean string value encodes use_parent_name: true (default and existing schemas) uses the parent display name; false uses the field name. On a struct declaration, false hides its name-only row. Union values remain selected-variant display names. |
+| `TableHeader` | Parser result only; compiled into the Display Template. Presence enables [header promotion/type flattening](presentation.md#tableheader-promoted-fields-and-union-selectors). Its Boolean string value encodes use_parent_name: true (default and existing schemas) uses the parent display name; false uses the field name. On a struct declaration, false hides its name-only row. Union values remain selected-variant display names. |
 | `UIName` | Its value names a sibling field. The marked String or FormattedText field's value titles the struct's row and the named field's value is the row's value ([data-titled rows](presentation.md#uiname-data-titled-rows)); neither has a row of its own, and a List member so titled drops its position. Studio enforces the placement rules there. |
-| `SuppressTitle` | Marker on a List whose effective member type is a Table: the List contributes no title to its member rows, neither member name nor position ([untitled List members](presentation.md#suppresstitle-untitled-list-members)). |
+| `SuppressTitle` | Parser result only; compiled into the Display Template. Marker on a List whose effective member type is a Table: the List contributes no title to its member rows, neither member name nor position ([untitled List members](presentation.md#suppresstitle-untitled-list-members)). |
 | `Link` | One non-empty Request variant native name of the same Endpoint protocol Union, never a list, on any field or on a Table, Union, or Enumeration type declaration; the field's target wins over its type's. Tapping the displayed node opens that Request ([links](protocols.md#links), [rendering](presentation.md#link-rendering)). |
-| `InlineChoices` | Exact marker value `true` on an Enumeration or Union field or type declaration, never a Bitflags catalog. Clients show the permitted choices inline as radio controls ([inline choices](presentation.md#inline-choices)). |
-| `UIIncludeDescription` | Exact marker value `true`. Clients render the node's localized long `Description` inline together with its short `DisplayName`; it changes presentation only, not the typed value or wire encoding. |
+| `InlineChoices` | Parser result only; compiled into the Display Template. Exact marker value `true` on an Enumeration or Union field or type declaration, never a Bitflags catalog. Clients show the permitted choices inline as radio controls ([inline choices](presentation.md#inline-choices)). |
+| `Foldable` | Parser result only; compiled into the Display Template. Boolean `initially_open` on an effective Table, Union, or List; presence permits manual [folding](presentation.md#folding-structs-and-unions). |
+| `UIIncludeDescription` | Parser result only; compiled into the Display Template. Exact marker value `true`. Clients render the node's localized long `Description` inline together with its short `DisplayName`; it changes presentation only, not the typed value or wire encoding. |
 | `TimeInterval` | Displays a numeric value as a duration. It does not create a distinct wire type. |
 | `DateOnly` | Exact marker value `true` on an integer `Number`. The stored and wire value is a valid Gregorian calendar date in decimal `yyyyMMdd` form; clients present a date chooser and localized calendar-date labels without applying a timezone. |
 | `Bitflags` | `true` on a fabricated `Enumeration` catalog, or that catalog's local type name/external App FQN on an integer `Number`. Catalog members have explicit `Fixed` values. Clients display selected localized names comma-delimited and edit them with a multiple-choice chooser; the wire value remains an ordinary integer. |
-| `Format` | One Unicode LDML display pattern on `Number`, `DateOnly`, `DateTime`, or `TimeOnly`. The effective host type selects number-pattern versus date/time-pattern grammar. It never changes storage, wire encoding, validation, or comparison. |
+| `Format` | Parser result only; compiled into the Display Template. One Unicode LDML display pattern on `Number`, `DateOnly`, `DateTime`, or `TimeOnly`. The effective host type selects number-pattern versus date/time-pattern grammar. It never changes storage, wire encoding, validation, or comparison. |
 | `Money` | Currency/scale metadata such as `USD/2` on signed `i64` Number. Raw values, bounds, and defaults are integer minor units. See [Money](presentation.md#money) for the exact representation, supported CLDR currency tokens, inline editing, and chart rules. |
 | `PhysicalUnit` | One canonical CLDR core unit identifier on a `Number`, including generated compounds such as `millimeter-per-day`. It preserves the raw unit without changing serialization; a client localizes the unit when its ICU implementation supports it. |
 | `FormattedText` | Marker value `true` on an effective `Bytes` host; serialization is unchanged. Follow the [formatted-output contract](presentation.md#static-read-only-placement-and-request-values) for mandatory static ReadOnly, permitted request initialization, and runtime-use restrictions, and [LMF1](message-format.md) for the canonical tuple. |
 | `EnumSource` | One Libertas Schema Path to a `List`; an unsigned integer host stores the selected item's zero-based index. |
 | `Chart` | One primitive mark (`point`, `line`, `area`, `bar`, `rect`, `rule`, `arc`, `text`, `polygon`) or composition (`layer`, `hconcat`, `vconcat`) token on a response/subscription-data payload. A primitive may use a carrier Table with exactly one non-hidden List of rows; compositions and single-chart Union wrappers may contain additional direct non-chart fields only when those fields carry `Hidden=true`. |
 | `ChartChannel` | Canonically ordered comma-delimited visual roles on a direct scalar field of a chart row. |
-| `ChartScale` | Canonically ordered scale properties (`id,type,min,max,mid,zero,reverse`) for one scale-bearing chart channel. |
-| `ChartGuide` | Canonically ordered generic guide properties (`target,source,position,title,domain,ticks,labels,grid`) on a target binding or guide-label field. |
+| `ChartScale` | Canonically ordered scale properties (`id,type,min,max,mid,zero,reverse`) for one scale-bearing chart channel. The final schema omits `type`, which is compiled into the Display Template's `scale` hint. |
+| `ChartGuide` | Canonically ordered generic guide properties (`target,source,position,title,domain,ticks,labels,grid`) on a target binding or guide-label field. The final schema omits `position`, which is compiled into the Display Template's `guide` hint. |
 | `Chart3D` | One 3D primitive (`point`, `line`, `bar`, `surface`, `wireframe`, `stem`) or composition (`layer`, `hconcat`, `vconcat`) token on a response/subscription-data payload. |
 | `Chart3DChannel` | Canonically ordered comma-delimited 3D visual roles on a direct scalar field of a 3D chart row. |
-| `Chart3DScale` | Canonically ordered scale properties (`id,type,logBase,min,max,mid,zero,reverse,growMin,growMax,padding`) for one scale-bearing 3D chart channel. `logBase` is greater than 1 and valid only for `log`; non-negative `growMin/growMax` expand automatic continuous position domains; `padding` is an inclusive `0..1` bar-base setting. |
+| `Chart3DScale` | Canonically ordered scale properties (`id,type,logBase,min,max,mid,zero,reverse,growMin,growMax,padding`) for one scale-bearing 3D chart channel. `logBase` is greater than 1 and valid only for `log`; non-negative `growMin/growMax` expand automatic continuous position domains; `padding` is an inclusive `0..1` bar-base setting. The final schema omits `type`, which is compiled into the Display Template's `scale` hint. |
 | `Chart3DGuide` | Canonically ordered 3D guide properties (`target,source,title,domain,ticks,labels,grid,tickCount,tickStep`) on a target binding or guide-label field; `detail` is also a guide target. |
 | `Chart3DView` | Canonically ordered camera/projection properties (`projection,azimuth,elevation,zoom,fov,orbit,aspectX,aspectY,aspectZ,targetX,targetY,targetZ,pan,zoomEnabled`) on a 3D chart root. The three booleans independently gate fixed client actions; no camera/gesture mode exists. |
 | `CalculationRequest` | Field-only comma-delimited list of distinct calculation Request variant names in the same protocol. Its input `CopyFrom` mappings and participating fields must agree in both directions. See [field calculation requests](protocols.md#field-calculation-requests) for invocation context, validity, and implementation scope. |
@@ -658,6 +719,13 @@ by the current parsers and shared validator.
 | `ValidationRules` | Pure boolean expressions on any field or schema data type. Each expression is paired with a quoted package `StringResources` error-message key using `expression : "KEY";`. Field-local, inherited-field, and referenced named-type rules are cumulative. |
 | `DeviceType` | Device-type restriction for a `Device` value. |
 | `VirtualDevice` | Virtual-device-type restriction for a `VirtualDevice` value. |
+
+Rows marked "parser result only" are presentation attributes. Studio validates
+them on the parser result, compiles every occurrence into the package's
+[Display Template](presentation.md#display-template) at the lowest
+specificity, and then removes them from the final schema, with the transient
+source metadata and before sorting and revision hashing. The final schema never
+carries them, so changing one alone never changes schema identity.
 
 The exact versioned Base64 attribute layouts used by `DeviceType` and
 `VirtualDevice` are specified in
@@ -1924,7 +1992,9 @@ pair map to terminate cycles.
 ### 11.3 Revision digest
 
 `Revision.ContentSha256` has the form `sha256:` followed by 64 lowercase
-hexadecimal characters. Studio computes it by:
+hexadecimal characters. It covers the final schema only, after presentation
+attributes have moved into the Display Template, so a template change never
+changes it. Studio computes it by:
 
 1. deep-copying the complete schema;
 2. removing `Revision`;

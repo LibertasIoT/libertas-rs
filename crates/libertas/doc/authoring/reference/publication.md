@@ -88,8 +88,9 @@ binary failing its recorded SHA-256 stop preflight. Targets may have different
 App versions while sharing the same schema and exact dependency lock.
 
 After successful preflight, Studio converges documents across selected Hubs in
-dependency-first order. For each locale, the numerically greatest four-part
-content revision wins; missing locales are filled. Equal content revisions with
+dependency-first order. For each locale, and for the
+[Display Template](#display-template-identity), the numerically greatest
+four-part content revision wins; missing locales are filled. Equal content revisions with
 different canonical content are an error. `DocumentVersion` is the JSON format
 version and never chooses a winner. Each write is refetched and verified. An
 unchanged Hub performs no write. A changed Hub advances its target-manifest
@@ -105,7 +106,7 @@ remain published. Review the complete plan before confirming.
 
 
 After every successful deploy, or a document-metadata synchronization that
-actually changes schema/document metadata, the Hub writes a new immutable,
+actually changes schema/document metadata, including the Display Template, the Hub writes a new immutable,
 separately versioned target manifest and atomically advances the current pointer
 for that language. An idempotent metadata request writes nothing. A
 document-only revision
@@ -151,7 +152,9 @@ The JSON contract is:
 
 `artifact` is `null` for TypesOnly. `documents.sha256` is the exact digest of
 the content-addressed documents manifest referenced by that target revision, and
-`documents.count` is its locale count. The target manifest's APT dependency
+`documents.count` is its locale count. Because that manifest names the
+[Display Template](#display-template-identity), its digest covers the template
+too; the target manifest keeps this shape and the template is not a locale. The target manifest's APT dependency
 names are deduplicated and sorted. They are per-target OS installation data and never
 appear in the Libertas schema. This is distinct from the schema's logical
 `AppDependencies` array of Libertas App packages. For native Rust, the compiling
@@ -221,7 +224,7 @@ different content or version is not an in-place re-addition.
 
 Before asking the developer to confirm, Studio reads the matching GitHub Release
 with the newest publication time and Plaza history, then downloads and verifies
-its marker, schema, current document manifest and locale assets, and complete immutable
+its marker, schema, current document manifest, locale assets, and Display Template, and complete immutable
 target binding map for a current-format release. A recognized legacy release
 (a format-1 marker or the older asset layout without a marker) is historical
 input: Studio skips its obsolete asset verification and publishes a new
@@ -246,7 +249,8 @@ Reconciliation has these outcomes:
   to the same publication, while a higher-version target creates the next
   publication; withdrawal changes latest availability but retains its binding,
   assets, and greatest-ever public version;
-- localized document, source-comment, and function-comment changes update only
+- localized document, source-comment, function-comment, and Display Template
+  changes update only
   the current content-addressed document locator, search presentation, and one
   new content-addressed target-manifest revision per affected target for the
   same publication; each `targetVersion` advances, while no target App version,
@@ -262,6 +266,34 @@ runtime binding, existing target-manifest asset, artifact, or public-version
 change; advancing to a new content-addressed target-manifest revision is the
 allowed document-only operation.
 
+
+### Display Template identity
+
+Every package has one compiled [Display Template](presentation.md#display-template),
+which is not part of the schema. It is a locale-independent member of the
+content-addressed documents manifest with its own four-part content revision
+and a SHA-256 digest of its canonical JSON; the empty template has both. It is
+never counted as a locale, and removing a locale never removes it.
+
+- **Document-only change.** A template that differs from the Hub's is a
+  document-only change, never a schema change. It advances `targetVersion`
+  and preserves `appVersion`, schema, artifact, language, TypesOnly state, and
+  distribution dependencies, with no rebuild. Publication follows the
+  document-only reconciliation outcome above: no new App version, public
+  version, tag, or marker.
+- **Convergence.** The document synchronization rules apply unchanged: the
+  numerically greatest content revision wins, equal revisions with different
+  content are an error, each write is refetched and verified, and an unchanged
+  Hub writes nothing. `DisplayVersion` is the JSON format version and never
+  chooses a winner.
+- **Hub storage.** The Hub retains templates by digest with the target
+  manifests it already keeps and rejects a template that Studio did not compile
+  from source. It never compiles or edits one.
+- **Delivery.** The Hub sends a package's template with its schema through the
+  existing conditional delivery of cached resources, keyed by digest: an
+  unchanged template costs nothing, and a changed one arrives without
+  reinstalling the App. A client never receives a schema without its template,
+  including for every exact dependency it fetches.
 
 ## Public release assets
 
@@ -290,13 +322,19 @@ or removed by document synchronization; current manifest pointers may advance
 to a newly published revision.
 
 The documents manifest contains metadata only, never embedded locale document
-bodies. Its asset name includes its own lowercase SHA-256 as
+or template bodies. Its asset name includes its own lowercase SHA-256 as
 `documents.<sha256>.json`; locale assets follow
-`document.<locale>.<sha256>.json`:
+`document.<locale>.<sha256>.json` and the compiled Display Template follows
+`display.<sha256>.json`:
 
 ```json
 {
   "defaultLocale": "en-US",
+  "display": {
+    "name": "display.<sha256>.json",
+    "sha256": "<64 lowercase hex digits>",
+    "size": 48
+  },
   "documents": [
     {
       "locale": "en-US",
@@ -305,10 +343,11 @@ bodies. Its asset name includes its own lowercase SHA-256 as
       "size": 1234
     }
   ],
-  "formatVersion": 1
+  "formatVersion": 2
 }
 ```
 
+Format 2 requires the `display` member, including for the empty template.
 Entries are sorted by locale and own the exact GitHub asset name, byte size,
 and digest needed for a consumer to choose before downloading. Plaza atomically
 advances a publication's document-manifest locator after all newly referenced

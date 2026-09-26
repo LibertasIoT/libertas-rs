@@ -27,6 +27,15 @@ types define configuration, persistent data, Endpoint protocols, and runtime
 presentation. Studio extracts and validates those declarations and generates
 the language-neutral schema and localized documents.
 
+A package therefore has these parts: source code; the generated schema; the
+localized documents; the optional `display.json` at the project root, the
+version-controlled source of its presentation rules; and the compiled
+[Display Template](presentation.md#display-template), which Studio builds from
+the source presentation attributes and `display.json`. The template is
+mandatory, but an App with neither compiles to the valid empty template. It is
+not part of the schema, and changing only the template never changes the App
+version. Edit `display.json` or source attributes, never the compiled template.
+
 Do not create a second JSON schema, manually assign schema IDs, or treat
 generated schema JSON as source.
 
@@ -78,8 +87,11 @@ generated schemas. Continue to run language builds and tests separately.
 Supply the absolute project directory; an optional `entry` selects the entry
 file. The default result contains diagnostics, source locations when known,
 the schema revision, and a dependency summary. Set `includeArtifacts: true`
-to receive the root schema and default document plus every transitive App
-dependency's schema, default document, revision, and dependency edges. Each
+to receive the root schema, default document, and compiled Display Template
+plus every transitive App dependency's schema, default document, Display
+Template, revision, and dependency edges. Compilation validates `display.json`
+with the schema; its errors are ordinary diagnostics naming `display.json` and
+the one-based line when known. Each
 dependency appears once. Missing, ambiguous, or cyclic App dependencies fail
 compilation; a partial bundle is not a successful result.
 

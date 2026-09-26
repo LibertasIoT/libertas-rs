@@ -451,17 +451,17 @@ sharing one resolved
 
 ### Table-header promotion
 
-`#[libertas_ui_header(use_parent_name = true)]` has an optional Boolean that defaults to true (parent display name); false selects the promoted field display name. Attribute presence enables promotion or flattening by direct declaration lookup. Existing `TableHeader=true` schemas keep the default. See [header promotion and nested Union selectors](../presentation.md#tableheader-promoted-fields-and-union-selectors) for its tree-data presentation. On a struct declaration, false also hides its name-only row while keeping children visible.
+`#[libertas_ui_header(use_parent_name = true)]` has an optional Boolean that defaults to true (parent display name); false selects the promoted field display name. Attribute presence enables promotion or flattening by direct declaration lookup. The attribute is compiled into the [Display Template](../presentation.md#display-template) as its `promote` hint. See [header promotion and nested Union selectors](../presentation.md#tableheader-promoted-fields-and-union-selectors) for its tree-data presentation. On a struct declaration, false also hides its name-only row while keeping children visible.
 
-`#[libertas_ui_name(value_field)]` on a ReadOnly or Hidden `String` or formatted-text field makes that field's value the struct row's title and the named sibling's value the row's value; neither field has a row of its own. `#[libertas_suppress_title]` on a `Vec` of structs, or on its type alias, stops the list from titling its member rows. See [data-titled rows](../presentation.md#uiname-data-titled-rows) and [untitled list members](../presentation.md#suppresstitle-untitled-list-members); Studio enforces the placement rules.
+`#[libertas_ui_name(value_field)]` on a ReadOnly or Hidden `String` or formatted-text field makes that field's value the struct row's title and the named sibling's value the row's value; neither field has a row of its own. `#[libertas_suppress_title]` on a `Vec` of structs, or on its type alias, stops the list from titling its member rows and is compiled into the [Display Template](../presentation.md#display-template). See [data-titled rows](../presentation.md#uiname-data-titled-rows) and [untitled list members](../presentation.md#suppresstitle-untitled-list-members); Studio enforces the placement rules.
 
 - When applied to a primitive field within a Table, the field visually replaces the table node. Its own title is replaced by the table’s title, and its value is displayed as the table node’s value.
 - When applied to a Table node, the table’s outer enclosure is removed and all of its fields are promoted to appear alongside the table’s former siblings.
 
 ### Inline descriptions
 
-`#[libertas_ui_include_description]` emits `UIIncludeDescription=true` on a
-schema data field or type. Clients keep the localized short display name and
+`#[libertas_ui_include_description]` on a schema data field or type is
+compiled into the [Display Template](../presentation.md#display-template) as its `include_description` hint. Clients keep the localized short display name and
 also render the localized long description inline in that UI node. The marker
 is client-only presentation metadata and does not change the typed value or
 wire encoding.
@@ -523,7 +523,7 @@ physical-device and virtual-device byte layouts.
   emits `Money=USD/2`. Currency and scale are fixed schema metadata; clients
   display currency and edit major units in place. See the [Money contract](../presentation.md#money)
   for supported scales, patterns, validation, and chart behavior.
-- `#[libertas_format("pattern")]`: Emits display-only `Format` metadata on a
+- `#[libertas_format("pattern")]`: Display-only `Format`, compiled into the [Display Template](../presentation.md#display-template), on a
   numeric, DateOnly, `LibertasDateTime`, or `LibertasTimeOnly` field. Ordinary
   numbers use
   [Unicode UTS #35 number patterns](https://unicode.org/reports/tr35/tr35-numbers.html#Number_Format_Patterns);
@@ -1474,7 +1474,8 @@ payload bytes or chart-specific message. Apply `#[libertas_chart(mark)]` to a
 `Vec<Row>`. Direct scalar row fields use `#[libertas_chart_channel(...)]` and
 may use `#[libertas_chart_scale(...)]` when they own one scale-bearing channel.
 `#[libertas_chart_guide(...)]` configures generic guides independently of scale
-mapping. The four parser-only attributes are accepted by `LibertasExport`;
+mapping. A scale's `kind` and a guide's `position` are chart appearance,
+compiled into the [Display Template](../presentation.md#display-template). The four parser-only attributes are accepted by `LibertasExport`;
 standalone type aliases may import their pass-through macros from
 `libertas_macros`.
 
@@ -1711,7 +1712,8 @@ Primitive marks are `point`, `line`, `bar`, `surface`, `wireframe`, and
 `fillOpacity`, `strokeOpacity`, `size`, `shape`, `strokeWidth`, `strokeDash`,
 `tooltip`, `detail`, `order`, `key`, `row`, and `column`.
 `#[libertas_chart3d_scale]` mirrors the 2D scale properties and uses Rust source
-key `kind`, which the parser translates to schema key `type`; it also accepts
+key `kind`, which the parser translates to schema key `type` and Studio
+compiles into the [Display Template](../presentation.md#display-template); it also accepts
 `logBase > 1` for a logarithmic scale, non-negative `growMin/growMax` fractions
 for automatic continuous x/y/z domain growth, and inclusive `[0,1]` `padding`
 for a `bar` base axis. Guides add `tickCount` and
@@ -1977,8 +1979,8 @@ directly and waits for the user to submit. Cookie responses instead use the
 ordinary `libertas_endpoint_response` helper and `#[libertas_workflow_request]`.
 See the [workflow contract](../protocols.md#workflow-interactions).
 
-`#[libertas_foldable]` permits manual folding on a struct, union, or list type or field; `#[libertas_foldable(initially_open = false)]` starts it collapsed. See [folding structs and unions](../presentation.md#folding-structs-and-unions).
-`#[libertas_inline_choices]` on an enum declaration or an enum-typed field shows its choices inline as radio controls; see [inline choices](../presentation.md#inline-choices).
+`#[libertas_foldable]` permits manual folding on a struct, union, or list type or field; `#[libertas_foldable(initially_open = false)]` starts it collapsed. Both are compiled into the [Display Template](../presentation.md#display-template). See [folding structs and unions](../presentation.md#folding-structs-and-unions).
+`#[libertas_inline_choices]` on an enum declaration or an enum-typed field shows its choices inline as radio controls and is compiled into the [Display Template](../presentation.md#display-template); see [inline choices](../presentation.md#inline-choices).
 
 ## Backend-constrained choices
 
