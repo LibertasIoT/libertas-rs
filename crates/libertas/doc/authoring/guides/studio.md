@@ -41,6 +41,34 @@ for inputs, dependency completeness, and validation limits. The
 automatic submission, progress, and errors. After updating Studio, activate
 it once to refresh the registered MCP launcher.
 
+### Live preview while editing display.json
+
+Once the MCP tools are loaded, an agent can hold a conversational edit loop on
+a screen's presentation without leaving the chat: edit `display.json`, call
+`compile_schema` to fix any diagnostics, then call `preview_display` with the
+screen's protocol variant or function name and a device form. Studio opens a
+Control panel preview of that screen on the chosen device if none is open for
+the project, or refocuses and switches the one already open; every later save
+to `display.json` (through `compile_schema` again) re-renders the same
+preview live, so the agent keeps iterating on layout and style without
+repeating the tool call for each save.
+
+The JSON result tells the agent exactly what the user is now looking at: the
+`preview` state (`opened`, `refocused`, or `headless` with a `reason` when no
+panel can show it), the resolved device conditions and window, and the root
+node's resolved layout, style, and hints. Passing a Libertas Schema Path in
+`select` also returns the matched rules in cascade order with the winning
+members and each rule's source (a `display.json` line or a source attribute's
+file and line), so the agent can confirm which rule is winning instead of
+guessing. Compile diagnostics ride along, and `templateCurrent` is `false`
+after a failed compilation, when the preview is still showing the last good
+template.
+
+`preview_display` never goes silent: it always opens or refocuses a preview
+when Studio can show one, and it fails explicitly, with a clear error, when
+VS Code or Libertas Studio is not running rather than leaving the agent to
+guess why nothing changed.
+
 ## Managing Libertas Hubs
 
 To run, debug, or deploy your TypeScript or Rust Apps to the platform, you must connect your VS Code environment to one or more **Libertas Hubs**. Hub commissioning is never performed by VS Code: complete it first in the Libertas mobile app. Hub connections are managed through the **Libertas Activity Bar** and sidebar webview in VS Code.

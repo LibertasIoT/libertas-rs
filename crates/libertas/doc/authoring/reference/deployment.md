@@ -84,6 +84,24 @@ deployment to review and approve that installation.
 `compile_schema` remains a separate, Hub-independent validation tool. Its
 success alone does not establish exact Hub dependency pins or deploy the App.
 
+`preview_display` shows one screen of the saved workspace App in Studio's
+Display Template preview, Hub-independent like `compile_schema`. It takes the
+absolute project directory, the protocol variant (a Union member such as a
+Response) or function name to show, a device `form` (`phone`, `tablet`,
+`desktop`, or `tv`), optional `width`, `height`, `orientation`, `pointer`, and
+`theme` size-class/condition overrides, and an optional Libertas Schema Path
+`select` naming a node to inspect. It compiles the project, then opens a
+preview if none is open for it or refocuses the open one and switches it to
+this screen and device; later saves re-render the same preview live. Its JSON
+result reports `preview` (`opened`, `refocused`, or `headless` with a
+`reason`), the resolved device conditions and window, the root node's
+resolved layout, style, and hints, and, when `select` is given, the matched
+rules in cascade order with their winning members and each rule's source (a
+`display.json` line or a source attribute's file and line). Compile
+diagnostics are included, and `templateCurrent` is `false` when a failed
+compilation leaves the last good template on screen. It requires VS Code and
+Libertas Studio to be running and fails explicitly otherwise.
+
 ## Schema availability and task requirements
 
 At runtime, `AppDependencies` is both the client's complete package-fetch list and

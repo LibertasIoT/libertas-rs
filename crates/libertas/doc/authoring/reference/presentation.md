@@ -167,7 +167,9 @@ second template for a locale or platform. A missing file is valid and compiles
 to a template holding only the rules derived from source attributes. Studio's
 editor writes this file in place through the same validated writer as a hand
 edit, never a second copy. The Hub stores only the compiled, published copy
-and never accepts a template Studio did not compile from source.
+and never accepts a template Studio did not compile from source. For the
+conversational loop of hand-editing `display.json` and watching it live in
+Studio, see [the Studio MCP live-preview guide](../guides/studio.md#live-preview-while-editing-displayjson).
 
 ```json
 {

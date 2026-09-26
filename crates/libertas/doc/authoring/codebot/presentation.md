@@ -28,7 +28,9 @@ platform default. Presentation source attributes (`UIHeader`, `Foldable`,
 `kind` and guide `position`) remain the way to author defaults: Studio compiles
 them into the template at the lowest specificity and drops them from the
 schema. Device-specific arrangement goes in `display.json` at the project root,
-beside `Cargo.toml` or `package.json`; never edit the compiled template.
+beside `Cargo.toml` or `package.json`; never edit the compiled template. After
+editing `display.json`, call the Studio MCP `compile_schema` then
+`preview_display` tool so the user sees the change live on a device.
 
 Write each rule as four relations:
 
