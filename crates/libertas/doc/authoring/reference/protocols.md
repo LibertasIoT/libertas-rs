@@ -602,7 +602,12 @@ the parent editor may still contain undefined, unencodable fields.
 Every copied input is a calculation dependency. Studio validates current-request
 participation in both directions: every current-request source field used by
 CopyFrom participates in the calculation, and every participating field is
-used by CopyFrom. A containing Table or List may participate as a whole;
+used by CopyFrom. Reference-object candidates follow the same
+[interaction context](#interaction-reference-context): a Request variant is
+never a reference object, and a Response or SubscriptionData variant is a
+candidate only when its own NextRequest or WorkflowRequest actually offers the
+current request; Studio does not treat an unrelated variant that merely
+resolves the same path as a source. A containing Table or List may participate as a whole;
 changes below it are changes to that input. Paths support named fields and
 zero-based literal array indices, such as `$.items[0].quantity`. Whole-list copies
 remain available. Indices denote positions, never persistent row identities.
