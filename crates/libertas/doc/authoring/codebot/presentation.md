@@ -25,6 +25,9 @@ Use `Default` only for initial data, `UIHeader` for [field promotion and flatten
 `UIIncludeDescription` when a UI node must show both its short display name and
 long description inline, `InlineChoices` on an Enumeration or Union field or
 type (not Bitflags) whose few choices should render as [inline radio controls](../reference/presentation.md#inline-choices),
+`Link` to make a row open a Request: it keeps the label and value, renders a
+non-editable value as link text with the whole row as tap target and an
+editable one with a trailing link button ([link rendering](../reference/presentation.md#link-rendering)),
 `ReadOnly` and `Hidden` for presentation, `Unordered`
 and `Unique` for List semantics, `Size` for bounds, and `EnumSource` only on an
 unsigned integer storing a same-tree List index. Check the

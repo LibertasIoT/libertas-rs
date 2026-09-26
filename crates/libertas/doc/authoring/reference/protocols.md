@@ -229,15 +229,18 @@ contained schema-described values are **reference objects**.
 
 | Context | Reference objects and request construction |
 | --- | --- |
-| Ordinary Response | CopyFrom reads the latest accepted Response to construct the selected Request. |
+| Ordinary Response | CopyFrom probes the latest non-transition acknowledgement received since the displayed Response was installed, when one exists, then the displayed Response. A transitioning Response replaces both. |
 | EditRequest | The received complete Request is the reference object. Adopt its data directly without CopyFrom or default initialization. |
 | Subscription | CopyFrom probes the most recent eligible successful correlated Response first, then the current SubscriptionData snapshot. Either object may be absent. |
 
 Subscription reports, including reduced-type updates, update the SubscriptionData
-snapshot without replacing the retained Response. A successful correlated
-Response replaces the Response object even when an acknowledgement leaves the
-screen unchanged. In every interaction, a failure status or Error-marked
-Response leaves the reference context unchanged. A subscription’s two objects
+snapshot without replacing the retained Response. In a subscription, a
+successful correlated Response replaces the Response object even when an
+acknowledgement leaves the screen unchanged. Over a displayed Response, a
+non-transition acknowledgement replaces only the acknowledgement object, and
+the displayed Response remains the second object; a transitioning Response
+replaces both. In every interaction, a failure status or Error-marked
+Response leaves the reference context unchanged. Each context's two objects
 belong to that interaction, remain separate, and are not merged into a synthetic value. Other interactions and
 historical responses are never searched. With no eligible received data, the
 reference context has no objects.
@@ -283,9 +286,11 @@ source; do not hide that value merely because another request copies it.
   user to fill a hidden missing value or invent a placeholder session ID.
 - Design continuation data against the reference-context replacement rules
   above. Carry it forward when its supplying object is replaced; an ordinary
-  success acknowledgement can replace the retained Response even while the
-  screen stays unchanged. SubscriptionData remains the second reference
-  object, but an older Response is not a fallback. Error does not replace either
+  success acknowledgement can replace the retained Response of a subscription,
+  or the previous acknowledgement over a displayed Response, while the screen
+  stays unchanged. SubscriptionData or the displayed Response remains the
+  second reference object, but an older Response or acknowledgement is not a
+  fallback. Error does not replace either
   object. Reduced reports preserve or update hidden fields under the same
   projection rules as visible fields.
 - First-time entry has no prior reference objects. Entry requests must be
@@ -321,7 +326,8 @@ and valid-null rules. A valid editor match wins; no new source-selector syntax
 is needed. Parent-relative paths retain their bound editor ancestry.
 These logical contexts need not use separate stored objects:
 a received EditRequest may be both the current request and its reference object.
-Results still apply to the bound current-request destination under the
+A [link](#links) declared in a request editor constructs its target in the same
+order. Results still apply to the bound current-request destination under the
 [calculation contract](#field-calculation-requests). PrevRequest construction
 retains its current-editor source under the [path context rules](schema.md#context-and-syntax).
 
@@ -744,6 +750,8 @@ null parent, or out-of-bounds array destination rejects the complete update;
 CopyTo never creates missing parents or extends arrays. No unrelated field,
 default initialization, or navigation is changed by a successful assignment.
 An Error response applies no assignments and uses normal error presentation.
+A [link return](#link-return) applies these rules to a plain reply to a link
+sent from an editor; its destinations must not overlap a calculation's.
 
 ### Changes, resets, and deferred calculation
 
@@ -977,8 +985,9 @@ fixed step count, or client inference from previous-action lists or history.
 ### Operation ownership
 
 EditRequest uses the same correlation, status envelope, transport failures,
-and error/retry procedures as an ordinary reply. Allow only one pending Submit
-or Prev transition per editor. A duplicate or late reply cannot replace an
+and error/retry procedures as an ordinary reply. Allow only one pending Submit,
+Prev, or [link](#links) transition per editor; while one is pending, the others
+are blocked. A duplicate or late reply cannot replace an
 editor after its operation was consumed, its editor superseded, or the
 interaction exited. Subscription updates and auxiliary calculation responses
 keep their own owners and cannot perform workflow navigation or overwrite a
@@ -1902,90 +1911,183 @@ invocation. Existing explicit DefaultRequest entry, default subscriptions, and
 chart previews retain their own rules. WorkflowRequest and EditRequest
 continue to require their existing explicit editor submission.
 
-### Row actions
-
-A displayed Response offers some of its NextRequest actions on its data rows.
-The candidates are the Response's actions after the
-[constrained, access, and ExcludeUI filtering](#response-action-constraints).
-On an endpoint list or landing with no installed Response, each displayed
-endpoint value that declares NextRequest offers its actions the same way.
-For each candidate Request, the client collects every CopyFrom in the Request
-payload, including nested fields and referenced types, and resolves each one
-against the displayed value as ordinary CopyFrom would: the first alternative
-that yields an available value, including a valid null. That value's row
-carries the Request as its tap action; a Request whose CopyFrom paths resolve
-to several rows is offered on each of them. A tap is a direct link: the client
-constructs the Request through ordinary CopyFrom with the displayed value's
-[interaction reference context](#interaction-reference-context) and then
-applies the [single-action presentation rule](#single-action-confirmation-and-input-presentation),
-so a Request with no editable input field sends at once. When several
-Requests land on one row, the tap opens the existing request chooser, and the
-chosen Request remains a direct link. The Actions surface keeps offering every
-candidate.
-
+<a id="row-actions"></a>
 <a id="row-actions-bound-to-a-list-member"></a>
 
-**Bound List member.** An ordinary CopyFrom on a Request that a Response names
-in NextRequest may bind the tapped member of a List in that Response, using
-either [typed-ancestor form](schema.md#typed-ancestors-and-bound-occurrences)
-that calculations use for their invoking item:
+### Links
 
-- The relaxed member type `^<Type>`, where `Type` is the element type of
-  exactly one List reachable in that Response through Table fields and selected
-  Union branches without crossing another List. A name that matches a protocol
-  variant selects that variant instead.
-- The strict member selector `^<ResponseVariant.field.item>`, which names the
-  Response variant, then Table fields and selected Union branches down to one
-  List, and ends with that List's element native name; it crosses no other List.
+A **link** makes a displayed node open one Request of the same protocol when
+the user taps it. `@LibertasLink("OpenTopic")` and
+`#[libertas_link("OpenTopic")]` emit `{"Name":"Link","Value":"OpenTopic"}`.
+The value is exactly one non-empty Request variant native name of the same
+Endpoint protocol Union, never a comma list. Place it on any field, whether a
+protocol payload field or a field of a reusable named type, or on a Table,
+Union, or Enumeration type declaration. As for
+[TableHeader](presentation.md#tableheader-promoted-fields-and-union-selectors)
+and [inline choices](presentation.md#inline-choices), each declaration is read
+directly, not through effective-attribute resolution: a link on either the
+field or its type enables it, a field cannot switch off its type's link, and
+when both name a target the field's target applies to that occurrence.
 
-Both forms denote the tapped member, and ordinary field and literal index
-suffixes follow them. Real schemas use the relaxed form today: both parsers
-emit an empty native name for a List element, so no strict selector can name
-it yet, and calculations already bind their invoking item the relaxed way
-(`^<IncomeDocumentItem>.document`). The strict form becomes usable once the
-parsers emit element names.
+Rows carry actions only through declared links. No row action is inferred
+from CopyFrom: a Request whose CopyFrom resolves to a displayed value is not
+thereby offered on that value's row. Each occurrence has one target, so a row
+never opens a request chooser. The **Actions** surface keeps offering the
+displayed value's filtered NextRequest set, links included.
+
+**Direction by placement.** The occurrence's placement decides how the tap
+constructs its target:
+
+- On a displayed Response or SubscriptionData occurrence, including inline
+  endpoint-list data, the tapped node is the invoking node. The client
+  constructs the target through ordinary CopyFrom with the displayed value's
+  [interaction reference context](#interaction-reference-context).
+- In a request editor, the host field is the invoking node. The client
+  constructs the target under the calculation source order: the current editor
+  first, then the editor's reference objects in
+  [context order](#interaction-reference-context). The draft is read, never
+  transmitted; only the constructed target is sent, and it must be complete and
+  valid even while the editor is not.
+
+A variant that is both displayed and edited has both placements; the operation
+presenting the occurrence decides which applies, and Studio validates each.
+Typed selectors in the target's CopyFrom bind the nearest self-or-ancestor
+occurrence of the named type on the invoking node's path, at any depth and
+across nested Lists, under the
+[bound-occurrence rule](schema.md#typed-ancestors-and-bound-occurrences). From
+Actions, a menu, automatic singleton selection, or any other entry with no tap,
+the selector is unbound and the next alternative applies. The binding belongs
+to that one construction and its reply; it is never stored or transmitted, and
+a later construction does not inherit it.
+
+A link tap is a direct link under the
+[single-action presentation rule](#single-action-confirmation-and-input-presentation),
+so a target with no editable input field sends at once. Any composer it opens
+is the [transient request composer](endpoint-presentation.md#protocol-transaction-stack)
+above the current screen; cancelling it sends nothing and changes neither the
+screen nor its reference context.
+
+**Replies.** The client knows which operation it sent, so the same plain
+Response means an acknowledgement or a return according to the screen beneath
+the composer:
+
+| Reply | Composer above a Response or SubscriptionData screen | Composer above a stable editor |
+| --- | --- | --- |
+| Error or failure status | The composer stays for correction and retry; the reference context is unchanged. | The same. |
+| Plain Response: neither NextRequest nor WorkflowRequest | The [non-transition acknowledgement](#protocol-roles): the composer closes, the screen stays, and the Response becomes its reference context's acknowledgement object. Its CopyTo is not applied. | A [return](#link-return) into the originating editor. |
+| Response with NextRequest | Replaces the working screen. | Replaces the editor; the draft is discarded and [CacheIdentity](annotations.md#cacheidentity) governs recovery. |
+| EditRequest | Installs a stable editor as the working screen. | Replaces the editor, even with the same variant. |
+| WorkflowRequest | Opens the named editor. | Replaces the editor with the named editor. |
+
+<a id="link-return"></a>
+
+**Link return.** A plain Response replying to a link sent from a stable editor
+assigns its CopyTo fields into that editor exactly as a
+[calculation result](#applying-calculation-results) does: the complete mapping
+is checked first and applied atomically; destinations resolve against the host
+field's bound occurrence, retained for the transaction; an unavailable
+destination rejects the whole update; and assigned values are input changes
+that trigger dependent calculations. The editor stays, awaits its own
+submission, and its reference context is not replaced; nothing navigates. A
+reply carrying NextRequest or WorkflowRequest transitions and never applies
+CopyTo; Studio rejects a link target whose NextResponse names a Response
+variant declaring both.
+
+**Ownership.** A link is a pending transition owner beside workflow Submit and
+Prev under [operation ownership](#operation-ownership). An editor has at most
+one pending transition; while a link is pending, Submit, Prev, and other links
+are blocked, and its composer cannot be dismissed through native Back.
+Calculation replies stay auxiliary and still apply unless the editor was
+replaced. A late or duplicate link reply cannot replace a superseded editor or
+screen.
+
+**Presentation.** [Link rendering](presentation.md#link-rendering) owns how a
+link appears: it never removes its row's label or value, and it never edits its
+field. A
+Hidden occurrence, or one under a hidden ancestor, has no row, so Studio
+rejects a link there. On a Response or SubscriptionData, a link row is offered
+only while its target is in the displayed value's
+[filtered action set](#response-action-constraints). In a request editor the
+link is offered only when the target passes the same access and ExcludeUI
+filtering; an editor has no ConstrainedBy set. A constrained singleton is
+still selected automatically, and its presentation covers the rows, so a
+Response that wants tappable rows declares no ConstrainedBy on its actions.
 
 ```rust
+#[derive(LibertasExport, LibertasAvroDecode, LibertasAvroEncode)]
+#[libertas_link("OpenTopic")]
+pub struct TopicRow {
+    #[libertas_read_only]
+    pub title: String,
+    #[libertas_hidden]
+    pub section: TaxSection,
+}
+
+// Variants of the Endpoint protocol Union:
 #[libertas_response]
 #[libertas_next_request("OpenTopic")]
-Hub {
-    topics: Vec<TopicRow>,
-    #[libertas_hidden]
-    suggested: TaxSection,
-},
+Hub { topics: Vec<TopicRow> },
 
 #[libertas_request]
 OpenTopic {
     #[libertas_hidden]
-    #[libertas_copy_from("^<TopicRow>.section,$.suggested")]
+    #[libertas_copy_from("^<TopicRow>.section")]
     section: TaxSection,
+},
+
+#[libertas_request]
+EditHousehold {
+    #[libertas_link("LookupAddress")]
+    zip: String,
+    city: String,
+},
+
+#[libertas_request]
+#[libertas_next_response("AddressFound")]
+LookupAddress {
+    #[libertas_hidden]
+    #[libertas_copy_from("$.zip")]
+    zip: String,
+},
+
+#[libertas_response]
+AddressFound {
+    #[libertas_copy_to("$.city")]
+    city: String,
 },
 ```
 
-Every member row of that List carries the action, and a tap constructs the
-Request with the tapped member bound: `^<TopicRow>.section` reads that
-member's `section`. Every member selector of the same List in the Request binds
-the same member; a selector of another List is unbound on that tap. The
-remaining alternatives follow the ordinary row rule above with the selector
-unbound, so `$.suggested` also gives the `suggested` row the action. From
-Actions, a menu, automatic singleton selection, or any other entry with no
-tapped member, the selector is unbound and unavailable: the next alternative in
-the CopyFrom list applies, or the field keeps its ordinary initialization,
-including undefined, when none remains. The binding belongs to that one request
-construction. It is not a reference object, is never stored or transmitted, and
-a later construction in the same interaction, including another tap, does not
-inherit it.
+Every member row of `topics` opens OpenTopic, whose `^<TopicRow>.section`
+reads the tapped member's `section`; OpenTopic has no editable field, so the
+tap sends at once. In the EditHousehold editor, the `zip` row offers
+LookupAddress, which copies the draft's `zip` and sends at once; the plain
+AddressFound reply returns its `city` into the editor, which stays open.
 
-Studio rejects a member selector on a Request that no Response names in
-NextRequest and an incompatible source type or nullability. It rejects a
-relaxed member type that no List of a naming Response holds, and one held by
-several Lists of one Response as ambiguous. It rejects a strict selector whose
-variant is not a Response naming that Request, or that does not resolve to a
-List member on that Response or crosses another List.
+**Studio validation.** For each link occurrence Studio checks that:
 
-A constrained singleton is still [selected automatically](#response-action-constraints),
-and its presentation covers the rows. A Response that wants tappable rows
-therefore declares no ConstrainedBy on its actions.
+- the value names one Request variant of the same Endpoint protocol Union;
+- on a Response or SubscriptionData occurrence, the containing variant's
+  NextRequest lists the target; in a request editor the target may be any
+  Request variant;
+- the target's CopyFrom selectors resolve for that occurrence under the
+  [bound-occurrence rule](schema.md#typed-ancestors-and-bound-occurrences): the
+  named type occurs on the invoking path, the suffix exists, and types and
+  nullability are compatible;
+- in a request editor, every CopyTo of the target's plain NextResponse Response
+  variants is valid against the originating request as
+  [calculation CopyTo](#applying-calculation-results) is: the destination
+  exists, and type, nullability, numeric semantics, money currency, and Fixed
+  protection are compatible, with no destination overlapping a calculation's;
+  every direct payload field of such a Response has CopyTo or is Hidden
+  (discriminators and Error responses are exempt);
+- no NextResponse Response variant of the target declares CopyTo together with
+  NextRequest or WorkflowRequest; and
+- the occurrence is not Hidden or under a hidden ancestor, and its containing
+  variant can be displayed as rows: a link on an Error Response or on a
+  Response carrying WorkflowRequest has no row and is rejected.
+
+Existing Apps that relied on rows tappable through CopyFrom alone must declare
+links.
 
 ### Request editor variant identity
 
@@ -1994,12 +2096,14 @@ point: a chooser selection, a direct link, an explicit DefaultRequest, or a
 server-delivered EditRequest or WorkflowRequest. The editor's root row is that
 variant, never a selector over the Endpoint protocol Union. Android, iOS, and
 Libertas Studio must not offer the protocol's other variants from the root
-row, on tap, long-press, or any other row action, and must not render the
+row, on tap, long-press, or any other gesture, and must not render the
 root with a selectable-union affordance. Changing the request type means
 leaving the editor and choosing another action. Unions inside the request
 payload keep their ordinary variant selection. The **Actions** surface belongs
 to an accepted response only; a request editor has none, so nothing in it may
-open an action chooser or navigate to another request.
+open an action chooser or navigate to another request except a declared
+[link](#links). A link is neither the Actions surface nor a chooser; it is the
+only way an editor opens another request.
 
 ### Control endpoint landing and native Back
 
@@ -2106,8 +2210,8 @@ the action update; clients never fall back to the unconstrained set.
 
 The set belongs to the installed response and is replaced only with a newly
 accepted response or subscription update. It is not evaluated against an editor
-or another interaction. Every action entry point, including row actions and
-menus, uses the same filtered set. Backend authorization and state checks still
+or another interaction. Every action entry point, including declared
+[links](#links) on its rows and menus, uses the same filtered set. Backend authorization and state checks still
 apply when a selected request arrives.
 
 ```rust

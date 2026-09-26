@@ -1043,6 +1043,33 @@ There is no size threshold: a row grows with its choices, so mark only fields
 whose choices fit. The marker changes presentation only, never data, encoding,
 or paths. A client without inline support keeps the choice selector.
 
+## Link rendering
+
+A [link](protocols.md#links) adds an affordance to its row. It never removes
+the row's label or value and never replaces the value with a button. Whether
+the value is editable decides how the link appears:
+
+- **Value not editable:** every Response or SubscriptionData row, and a
+  ReadOnly row in a request editor. The label stays plain, the value renders as
+  link text in link styling, and the whole row is the tap target. On a struct,
+  Union branch, or List member, the header text is the link text, and an
+  expanded child row taps the nearest enclosing link unless the child row
+  declares its own link, which wins. On a FormattedText field the whole block
+  is the tap target; links inside FormattedText markup are not supported.
+- **Value editable:** the label, value, and editing are unchanged. Tapping the
+  value still edits it, and direct controls such as Boolean answers,
+  [inline choices](#inline-choices), and a Bitflags editor still work. The
+  link is a trailing link button beside the value, named after the target
+  Request's localized name. This is the only case that renders a button.
+
+A primitive with no label of its own, such as an item of a List of scalars,
+shows its value as the link text. While a target with no editable field is
+pending, the row shows the existing pending indicator and the link is disabled
+until the reply lands; repeated taps never send twice. A link adds no chevron
+or other glyph and never edits its field. Hidden rows have no link, since
+Studio rejects that placement. TableHeader promotion, flattening, folding, and
+read-only rules are unchanged by a link.
+
 ## Folding structs and unions
 
 Structs (`Table`), unions, and lists remain expanded unless `Foldable` is declared

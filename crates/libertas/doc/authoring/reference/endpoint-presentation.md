@@ -136,7 +136,9 @@ owner and cannot be dismissed through native Back. An Error keeps it available
 for correction and retry; a non-transition acknowledgement removes only the
 composer; a transitioning reply installs or updates the response destination
 as described below. Subscription updates may continue to refresh their owning
-screen underneath the composer.
+screen underneath the composer. A [link](protocols.md#links) opens this composer;
+above a stable editor its plain reply is applied to that editor as a
+[return](protocols.md#link-return) rather than an acknowledgement.
 
 A **stable endpoint destination** is an endpoint action/data screen, or the
 request editor entered through EditRequest or WorkflowRequest. Initial automatic

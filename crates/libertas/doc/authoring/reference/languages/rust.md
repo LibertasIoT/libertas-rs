@@ -1248,6 +1248,10 @@ correlated EditRequest messages; they need no Response role. See the
 [workflow contract](../protocols.md#workflow-interactions) for completion,
 initialization, explicit submission, and operation ownership.
 
+`#[libertas_link("OpenTopic")]` on any field, or on a struct or enum
+declaration, names the one Request variant that tapping that node opens;
+see [links](../protocols.md#links) and [link rendering](../presentation.md#link-rendering).
+
 ### Semantic validation rules
 
 Use `#[libertas_validation_rules("...")]` on a public function, any field or

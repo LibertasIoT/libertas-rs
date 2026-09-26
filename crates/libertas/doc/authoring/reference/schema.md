@@ -138,9 +138,9 @@ handling.
 | --- | --- | --- |
 | EnumSource; EndpointBaseObjects/BaseObjects | `$`, `@`, or one or more `^`, followed by named child segments | Root, annotated host, or actual parents in that schema-data tree. EnumSource takes one path; BaseObjects takes a comma-delimited list. |
 | Ordinary CopyFrom | Strict `^<Variant>` or `^<Variant.field...>` with a field/index suffix; `$` root-relative shorthand also remains supported; comma-delimited alternatives | The [current interaction reference context](protocols.md#interaction-reference-context), when present. |
-| Ordinary CopyFrom: row-action member | Relaxed `^<Type>` naming the element type of exactly one List in the Response, or strict `^<ResponseVariant.field...item>` whose last name is one List's element; either with a field/index suffix, on a Request named in that Response's NextRequest; neither crosses another List | The tapped member of that List in the displayed Response when the Request is constructed from that member's row; otherwise unbound, so the next alternative applies. See [row actions](protocols.md#row-actions-bound-to-a-list-member). |
+| Ordinary CopyFrom: link's bound occurrence on a Response or SubscriptionData | Relaxed `^<Type>` or strict `^<Variant.field...>` naming a self-or-ancestor occurrence on the tapped node's path, at any depth and across nested Lists, with a field/index suffix, on a [link](protocols.md#links) target | The occurrence the tap bound in the displayed value; with no tap, unbound, so the next alternative applies. See [bound occurrences](#typed-ancestors-and-bound-occurrences). |
 | CopyFrom when constructing a PrevRequest action | The same variant-rooted or root-relative copy syntax | The construction context contains the current edited request as its reference object. |
-| Calculation CopyFrom/CopyTo | Root-relative copy syntax, parent-relative `^`/`^^`, relaxed `^<Type>`, or strict `^<Variant.field.item>` with a field/index suffix | Inputs use the current-editor-first lookup defined by the [interaction reference-context owner](protocols.md#interaction-reference-context); the editor and a reference object may designate the same value. CopyTo addresses the corresponding bound current-request destination. See [calculation requests](protocols.md#field-calculation-requests). |
+| Calculation CopyFrom/CopyTo | Root-relative copy syntax, parent-relative `^`/`^^`, relaxed `^<Type>`, or strict `^<Variant.field.item>` with a field/index suffix | Inputs use the current-editor-first lookup defined by the [interaction reference-context owner](protocols.md#interaction-reference-context); the editor and a reference object may designate the same value. CopyTo addresses the corresponding bound current-request destination. See [calculation requests](protocols.md#field-calculation-requests). A [link](protocols.md#links) declared in a request editor constructs its target and applies its [return](protocols.md#link-return) the same way, with the host field's occurrence bound self-inclusively and parent-relative `^` stepping from the host field. |
 | AppendTo | Exactly one `Variant.field` using native names | A root array of an admitting working SubscriptionData; see [array append](protocols.md#subscriptiondata-array-append). |
 | AppendIndex | Exactly one root-field `$.field` | A non-null integer control field in the incoming append report; never copied as ordinary data. |
 | ConstrainedBy | Exactly one root-relative copy path | Request-field form: current request's selected payload. Response form: that response's payload. It is neither an interaction reference-context read nor an alternatives list. |
@@ -207,7 +207,10 @@ null; unknown or ambiguous type names and invalid Libertas Schema Paths fail val
 Resolution is grounded in a top-down traversal from the active variant. Bind
 only occurrences on the invoking node's ancestry, starting at its parent and
 including the root. The root itself remains eligible when it is the invoking
-node, which makes primitive variant roots addressable. A strict path pins the
+node, which makes primitive variant roots addressable. A
+[link](protocols.md#links) binds self-or-ancestor: its invoking node, the tapped
+node or the host field, is itself eligible, so `^<TopicRow>` on a link declared
+by `TopicRow` selects that row. A strict path pins the
 schema occurrence; relaxed matching selects the nearest enclosing occurrence of
 its named type. The selector may omit a suffix to select the bound value itself;
 otherwise suffixes use ordinary fields and literal zero-based array indices.
@@ -219,23 +222,26 @@ do not exclude calculation inputs from the interaction reference context; see
 [calculation requests](protocols.md#field-calculation-requests). The two logical
 contexts do not require separate stored copies.
 
-Ordinary CopyFrom accepts one bound occurrence: the **tapped member** of a
-[row action](protocols.md#row-actions-bound-to-a-list-member). The relaxed
-`^<TopicRow>.section` names the element type of exactly one List in the
-Response, reached through Table fields and selected Union branches without
-crossing another List; a name matching a protocol variant selects that variant
-instead. In the strict `^<Hub.topics.topic>.section`, the first name is a
-Response variant and the last name is the element of a List in it; the names
-between select Table fields and selected Union branches and cross no other
-List. Real schemas use the relaxed form today: both parsers emit an empty
-native name for a List element (the same holds for calculation selectors), so
-the strict form becomes usable once they emit element names. The Response remains the
-reference object; the binding only selects which of its members the selector
-denotes, namely the member whose row the user tapped. With no tapped member,
-from Actions, a menu, automatic selection, or any other entry, the selector is
+Ordinary CopyFrom accepts a bound occurrence only on the target of a
+[link](protocols.md#links) on a Response or SubscriptionData, whose invoking
+node is the tapped node. The selector names the nearest self-or-ancestor
+occurrence of its type on the tapped node's path, at any depth and across
+nested Lists; a tap pins the whole path, so a type held in several places or in
+nested Lists is not ambiguous. The relaxed `^<TopicRow>.section` names that
+type; a name matching a protocol variant selects that variant instead. In the
+strict `^<Hub.topics.topic>.section`, the first name is the displayed variant
+and each following name is an immediate schema child down to the bound
+occurrence, including List element names. Real schemas use the relaxed form
+today: both parsers emit an empty native name for a List element (the same
+holds for calculation selectors), so the strict form becomes usable once they
+emit element names. The displayed value remains the reference object; the
+binding only selects which occurrence the selector denotes. With no tap, from
+Actions, a menu, automatic selection, or any other entry, the selector is
 unbound, which is unavailable rather than null, and CopyFrom continues with the
 next alternative. Parent-relative `^` remains calculation-only, and a relaxed
-`^<Type>` in ordinary CopyFrom denotes only this tapped member.
+`^<Type>` in ordinary CopyFrom denotes only this bound occurrence. A link in a
+request editor binds like a calculation, from the host field, under the
+[context table](#context-and-syntax).
 
 Bindings belong to the operation. A later reply cannot retarget another item
 because it occupies the same index; different items remain distinct invocation
@@ -626,6 +632,7 @@ by the current parsers and shared validator.
 | `TableHeader` | Presence enables [header promotion/type flattening](presentation.md#tableheader-promoted-fields-and-union-selectors). Its Boolean string value encodes use_parent_name: true (default and existing schemas) uses the parent display name; false uses the field name. On a struct declaration, false hides its name-only row. Union values remain selected-variant display names. |
 | `UIName` | Its value names a sibling field. The marked String or FormattedText field's value titles the struct's row and the named field's value is the row's value ([data-titled rows](presentation.md#uiname-data-titled-rows)); neither has a row of its own, and a List member so titled drops its position. Studio enforces the placement rules there. |
 | `SuppressTitle` | Marker on a List whose effective member type is a Table: the List contributes no title to its member rows, neither member name nor position ([untitled List members](presentation.md#suppresstitle-untitled-list-members)). |
+| `Link` | One non-empty Request variant native name of the same Endpoint protocol Union, never a list, on any field or on a Table, Union, or Enumeration type declaration; the field's target wins over its type's. Tapping the displayed node opens that Request ([links](protocols.md#links), [rendering](presentation.md#link-rendering)). |
 | `InlineChoices` | Exact marker value `true` on an Enumeration or Union field or type declaration, never a Bitflags catalog. Clients show the permitted choices inline as radio controls ([inline choices](presentation.md#inline-choices)). |
 | `UIIncludeDescription` | Exact marker value `true`. Clients render the node's localized long `Description` inline together with its short `DisplayName`; it changes presentation only, not the typed value or wire encoding. |
 | `TimeInterval` | Displays a numeric value as a duration. It does not create a distinct wire type. |

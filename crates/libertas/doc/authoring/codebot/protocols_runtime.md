@@ -102,12 +102,21 @@ the complete [hidden-context rule](../reference/protocols.md#hidden-protocol-con
   cannot send. Never auto-submit workflow editors.
   Invalid entries reject the update without an unrestricted
   fallback. Existing access and ExcludeUI checks still apply.
-- Rows offer actions: a legal Request whose CopyFrom resolves to a displayed
-  row is that row's tap action (a direct link). To make every member of a
-  Response List tappable, copy through its member type
-  `^<TopicRow>.section,$.suggested`; with no tapped member (Actions,
-  menus, automatic selection) the next alternative applies. Such a Response
-  declares no `ConstrainedBy`. See [row actions](../reference/protocols.md#row-actions).
+- Rows and editors open another request only through a declared `Link`
+  naming one Request; nothing is inferred from CopyFrom, so whenever a
+  Request's CopyFrom reads a displayed value that the user should be able to
+  tap, declare the `Link` on that value's field or type yourself. A tap is a
+  direct link. On a Response/SubscriptionData the target must be in NextRequest (and
+  the filtered set) and its CopyFrom binds the tapped node self-or-ancestor at
+  any depth, e.g. `^<TopicRow>.section`; with no tap (Actions, menus,
+  automatic selection) the next alternative applies. In an editor the target
+  copies from the draft first (never transmitted); a plain reply is a return:
+  every direct field has `CopyTo` or is Hidden and assigns atomically into the
+  editor like a calculation result, while NextRequest, WorkflowRequest, or
+  EditRequest replace the editor. Never combine CopyTo with NextRequest or
+  WorkflowRequest on a link target's reply. One pending Submit, Prev, or link
+  per editor. A Response wanting tappable rows declares no `ConstrainedBy`.
+  See [links](../reference/protocols.md#links).
 - A response with no visible content presents only its legal actions while
   retaining hidden cookies for CopyFrom. Visible content presents a data
   screen. WorkflowRequest and EditRequest open editors without auto-submission.

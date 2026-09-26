@@ -1315,6 +1315,10 @@ correlated EditRequest messages; they need no Response role. See the
 [workflow contract](../protocols.md#workflow-interactions) for completion,
 initialization, explicit submission, and operation ownership.
 
+`@LibertasLink("OpenTopic")` on any field, or on a struct, enum, or union
+declaration, names the one Request variant that tapping that node opens;
+see [links](../protocols.md#links) and [link rendering](../presentation.md#link-rendering).
+
 ### Advanced Chaining & Caching
 - **`@LibertasNextRequest("...")`** / **`@LibertasNextResponse("...")`**: Connects multi-step conversations by specifying the next valid step. The value **must be non-empty and match the native name of variants** (which is the resolved discriminator value name). You can provide a comma-delimited list for multiple valid next steps. `NextRequest` is optional on a Response; omission is the non-transition acknowledgement above, not an implicit list of every Request.
 
