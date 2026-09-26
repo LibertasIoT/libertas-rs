@@ -1,300 +1,261 @@
 # Endpoint protocols and runtime
 
-Use the [Libertas Schema Path specification](../reference/schema.md#libertas-schema-path)
-for path syntax and context; operation contracts below define their use.
-
 This page is the compact App-authoring projection of the full
-[Endpoint protocols and runtime contract](../reference/protocols.md). Use the
-installed public SDK for exact callback and function signatures.
+[Endpoint protocols and runtime contract](../reference/protocols.md). Path
+syntax and context belong to the
+[Libertas Schema Path specification](../reference/schema.md#libertas-schema-path);
+exact callback and function signatures belong to the installed public SDK.
 
 ## Declaring an Endpoint
 
 - Apply `EndpointSchema` to a `LibertasEndpoint` field and reference a protocol
   Union. Add `EndpointServer` only when this App serves it.
-- `EndpointBaseObjects` takes comma-delimited Libertas Schema Paths.
+  `EndpointBaseObjects` takes comma-delimited Libertas Schema Paths.
 - On a client Endpoint, `Default` and `Fixed` take
   `developer-package::function`. Compatibility is always evaluated first.
   `Default` keeps every compatible server; `Fixed` restricts servers to the
   named task process and alone contributes its package to `AppDependencies`.
-  Both Endpoint selectors remain editable.
-- If such an Endpoint occurrence is non-nullable through every ancestor and
-  every ancestor List requires at least one item, task creation waits for an
-  eligible server. Either value names the peer task to provision; see the
-  [canonical dependency check](../reference/schema.md#62-task-pre-creation-static-dependency-check).
+  Both selectors remain editable. If the Endpoint occurrence is non-nullable
+  through every ancestor and every ancestor List requires an item, task
+  creation waits for an eligible server, and either value names the peer task
+  to provision ([dependency check](../reference/schema.md#62-task-pre-creation-static-dependency-check)).
+- Every variant has at least one [role](../reference/protocols.md#protocol-roles)
+  (`Request`, `Response`, `SubscriptionRequest`, `SubscriptionData`) and may
+  have several. TypeScript uses a stable numeric first-field discriminator;
+  Rust uses enum declaration order. `NextRequest`, `NextResponse`, and every
+  other variant reference use native variant names.
+- Keep one versionless protocol Union and append new cases only at the end.
+  A protocol is a set of [capabilities](../reference/protocols.md#protocols-describe-capabilities):
+  `ProtocolConformance` (`&`, `|`, `!`, `^` over native names) declares
+  mandatory peer capability; matching payloads stay pass-through compatible;
+  before sending an optional request, a client checks the selected server's
+  runtime variant indices.
+- [`AccessPrivilege`](../reference/protocols.md#request-access) on a
+  Request/SubscriptionRequest is `Read=1`, `Write=2`, or `Read,Write=3`
+  (the default). Explicitly mark every mutating operation `Write`.
+- Every function permission needs a same-key nonempty package string-resource
+  reason. A server Endpoint may declare downstream permissions without reasons;
+  the selected client task must already hold them. Neither replaces
+  `AccessPrivilege`.
 
-## Protocol roles
+## The four relations
 
-Every effective protocol variant has at least one role: `Request`, `Response`,
-`SubscriptionRequest`, or `SubscriptionData`. A variant may have multiple
-roles. TypeScript uses a stable numeric first-field discriminator; Rust uses
-enum declaration order.
+Every runtime rule follows from four relations. The consequences listed under
+each are the ones Apps get wrong; the linked owners hold the rest.
 
-`Error` accompanies `Response` and classifies the complete response as
-out-of-band of the state transition without changing its payload or wire form.
-Put its best user explanation in the first renderable `FormattedText`; clients
-preserve the current interaction and retry state.
+### 1. Reachability: a Request is reached only through a declaration that names it
 
-## Request access
+| Declaration | Reached by |
+| --- | --- |
+| `NextRequest` on the displayed Response or SubscriptionData | the **Actions** surface, in declared order |
+| `Link` on a displayed value's field or type (target also in that `NextRequest`) | a tap on that value's row |
+| `Link` on a request-editor field (any Request) | the row's link button |
+| `CalculationRequest` on an editor field | a change of that input; never Actions |
+| `DefaultRequest` | endpoint entry, sent with no editor |
+| `EditRequest` / `WorkflowRequest` reply | the server opening that editor |
+| `PrevRequest` on the edited Request | the workflow Back button |
+| none of the above | the request-list landing, only when the endpoint has no default entry |
 
-`AccessPrivilege` is an alternative bitmap on Request/SubscriptionRequest:
-`Read=1`, `Write=2`, and `Read,Write=3`; omission is `3`. Explicitly mark every
-mutating operation `Write`. This is distinct from function `Permissions`.
+Nothing is inferred: not from CopyFrom (declare the `Link` yourself on any
+value a user should tap), not from an input-free payload, and not from a
+missing `NextRequest` or an entry failure, which never offer every Request.
+Visibility is not authorization; the backend re-checks access and state on
+every submission. Modifiers:
 
-## Chaining, caching, and copied values
+- **Filter.** Response-level `ConstrainedBy("$.allowed_actions")` reads a
+  hidden non-null integer array of original Union discriminants (not
+  positions) and keeps membership only: `NextRequest` order stays, empty means
+  no actions, duplicates add nothing, and missing/malformed/undeclared entries
+  reject the update with no unrestricted fallback. Members carry explicit
+  `Discriminator` 0..N−1 in pre-sorted order (gaps, duplicates, and misordering
+  are rejected; missing values use declaration order; `Fixed` is never variant
+  identity; stored schemas are never rewritten; see [Unions](../reference/schema.md#54-unions)).
+  Access and `ExcludeUI` filter next; `ExcludeUI` removes a Request everywhere,
+  links included. Links and menus use the same filtered set, so a Response
+  wanting tappable rows declares no `ConstrainedBy`.
+- **Lone survivor.** A filtered set of exactly one (not counting `LinkOnly`)
+  is selected automatically once per accepted response.
+- **`LinkOnly`** keeps a Request only on its links: Actions, menus, landings,
+  and the singleton count never offer it. It must be a link target, cannot be
+  `DefaultRequest` or `ExcludeUI`, and older clients still show it in Actions
+  ([link-only](../reference/protocols.md#link-only)).
+- **Presentation by entry point.** A fieldless direct link sends at once; a
+  fieldless Request from Actions shows Send/Cancel, even as a singleton, and
+  the origin survives selection. One primitive or enum field uses the one-field
+  popup; complex input uses the full editor. Cancel sends nothing; stale or
+  repeated confirmations cannot send
+  ([single action](../reference/protocols.md#single-action-confirmation-and-input-presentation)).
+- **`DefaultRequest`**: at most one, input-free (Nil, or only Hidden/ReadOnly
+  `Fixed`/`Default` fields such as a hidden `Fixed("current-user")`), never
+  chart-producing, `LinkOnly`, or `ExcludeUI`; it needs no reference context
+  and owns entry. Without it, the first effective-Nil `SubscriptionRequest` is
+  the sole automatic default subscription and every other is explicit; with
+  neither, the landing lists Requests, previewing executable chart requests
+  ([default entry](../reference/protocols.md#default-request-entry-and-dynamic-actions)).
+- **Editor identity.** An editor composes exactly one variant, fixed by its
+  entry point; it has no Actions surface, and a `Link` is its only way to open
+  another Request ([variant identity](../reference/protocols.md#request-editor-variant-identity)).
+  `PrevRequest` targets are listed in order and not filtered by
+  `ConstrainedBy`: one goes directly, several open a chooser, none means no
+  workflow Back.
 
-`NextRequest` and `NextResponse` contain native variant names. Protocol
-request/reply payload caching has no attribute and is not supported. For
-CopyFrom, use the [shared copy rules](../reference/schema.md#shared-copyfrom-and-copyto-rules)
-and [operation context table](../reference/schema.md#context-and-syntax);
-do not invent per-action grammar or a stored previous request. Use the
-[current interaction reference context](../reference/protocols.md#interaction-reference-context);
-reads follow the [availability contract](../reference/schema.md#availability-null-and-interaction-ownership),
-including explicit null handling when composing for the first time. Outside
-workflows and automatic WorkflowRequest entry, an ordinary Response without
-`NextRequest` is a non-transition acknowledgement (often a shared
-`Success`/`Failure`), not permission to offer every Request. Clients
-preserve the displayed protocol data and choices while showing its result
-message transiently; reference context follows the interaction rule above. See the
-[protocol-role contract](../reference/protocols.md#protocol-roles). A
-SubscriptionData/DataReport operation still refreshes live state even when it
-uses the same dual-role variant.
+### 2. Replies: replace the working screen or be consumed in place
 
-Carry session/continuation data and values supplied only to initialize later
-requests in typed Hidden protocol fields (or a Hidden context container).
-Copy them into receiving requests; keep coordination fields Hidden but leave
-user-editable initialized fields visible. Complete EditRequest values already
-include this data. Check every construction path and context replacement:
-Hidden neither initializes nor exempts a field from validation, and old
-responses are not searched. First entry must work without prior context.
-Hidden is not authorization; validate submitted context on the server. Follow
-the complete [hidden-context rule](../reference/protocols.md#hidden-protocol-context).
+| Reply | Effect |
+| --- | --- |
+| Response with `NextRequest` | replaces the working screen; its choices are exactly that `NextRequest` |
+| `EditRequest` (a complete Request value) | installs a stable editor, replacing one even of the same variant |
+| `WorkflowRequest` (Response naming one Request; no `NextRequest` or Error) | opens the named editor, never showing the Response |
+| plain Response over a displayed Response or SubscriptionData | acknowledgement: the composer closes, the screen, its data and choices stay, the result message shows transiently; its CopyTo is not applied |
+| plain Response to a link from an editor, or a calculation reply | [return](../reference/protocols.md#link-return): CopyTo assigns into the editor atomically, nothing navigates |
+| Error (`@LibertasError`) or failure status | out-of-band: payload and wire form unchanged; the first renderable `FormattedText` shows in a dismissible dialog, so put the best explanation there; the composer or editor stays for retry |
+| SubscriptionData report | updates the snapshot in place, even for a dual-role variant; never navigates |
 
-## Where a Request is offered
+Consequences:
 
-One table decides how the user reaches each Request and what keeps it off a
-menu. A Request is reached only through the mechanisms its declarations name;
-nothing is inferred.
+- A plain Response after a workflow Submit or Prev ends the editor and is
+  shown as a terminal screen, even without `NextRequest`
+  ([workflows](../reference/protocols.md#workflow-interactions)). A response
+  with no visible content presents only its actions, keeping hidden cookies.
+- No editor is auto-submitted: EditRequest and WorkflowRequest editors wait
+  for explicit submission, even when Nil or complete.
+- Never combine CopyTo with `NextRequest` or `WorkflowRequest` on a link
+  target's reply. Every direct field of a returning or calculation reply has
+  CopyTo or is Hidden. CopyTo never creates parents or extends arrays; an
+  unavailable destination rejects the whole update; `Fixed` destinations are
+  protected ([applying results](../reference/protocols.md#applying-calculation-results)).
+- **Calculations.** Fixed inputs need no CopyFrom (a hidden
+  `Fixed("current-user")` is resolved from the session and Hub-verified);
+  every other input declares CopyFrom. A change resets affected outputs
+  through ordinary initialization. Deferred work is one ordered queue per
+  editor: a new change removes the instance's entry and appends it to the
+  tail; the in-flight invoking node stays immutable; deferred requests are
+  rebuilt and validated at dispatch
+  ([deferred calculation](../reference/protocols.md#changes-resets-and-deferred-calculation)).
+  Array removal follows dependency scope, not positions: cancel removed-item
+  work, keep unaffected surviving item-local work, reschedule work crossing
+  the item boundary or consuming the whole array or projection, and never
+  retarget a stale positional write ([array removal](../reference/protocols.md#array-removal-and-calculation-scope)).
+- **Calculated allowed sets.** A reply may CopyTo a field-level
+  `ConstrainedBy` source. Studio counts it as writing every constrained field,
+  so it cannot read them, even indirectly, and no other calculation may write
+  them. Re-filtering resets an outside selection through ordinary
+  initialization (triggering its readers), leaves an inside one untouched, and
+  a source reset while pending never resets the selection
+  ([allowed sets](../reference/protocols.md#calculated-allowed-sets)).
+- **Server side.** Branch on action before decoding; signals carry no payload;
+  peer handles are opaque. Start or renew a stream only on the current
+  subscription callback, answer it with a correlated complete snapshot (exact
+  peer and transaction), and use reports only for later changes; a report
+  alone leaves the request unanswered. A shared snapshot variant needs both
+  Response and SubscriptionData roles. Use `PeerAlive`, not a "no change"
+  payload ([runtime rules](../reference/protocols.md#endpoint-runtime-rules)).
+- **Report shapes.** SubscriptionData A with `NextResponse(B,C)` accepts
+  directional root-field updates from B/C, keeping A's screen, actions, and
+  unmatched fields; all are non-null Tables with assignable matching fields,
+  applied atomically. The Hub routes without retaining or merging payloads;
+  the App chooses whether to send such reports and owns consistency and
+  ordering ([compatible updates](../reference/protocols.md#compatible-subscriptiondata)).
+  The [reduced pattern](../reference/protocols.md#reduced-subscriptiondata-design-pattern)
+  is optional (complete snapshots alone suffice): stable variants' `NextResponse`
+  admits reduced variants, whose CopyTo picks the destination under the
+  [shared copy rules](../reference/schema.md#shared-copyfrom-and-copyto-rules);
+  each valid update applies atomically; acceptance checks do not prove
+  application consistency, which the App designs across concurrent changes,
+  derived fields, and the initial snapshot. Request acknowledgement stays
+  separate from subscription publication.
+- **Append.** [`AppendTo`](../reference/protocols.md#subscriptiondata-array-append)
+  names one `Variant.field` whose SubscriptionData admits the report; optional
+  `AppendIndex` names a non-null integer root field equal to the pre-append
+  length, even for empty appends. Arrays are non-null (elements may hold
+  assignable nulls); order and duplicates are kept; nothing is padded, overwritten, or recovered; fields targeting
+  other variants are skipped; conflicting writers or an invalid result reject
+  atomically; reports before the initial snapshot are discarded. The App owns
+  ordering, deduplication, retention, and fresh snapshots; matching lengths do not prove matching contents. Live charts
+  refresh without auto-scroll. With variant CopyTo, one destination per
+  recipient excludes append fields and index controls (which ordinary replacement
+  also skips); an actual copied write overlapping an appended array or its
+  contents is rejected (retained omitted fields are not writes); copies and appends commit as one candidate.
 
-| The Request is … | The user reaches it through | Not offered anywhere else |
-| --- | --- | --- |
-| named in the displayed Response's `NextRequest` | the **Actions** menu, filtered by `ConstrainedBy`, access and `ExcludeUI`; a lone survivor is selected automatically | |
-| the target of a `Link` on a displayed value (it must also be in that `NextRequest`) | one tap on that row while it is in the filtered set | add `LinkOnly` and it leaves Actions, menus, landings and the singleton count |
-| the target of a `Link` on a request-editor field | the row's link button; a plain reply returns through `CopyTo`, a NextRequest/EditRequest/WorkflowRequest reply replaces the editor | |
-| named by `CalculationRequest` on an editor field | automatically when that input changes; the reply is applied, never shown | never in Actions, since it is not in any `NextRequest` |
-| the `DefaultRequest` | sent at endpoint entry with no editor | cannot be `LinkOnly` or `ExcludeUI` |
-| delivered as `EditRequest` or `WorkflowRequest`, or named in `PrevRequest` | the server opens it; Back constructs a `PrevRequest` target | |
-| none of the above | the request-list landing, only when the endpoint has no default entry and the Request is not `LinkOnly` | `ExcludeUI` removes it everywhere, links included |
+### 3. Copies: a target is built from the reference context
 
-## Default entry and backend-selected actions
+CopyFrom follows the [shared copy rules](../reference/schema.md#shared-copyfrom-and-copyto-rules)
+and the [context table](../reference/schema.md#context-and-syntax); there is
+no per-action grammar, stored previous request, or payload cache. The
+[reference context](../reference/protocols.md#interaction-reference-context)
+holds at most two separate objects of the current interaction:
 
-- A parameterless Request is not implicitly a default. Without a default entry,
-  the landing lists requests, with executable chart requests shown as previews.
-- Mark at most one input-free Request with `DefaultRequest` (Nil, or only
-  hidden/read-only Fixed or Default fields such as a hidden
-  `Fixed("current-user")` caller); it owns initial
-  entry without needing user input or a reference context. Chart-producing
-  requests cannot carry this marker. With no explicit marker, retain default
-  subscription behavior; with neither, present the request-list landing.
-- The entry reply determines subsequent interaction. `NextRequest` declares
-  possible actions **in display order**. Never expose all protocol requests
-  after an entry failure or a response with no NextRequest.
-- Response-level `ConstrainedBy("$.allowed_actions")` reads a hidden integer
-  array from that response. Entries are original protocol Union discriminants,
-  not NextRequest positions. Union members use explicit `Discriminator`, independent
-  of payload `Fixed`. Children are pre-sorted with Discriminator exactly 0 through
-  N−1; reject gaps, duplicates, and mismatched ordering. Decode by checked index.
-  Missing Discriminator uses declaration order; all runtimes must
-  never interpret Fixed as variant identity or rewrite stored schemas. See [Unions](../reference/schema.md#54-unions).
-  The array determines membership only; filtering
-  preserves NextRequest order. Empty permits no actions; duplicates do not
-  duplicate actions. A singleton after access/visibility filtering, not counting
-  LinkOnly requests, is selected automatically once per accepted response. Follow the
-  [single-action presentation rule](../reference/protocols.md#single-action-confirmation-and-input-presentation):
-  fieldless direct links send without confirmation; fieldless requests from
-  Actions require Send/Cancel even for a singleton. Preserve origin through
-  selection. One primitive or enum uses the existing one-field popup; complex
-  input uses the full editor. Cancel sends
-  nothing and preserves the current interaction; stale or repeated confirmations
-  cannot send. Never auto-submit workflow editors.
-  Invalid entries reject the update without an unrestricted
-  fallback. Existing access and ExcludeUI checks still apply.
-- Rows and editors open another request only through a declared `Link`
-  naming one Request; nothing is inferred from CopyFrom, so whenever a
-  Request's CopyFrom reads a displayed value that the user should be able to
-  tap, declare the `Link` on that value's field or type yourself. A tap is a
-  direct link. On a Response/SubscriptionData the target must be in NextRequest (and
-  the filtered set) and its CopyFrom binds the tapped node self-or-ancestor at
-  any depth, e.g. `^<TopicRow>.section`; with no tap (Actions, menus,
-  automatic selection) the next alternative applies. In an editor the target
-  copies from the draft first (never transmitted); a plain reply is a return:
-  every direct field has `CopyTo` or is Hidden and assigns atomically into the
-  editor like a calculation result, while NextRequest, WorkflowRequest, or
-  EditRequest replace the editor. Never combine CopyTo with NextRequest or
-  WorkflowRequest on a link target's reply. One pending Submit, Prev, or link
-  per editor. A Response wanting tappable rows declares no `ConstrainedBy`.
-  See [links](../reference/protocols.md#links).
-- Mark a Request that exists only to be opened from rows `LinkOnly` so it is
-  not also a second Actions entry: NextRequest and the filtered set still govern
-  its links, but Actions, menus, landings, and automatic singleton selection
-  never offer or count it. It must be a link target in its protocol, and cannot
-  be DefaultRequest or carry ExcludeUI. Older clients still show it in Actions.
-  See [link-only requests](../reference/protocols.md#link-only).
-- A response with no visible content presents only its legal actions while
-  retaining hidden cookies for CopyFrom. Visible content presents a data
-  screen. WorkflowRequest and EditRequest open editors without auto-submission.
-- Keep the backend's authorization and current-state checks on submission;
-  action visibility is not authorization.
+- over a displayed Response: the latest acknowledgement, then that Response;
+- in a subscription: the latest successful correlated Response, then the
+  snapshot; an EditRequest is its own reference object.
 
-Follow the precise [default-entry and dynamic-action contract](../reference/protocols.md#default-request-entry-and-dynamic-actions),
-including source validation, precedence, pending ownership, and error handling.
+A transitioning reply replaces both; an acknowledgement replaces only the
+first; Error changes neither; older responses are never searched. First entry
+and Back-triggered landing refresh have no context, so reads handle null
+([availability](../reference/schema.md#availability-null-and-interaction-ownership)).
 
-## Protocol conformance
+- **From an editor** (calculation, editor link): the current draft first, then
+  the context. The draft is read, never sent; only the constructed target must
+  be complete and valid. `PrevRequest` copies from the current editor's
+  payload; an incomplete or invalid Prev is not sent.
+- **Binding.** A typed selector such as `^<TopicRow>.section` binds the
+  nearest self-or-ancestor occurrence on the tapped node's or host field's
+  path, at any depth; with no tap (Actions, menus, lone survivor) the next
+  alternative applies. Strict `^<Variant.field.item>.field` starts at the
+  active variant, whose root is selectable even when primitive; no lookup
+  crosses into the protocol Union. Studio validates every invoking occurrence;
+  clients keep the original bindings, never a variant name alone
+  ([typed ancestors](../reference/protocols.md#typed-ancestor-paths-and-per-item-calculations)).
+- **Hidden context.** Carry session, continuation, and initialize-later values
+  in typed Hidden fields (or a Hidden container) and copy them into receiving
+  requests: coordination fields stay Hidden, user-editable ones stay visible;
+  an EditRequest already carries them. Supply them on every construction path
+  and across every context replacement. Hidden neither initializes nor exempts
+  a field from validation, and is not authorization: validate submitted
+  context on the server ([hidden context](../reference/protocols.md#hidden-protocol-context)).
 
-Treat a protocol as capabilities; matching selects corresponding capabilities,
-then ordinary serialization handles their compatible payloads. See the
-[capability and prefix distinction](../reference/protocols.md#protocols-describe-capabilities).
+### 4. Screens: one landing, one working screen, one composer
 
-Keep one versionless protocol Union and append new cases only at the end.
-`ProtocolConformance` uses `&`, `|`, `!`, and `^` over native variant names to
-declare mandatory peer capability. Matching payloads must remain pass-through
-compatible. A client checks the selected server's runtime variant indices
-before sending an optional request.
+A task with several endpoints opens an endpoint list; only default
+subscription data shown inline there is also a landing (never duplicate it),
+and other landings stack above the list on tap. A single endpoint enters its
+landing directly with no list. Above the landing sits at most one working
+screen, which successive results replace or update, and above that at most one
+[transient composer](../reference/endpoint-presentation.md#protocol-transaction-stack).
+An editor has at most one pending Submit, Prev, or link; the pending composer
+owns its reply, and within an interaction replies apply in
+[send order](../reference/protocols.md#request-and-response-ordering).
 
-## Default and explicit subscriptions
-
-The first effective-Nil `SubscriptionRequest` in declaration order is the sole
-automatic default. Every other subscription is explicit. A server starts or
-renews stream state only after receiving the current subscription callback.
-
-## Endpoint runtime rules
-
-Follow the public SDK callback contract. Branch on action before decoding data;
-signals carry no payload. Treat peer handles as opaque. Answer SubscriptionRequest
-with a correlated complete snapshot (exact callback peer and transaction); use
-reports for later changes. A shared snapshot variant needs both Response and
-SubscriptionData roles. A report alone leaves the opening request unanswered.
-Use `PeerAlive` rather than inventing a “no change” payload. See
-[endpoint runtime rules](../reference/protocols.md#endpoint-runtime-rules).
+- Cancel pops only the composer: nothing is sent and the screen and context
+  stay.
+- Native Back reveals the layer beneath: from a working screen, the landing
+  (a workflow landing refreshes in place with no reference context; a live
+  subscription is kept); from a separate landing, the list, or exit for a
+  single endpoint. Back sends no `PrevRequest`, undoes nothing accepted, and
+  fences abandoned replies, calculations, and subscriptions
+  ([landing and Back](../reference/protocols.md#control-endpoint-landing-and-native-back)).
+  [CacheIdentity](../reference/annotations.md#cacheidentity) governs draft
+  recovery; no partial request is ever sent.
 
 ## Persistent data schemas
 
-Default Data API failure: Hub runtime stops the task, reports runtime Error with internal data-failure classification,
-retains persisted enabled state, and never automatically restarts it. Only an
-explicit function `DataErrorStatus` permits checked status-returning calls;
-those Apps own consistency after failure. Absence is not failure. Any restart
-uses a third-party `Enable` action and ordinary startup. See the
-[owner](../reference/protocols.md#persistence-failure-and-the-no-status-api).
+Default Data API failure: the Hub runtime stops the task, reports the runtime
+Error with an internal data-failure classification, retains the persisted
+enabled state, and never restarts it automatically. Only an explicit function
+`DataErrorStatus` permits checked status-returning calls; those Apps own
+consistency after failure. Absence is not failure. Any restart uses a
+third-party `Enable` action and ordinary startup
+([owner](../reference/protocols.md#persistence-failure-and-the-no-status-api)).
 
-One function may reference one versionless persistent-data Union. TypeScript
-uses `@LibertasDataSchema(Type)` on the function and no standalone Union marker;
-Rust uses
-`#[libertas_data_schema(Type)]` on the function. Append new variants only at the
-end. Prefer structured record payloads; persisting `FormattedText` is permitted
-but discouraged under the
-[payload guidance](../reference/presentation.md#persisting-formatted-record-payloads).
-That recommendation does not apply to DataName names.
-
-### Data and database names
+One function may reference one versionless persistent-data Union:
+`@LibertasDataSchema(Type)` on the TypeScript function (no standalone Union
+marker) or `#[libertas_data_schema(Type)]` in Rust. Append new variants only
+at the end. Prefer structured payloads; persisting `FormattedText` is permitted
+but discouraged ([payload guidance](../reference/presentation.md#persisting-formatted-record-payloads)),
+which does not apply to DataName names.
 
 Every single-record or indexed-table name is the canonical byte encoding of one
 package `StringResources` key plus ordered typed message arguments. Reuse that
 exact tuple for the same identity; never use rendered, literal, separately
-maintained, or Base64 names. See
-[Libertas Message Format](../reference/message-format.md#data-and-database-names).
-
-## Function and Endpoint permissions
-
-Every function permission needs a same-key nonempty package string-resource
-reason. A server Endpoint may declare downstream permissions without reasons;
-the selected client task must already hold them. Neither form substitutes for
-per-request `AccessPrivilege`.
-
-Transient request composers preserve their originating screen: cancellation pops
-only the composer, and pending submission waits for its correlated reply. See
-[transaction stack](../reference/endpoint-presentation.md#protocol-transaction-stack).
-
-Multiple endpoints use an endpoint list. Only default subscription data shown
-inline there also serves as an endpoint landing; never duplicate it. Other
-landings open on endpoint tap above the list. Exactly one endpoint enters its
-landing directly, with no list in the stack. Retain each landing below its
-working screen. Back reveals that landing, refreshing workflows in place with
-no reference context but preserving live subscriptions. Back from a separate
-landing returns to the list or exits a single-endpoint task. Fence abandoned
-work. See [the owning contract](../reference/protocols.md#control-endpoint-landing-and-native-back).
-
-Calculation CopyFrom/CopyTo supports relaxed `^<Type>.field` and strict
-`^<Variant.field.item>.field` Libertas Schema Paths from the active variant. The variant
-root itself is selectable, including primitive payloads; no lookup crosses into
-the protocol Union. Studio validates every invoking occurrence; clients retain
-its original value bindings, never a variant name alone. See [typed ancestor calculations](../reference/protocols.md#typed-ancestor-paths-and-per-item-calculations).
-
-Within an Endpoint interaction, correlated request/reply transactions preserve
-request send order. Deferred calculations use one ordered queue per editor: a
-new change removes that instance's queued entry and appends it to the tail.
-Keep the in-flight transaction's invoking node immutable; rebuild and validate
-deferred requests only at dispatch. See [ordering](../reference/protocols.md#request-and-response-ordering)
-and [deferred calculations](../reference/protocols.md#changes-resets-and-deferred-calculation).
-
-A calculation request's Fixed inputs need no CopyFrom: a hidden
-`Fixed("current-user")` User field is resolved from the session and verified by
-the Hub like any request, and any other Fixed input takes its declared value;
-every non-Fixed input declares CopyFrom.
-
-A calculation reply may `CopyTo` a field-level `ConstrainedBy` source and so
-change a page's allowed choices while it is open. Studio counts that
-calculation as a writer of every field the source constrains, so it cannot
-read such a field directly or through other calculations, and no other
-calculation may write it. Applying the reply re-filters the chooser: a
-selection outside the new set resets through ordinary initialization and
-triggers the calculations reading it; one inside it is untouched; a source
-reset while pending never resets the selection. See
-[calculated allowed sets](../reference/protocols.md#calculated-allowed-sets).
-
-Array removal uses dependency scope, not later row positions: cancel removed-item
-work, preserve unaffected surviving item-local work, and reschedule calculations
-associated with the array which cross the item boundary or consume the whole
-array/projection. Never retarget a stale positional write. See
-[array removal](../reference/protocols.md#array-removal-and-calculation-scope).
-
-## Compatible subscription updates
-
-- SubscriptionData A may declare NextResponse(B,C) to accept directional root-field
-  updates from B/C while retaining A's screen, actions, and unmatched fields. All
-  members are non-null Tables; matching fields must be assignable. Apply atomically.
-- The App chooses whether to send compatible reports and owns consistency and
-  ordering. Every SubscriptionRequest must return a complete current snapshot.
-  The Hub routes without retaining payloads or merging reports. See the
-  [owning contract](../reference/protocols.md#compatible-subscriptiondata).
-
-An App may adopt the [Reduced SubscriptionData design pattern](../reference/protocols.md#reduced-subscriptiondata-design-pattern),
-combining subscriptions, NextResponse, CopyTo, and typed copying; it may instead
-publish complete snapshots only. The pattern uses a full snapshot for every
-SubscriptionRequest. Each stable SubscriptionData
-variant's NextResponse admits reduced variants; each reduced variant's CopyTo
-selects its destination under the
-[shared copy rules](../reference/schema.md#shared-copyfrom-and-copyto-rules).
-Apply each valid recipient update atomically under the pattern's acceptance
-and ownership checks. The App must design its protocol and transactions for data consistency across
-every permitted interaction and state-transition path, including concurrent
-changes, derived fields, and the initial snapshot boundary. Acceptance and copy
-checks do not establish application-level consistency. Request acknowledgement
-remains separate from subscription publication.
-
-Array updates may use [AppendTo and optional AppendIndex](../reference/protocols.md#subscriptiondata-array-append)
-on incoming root arrays. AppendTo names exactly one `Variant.field`; that
-SubscriptionData must admit the report. AppendIndex references a non-null integer
-report root field and must equal the destination's pre-append length, even for
-empty appends. Arrays are non-null; complete elements may contain assignable
-nulls. Preserve order and duplicates; never pad, overwrite, or recover implicitly.
-Skip annotated fields targeting other variants without replacement fallback.
-Reject conflicting writers and invalid whole results atomically. Discard before
-the initial snapshot. The App owns ordering, deduplication, retention, and fresh
-snapshots; matching lengths do not prove matching contents. Live charts refresh
-from the resulting working array; this adds no automatic scrolling.
-
-Append reports may combine variant-level CopyTo. Require one CopyTo destination
-per recipient and exclude append fields and index controls from its typed
-projection. Index controls are also excluded from ordinary replacement. Reject
-any actual copied write overlapping an appended array, including its contents;
-retained omitted fields do not count as writes. Commit copies and appends as one
-validated candidate.
+maintained, or Base64 names
+([data names](../reference/message-format.md#data-and-database-names)).
