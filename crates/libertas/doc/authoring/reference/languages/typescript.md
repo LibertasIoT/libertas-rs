@@ -1319,6 +1319,10 @@ initialization, explicit submission, and operation ownership.
 declaration, names the one Request variant that tapping that node opens;
 see [links](../protocols.md#links) and [link rendering](../presentation.md#link-rendering).
 
+`@LibertasLinkOnly`, with no argument, on a Request variant that a link
+targets offers it only through links, never in Actions; see
+[link-only requests](../protocols.md#link-only).
+
 ### Advanced Chaining & Caching
 - **`@LibertasNextRequest("...")`** / **`@LibertasNextResponse("...")`**: Connects multi-step conversations by specifying the next valid step. The value **must be non-empty and match the native name of variants** (which is the resolved discriminator value name). You can provide a comma-delimited list for multiple valid next steps. `NextRequest` is optional on a Response; omission is the non-transition acknowledgement above, not an implicit list of every Request.
 

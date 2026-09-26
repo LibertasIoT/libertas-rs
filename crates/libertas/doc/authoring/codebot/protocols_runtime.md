@@ -91,8 +91,8 @@ the complete [hidden-context rule](../reference/protocols.md#hidden-protocol-con
   never interpret Fixed as variant identity or rewrite stored schemas. See [Unions](../reference/schema.md#54-unions).
   The array determines membership only; filtering
   preserves NextRequest order. Empty permits no actions; duplicates do not
-  duplicate actions. A singleton after access/visibility filtering is selected
-  automatically once per accepted response. Follow the
+  duplicate actions. A singleton after access/visibility filtering, not counting
+  LinkOnly requests, is selected automatically once per accepted response. Follow the
   [single-action presentation rule](../reference/protocols.md#single-action-confirmation-and-input-presentation):
   fieldless direct links send without confirmation; fieldless requests from
   Actions require Send/Cancel even for a singleton. Preserve origin through
@@ -117,6 +117,12 @@ the complete [hidden-context rule](../reference/protocols.md#hidden-protocol-con
   WorkflowRequest on a link target's reply. One pending Submit, Prev, or link
   per editor. A Response wanting tappable rows declares no `ConstrainedBy`.
   See [links](../reference/protocols.md#links).
+- Mark a Request that exists only to be opened from rows `LinkOnly` so it is
+  not also a second Actions entry: NextRequest and the filtered set still govern
+  its links, but Actions, menus, landings, and automatic singleton selection
+  never offer or count it. It must be a link target in its protocol, and cannot
+  be DefaultRequest or carry ExcludeUI. Older clients still show it in Actions.
+  See [link-only requests](../reference/protocols.md#link-only).
 - A response with no visible content presents only its legal actions while
   retaining hidden cookies for CopyFrom. Visible content presents a data
   screen. WorkflowRequest and EditRequest open editors without auto-submission.

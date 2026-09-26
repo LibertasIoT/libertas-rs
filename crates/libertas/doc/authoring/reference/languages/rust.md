@@ -1252,6 +1252,10 @@ initialization, explicit submission, and operation ownership.
 declaration, names the one Request variant that tapping that node opens;
 see [links](../protocols.md#links) and [link rendering](../presentation.md#link-rendering).
 
+`#[libertas_link_only]`, with no argument, on a Request variant that a link
+targets offers it only through links, never in Actions; see
+[link-only requests](../protocols.md#link-only).
+
 ### Semantic validation rules
 
 Use `#[libertas_validation_rules("...")]` on a public function, any field or

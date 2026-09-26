@@ -1844,7 +1844,7 @@ calculation writes must still match the current editor.
 
 `#[libertas_default_request]` / `@LibertasDefaultRequest` marks at most one
 Request variant in an Endpoint protocol Union. It must carry Request, cannot
-be ExcludeUI, and its effective payload must need no user input: Nil, or a
+be ExcludeUI or [LinkOnly](#link-only), and its effective payload must need no user input: Nil, or a
 Table whose every field is Hidden or ReadOnly and carries Fixed (including
 `Fixed("current-user")`) or a Default, applied recursively to nested Tables.
 The client initializes such a payload and sends it without opening an editor;
@@ -1860,7 +1860,8 @@ input-free payload.
 An explicit DefaultRequest owns initial interactive entry, including when the
 protocol also has a default subscription. Without the explicit marker, the
 existing default subscription remains the initial data source. With neither,
-the landing presents the available requests in declaration order, using chart
+the landing presents the available requests in declaration order, except
+[link-only requests](#link-only), using chart
 previews instead of rows for chart requests with executable inputs. An
 input-free payload alone never makes a Request the default. Invoke an explicit default
 request as a client-owned correlated
@@ -1938,7 +1939,8 @@ Rows carry actions only through declared links. No row action is inferred
 from CopyFrom: a Request whose CopyFrom resolves to a displayed value is not
 thereby offered on that value's row. Each occurrence has one target, so a row
 never opens a request chooser. The **Actions** surface keeps offering the
-displayed value's filtered NextRequest set, links included.
+displayed value's filtered NextRequest set, link targets included, except
+[link-only requests](#link-only).
 
 **Direction by placement.** The occurrence's placement decides how the tap
 constructs its target:
@@ -2094,6 +2096,28 @@ AddressFound reply returns its `city` into the editor, which stays open.
 Existing Apps that relied on rows tappable through CopyFrom alone must declare
 links.
 
+<a id="link-only"></a>
+
+**Link-only requests.** `@LibertasLinkOnly` and `#[libertas_link_only]` take
+no argument and emit `{"Name":"LinkOnly","Value":"true"}` on a protocol
+Request variant. A link-only Request is offered only through declared links.
+Every Response or SubscriptionData that lists it in NextRequest still governs
+its availability through the [filtered action set](#response-action-constraints),
+so a link row targeting it is offered only while it is in that set. The
+**Actions** surface, menus, endpoint landings, and automatic singleton
+selection never offer it, and it is not counted when deciding whether a
+constrained set has exactly one action. A filtered set holding only link-only
+requests leaves the Actions surface with no actions while its link rows remain.
+Use it for a request that exists only to be opened from rows, such as a
+fieldless request a row tap sends at once, so that it does not also appear as a
+second Actions entry. A link-only Request cannot be DefaultRequest, and it
+cannot carry ExcludeUI, which would also hide its links. Studio rejects
+LinkOnly on anything other than a protocol Request variant, on a Request that
+no link in the same protocol targets, on a Request that is also DefaultRequest,
+and together with ExcludeUI. Clients that predate the marker ignore it and keep
+offering the request in Actions; the request remains valid there, so adding
+the marker changes presentation only.
+
 ### Request editor variant identity
 
 A request editor composes exactly one protocol variant, fixed by its entry
@@ -2201,7 +2225,8 @@ defined in [Unions](schema.md#54-unions).
 Only declared actions in the allowed set are displayed, after the ordinary
 access and ExcludeUI restrictions. An empty array is valid and means no actions;
 duplicate entries do not duplicate actions. If the constrained set, after access
-and visibility filtering, contains exactly one action, select it automatically
+and visibility filtering and without [link-only requests](#link-only), contains
+exactly one action, select it automatically
 once for that accepted response, then apply the
 [single-action presentation rule](#single-action-confirmation-and-input-presentation):
 fieldless requests from Actions require Send/Cancel confirmation; direct links
