@@ -79,6 +79,22 @@ Decide arrangement with this procedure:
 - Numbers compared down a column: `align: end`.
 - A status value: `:condition(...)` or `switch` with `color` and `icon`.
 
+**Start from a preset.** `vscode/templates/display/` holds three starting
+files that already follow this procedure end to end; each documents its own
+`^<Type>`-style placeholder names at the top under `_placeholders` for you to
+rename. Start from `form.json` for a request editor: `form-grid` on tablet
+and desktop, rows on phone, a folded optional group, and an inline choice.
+Start from `hub.json` for a Response with a linked List: `master-detail` on
+tablet and desktop, rows on phone, and status badges via `:condition(...)`.
+Start from `dashboard.json` for a Response of summaries, a chart field, and a
+long line List: `split` with `card` regions on tablet and desktop, `card` on
+phone, and `table` for the line List on wide screens. Studio's
+[lints](../reference/presentation.md#template-validation) catch the mistakes
+this procedure exists to avoid: too many `form-grid` or `table` columns on
+phone, more than about eight fields with no `sections`, a required field
+folded closed on phone, a clashing `color` role, and a `split` that strands a
+required field in a nested region.
+
 ## Common field metadata
 
 Proactively complete applicable metadata on every authored App: useful initial

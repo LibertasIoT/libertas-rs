@@ -450,7 +450,8 @@ template unless:
 Rules of equal rank that set the same member on the same node are allowed, the
 later one winning, and are reported as a warning. Studio additionally lints
 minimum touch targets, the number of fields per screen, a required field folded
-closed on `width: compact`, and contrast by color role.
+closed while `form: phone` may apply, contrast by color role, and a `split`
+whose regions leave a required field unlisted in a nested region only.
 
 ## Common field metadata
 
