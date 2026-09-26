@@ -449,9 +449,13 @@ template unless:
 
 Rules of equal rank that set the same member on the same node are allowed, the
 later one winning, and are reported as a warning. Studio additionally lints
-minimum touch targets, the number of fields per screen, a required field folded
-closed while `form: phone` may apply, contrast by color role, and a `split`
-whose regions leave a required field unlisted in a nested region only.
+minimum touch targets; the number of rendered (non-Hidden) fields on each
+screen reachable from a Request, Response, or SubscriptionData payload or a
+function's configuration, counted once per Table or Union (a Union by its
+largest branch, never the sum) and skipped under a `sections`/`tabs`/`stepper`/
+`split` rule or a fold that closes the node; a required field folded closed
+while `form: phone` may apply; contrast by color role; and a `split` whose
+regions leave a required field unlisted in a nested region only.
 
 ## Common field metadata
 
