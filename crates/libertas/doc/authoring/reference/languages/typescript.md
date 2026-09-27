@@ -192,6 +192,15 @@ to the platform's features:
 - **`LibertasVirtualDevice`**: Presents a software-emulated virtual device picker.
 - **`LibertasLanDevice`**: Presents a WiFi or Ethernet network device picker.
 
+For a MIME-aware `Uint8Array` field, write
+`/** @LibertasMimeTypes("image/png,image/jpeg") */` above the declaration.
+The parser emits `MimeTypes`; Studio validates its filter and effective Bytes
+host. The [MIME-aware Bytes contract](../schema.md#mime-aware-bytes) owns LMB1
+encoding, empty values, and client presentation. A TypeScript App emits the
+LMB1 byte sequence as its ordinary `Uint8Array` value; an empty `Uint8Array`
+is the valid media-undefined value. Keep unannotated `Uint8Array` fields for
+raw binary protocols.
+
 ### Matter Status Values
 
 The TypeScript SDK represents a Libertas Matter client status as an unsigned

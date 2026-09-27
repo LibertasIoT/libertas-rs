@@ -684,7 +684,7 @@ by the current parsers and shared validator.
 | `RangeMin`, `RangeMax` | One Data Validation bound expression compatible with the host type on a Number or DateTime; applies inclusively to the GUI and final validation. Result typing, compatible dates, and unavailable bounds follow [dynamic numeric ranges](validation-rules.md#31-dynamic-numeric-ranges). |
 | `LengthMin`, `LengthMax` | Retained String-length metadata from the removed TypeScript String annotation. Current TypeScript and Rust source uses SizeMin/SizeMax. |
 | `MinLengthAbs`, `MaxLengthAbs` | Parser-generated absolute native string constraints, currently used by the Rust `char` mapping. |
-| `SizeMin`, `SizeMax` | Inclusive size bounds for List element count, String UTF-16 code-unit length, or Bytes byte count. Empty values have size zero. Nullable null is governed separately by Nullable. Table is not a valid host. |
+| `SizeMin`, `SizeMax` | Inclusive size bounds for List element count, String UTF-16 code-unit length, or ordinary Bytes byte count. [MIME-aware Bytes](#mime-aware-bytes) use content length only when media is defined. Nullable null is governed separately by Nullable. Table is not a valid host. |
 | `Unique` | Requires a scalar value to be unique within the requested number of ancestor-list scopes. The no-argument default level is `99`. |
 | `Unordered` | Declares list ordering semantically irrelevant to management/UI behavior. |
 | `ReadOnly` | Value is displayed but not user-editable. Initialization, CopyFrom, EditRequest, calculation CopyTo and draft restoration still write it; only `Fixed` protects a value. See the [ReadOnly rule](presentation.md#common-field-metadata). |
@@ -703,6 +703,7 @@ by the current parsers and shared validator.
 | `Money` | Currency/scale metadata such as `USD/2` on signed `i64` Number. Raw values, bounds, and defaults are integer minor units. See [Money](presentation.md#money) for the exact representation, supported CLDR currency tokens, inline editing, and chart rules. |
 | `PhysicalUnit` | One canonical CLDR core unit identifier on a `Number`, including generated compounds such as `millimeter-per-day`. It preserves the raw unit without changing serialization; a client localizes the unit when its ICU implementation supports it. |
 | `FormattedText` | Marker value `true` on an effective `Bytes` host; serialization is unchanged. Follow the [formatted-output contract](presentation.md#static-read-only-placement-and-request-values) for mandatory static ReadOnly, permitted request initialization, and runtime-use restrictions, and [LMF1](message-format.md) for the canonical tuple. |
+| `MimeTypes` | Comma-delimited exact media types or ranges on an effective `Bytes` host. It restricts the value domain and uses the [LMB1 MIME-aware Bytes encoding](#mime-aware-bytes). It cannot coexist with `FormattedText` or occur within a `CacheIdentity` field. |
 | `EnumSource` | One Libertas Schema Path to a `List`; an unsigned integer host stores the selected item's zero-based index. |
 | `Chart` | One primitive mark (`point`, `line`, `area`, `bar`, `rect`, `rule`, `arc`, `text`, `polygon`) or composition (`layer`, `hconcat`, `vconcat`) token on a response/subscription-data payload. A primitive may use a carrier Table with exactly one non-hidden List of rows; compositions and single-chart Union wrappers may contain additional direct non-chart fields only when those fields carry `Hidden=true`. |
 | `ChartChannel` | Canonically ordered comma-delimited visual roles on a direct scalar field of a chart row. |
@@ -1095,6 +1096,74 @@ on a scalar User it protects that ID; on a List it protects membership and order
 so mark the User item type ReadOnly as well to protect each recipient ID. Follow
 the [ReadOnly placement rules](presentation.md#common-field-metadata). An unresolved
 explicit default blocks submission even when ReadOnly; never silently substitute recipients.
+
+### MIME-aware Bytes
+
+Android, iOS, Studio, and the pure Web Control client implement this contract.
+The pure Web client requires origin-private file storage to retain selected
+media links across page reloads; without it, file selection uses an in-memory
+value for the current editor and camera capture is unavailable.
+
+`MimeTypes` is a field or named-type attribute on an effective `Bytes` host. A
+field declaration replaces its type's entire filter. Its value is one or more
+unique lowercase ASCII entries separated by commas without spaces. An entry
+is an exact `type/subtype`, a `type/*` range, or the sole entry `*/*`. Each
+name component has 1–127 characters, begins with a lowercase letter or digit,
+and then uses lowercase letters, digits, or `! # $ & ^ _ . + -`. Parameters,
+file extensions, MIME aliases, and quality values are excluded. A value always
+names one exact MIME type. Studio validates the grammar, effective Bytes host,
+duplicates, literal defaults/fixed values, and conflicts. `MimeTypes` cannot
+coexist with `FormattedText` and cannot occur in a `CacheIdentity` field or
+its descendants, because the draft identity tuple persists its value.
+
+An unannotated `Bytes` field remains a fully supported opaque binary type,
+including for machine-to-machine protocols. `MimeTypes` is optional. A defined
+MIME-aware value has this byte sequence inside the ordinary Avro `bytes`
+primitive:
+
+```text
+ASCII "LMB1" | u8 mime_length | mime_length ASCII MIME bytes | content bytes to end
+```
+
+`mime_length` is 3–255. The MIME string is exact lowercase `type/subtype`,
+matches the effective filter, and has no parameters. The enclosing Avro length
+delimits the content; there is no content-length field, filename, local path,
+or file-link token in the wire value. A decoder rejects malformed, truncated,
+unknown-version, or disallowed nonempty bytes. JSON transports may Base64-wrap
+the entire sequence. An App must validate actual content when the declared
+MIME label matters to its processing or security.
+
+Zero-length `Bytes` means **media undefined**. It is a present and valid wire
+value, including on a non-`Nullable` field. A server may send it; clients show
+no selected media. It is distinct from nullable null and from a valid `LMB1`
+value with zero content bytes. For [ValidationRules](validation-rules.md),
+zero-length MIME-aware Bytes evaluates as null; ordinary Bytes retain their
+existing valuation. A mandatory media field needs an explicit rule such as
+`[] != null : "IMAGE_REQUIRED";`. `SizeMin` and `SizeMax` run only for defined
+media and measure content bytes, excluding the LMB1 header. Thus `SizeMin=1`
+rejects a defined empty file but does not require a file to be selected.
+Transport limits count the entire sequence.
+
+Clients may hold the field as undefined, as a client-local file link, or as
+nonempty in-memory bytes. Server-sent full values use the in-memory form;
+server-sent empty bytes become undefined. A selected file or camera image is
+staged privately and held by a local link. Every outbound serialization opens
+and validates linked files, then materializes the complete LMB1 value before
+sending. If a link disappears during submission, the client stops that attempt,
+marks the field undefined, reports the field error, and retains other edits.
+It never silently submits empty bytes for a disappeared file. The
+[local draft rule](annotations.md#mime-aware-bytes-in-workflow-drafts) governs
+recovery and cleanup; [media presentation](presentation.md#mime-aware-bytes-presentation)
+governs the default controls and preview.
+
+`MimeTypes` changes the semantic Bytes type without changing the Avro
+primitive. Raw and MIME-aware Bytes are not implicitly compatible. A producer
+MIME filter is compatible with a recipient only if every exact type it admits
+is accepted by the recipient; dynamic values are checked against the
+destination at runtime. Copies preserve the complete envelope; clients do not
+guess or transcode media from a filename or destination filter. Adding
+`MimeTypes` to an existing raw field requires a new immutable App version.
+Legacy mobile-Hub paths retain their raw Bytes behavior.
 
 ### 4.4 Chart presentation attributes
 

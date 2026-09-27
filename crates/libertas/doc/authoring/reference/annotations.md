@@ -96,6 +96,7 @@ complete usage rules.
 | `@LibertasEnum(A, B, C)` | `#[libertas_enum(A, B, C)]` | Applicable String alias/field or Enumeration declaration supported by that language | Defines a catalog using positional members. The parsers currently cannot attach source documentation to those fabricated members, so codebots must use a documented native numeric enum instead and must not generate this otherwise public compatibility form. TypeScript `values=[...]` is not canonical syntax. | [TypeScript enumerations](languages/typescript.md#enumerations), [Rust attributes](languages/rust.md#schema-attributes-and-field-presentation) |
 | `@LibertasEnumSource("$.choices")` | `#[libertas_enum_source("$.choices")]` | Unsigned integer field/type | Emits `EnumSource`; the integer stores the zero-based index of an item in the resolved same-tree List. | [Common field metadata](presentation.md#common-field-metadata) |
 | `@LibertasFormattedText` | `#[libertas_formatted_text]` | Statically ReadOnly schema data node with effective Bytes type | Emits `FormattedText=true`. The canonical LMF1 tuple follows the owning contract's static placement, request-value sources, and runtime-use restrictions. | [String resources and formatted output](presentation.md#string-resources-and-formatted-output) |
+| `@LibertasMimeTypes("image/png,image/jpeg")` | `#[libertas_mime_types("image/png,image/jpeg")]` | Bytes field or named type outside CacheIdentity | Emits a MIME filter for the [LMB1 Bytes contract](schema.md#mime-aware-bytes). Its source grammar, content-size behavior, and incompatibility with FormattedText are validated by Studio. | [MIME-aware Bytes annotation](#mime-aware-bytes-annotation) |
 | `@LibertasConstrainedBy("$.allowed_choices")` | `#[libertas_constrained_by("$.allowed_choices")]` | Enumeration or Union request field; Response variant | A hidden integer list constrains field choices or the response NextRequest actions; the list is written by CopyFrom, EditRequest or a calculation CopyTo, never by the user. | [Backend-constrained choices](protocols.md#backend-constrained-choices) |
 | `@LibertasCopyFrom("$.first,$.fallback")` | `#[libertas_copy_from("$.first,$.fallback")]` | Protocol Request/SubscriptionRequest data | Emits source paths under the [shared copy rules](schema.md#shared-copyfrom-and-copyto-rules); the [context table](schema.md#context-and-syntax) selects the reference context and grammar. | [Shared CopyFrom and CopyTo rules](schema.md#shared-copyfrom-and-copyto-rules) |
 | `@LibertasRangeMin("expression")` | `#[libertas_range_min("expression")]` | Number or DateTime field/type | Emits `RangeMin`; one Data Validation bound expression compatible with the host type supplies an inclusive live lower bound for GUI and final validation. Incompatible result types are errors; null means no bound. | [Dynamic numeric ranges](validation-rules.md#31-dynamic-numeric-ranges) |
@@ -245,6 +246,15 @@ those source forms. Use `libertas_size` for size bounds and the documented
 CacheIdentity behavior where needed. `libertas_discriminator` is also not a
 Rust schema annotation; Rust uses native enum representation.
 
+## MIME-aware Bytes annotation
+
+Apply `@LibertasMimeTypes("image/png,image/jpeg")` or
+`#[libertas_mime_types("image/png,image/jpeg")]` to a Bytes field or named type
+to restrict its media types. The [MIME-aware Bytes contract](schema.md#mime-aware-bytes)
+defines the filter, LMB1 encoding, valuation, size, copy, and submission rules.
+Keep unannotated Bytes fields for raw binary protocols; `MimeTypes` is a
+semantic choice for media values, not a replacement for ordinary Bytes.
+
 ## CacheIdentity
 
 `CacheIdentity` opts large workflow requests into persistent local draft recovery.
@@ -366,5 +376,21 @@ Submission must resolve the active edit through this same boundary; it cannot
 silently submit an old value while replacement text remains unfinished. Native
 controls may use their normal completion actions. Programmatic initialization
 and atomic calculation updates retain their transaction boundaries.
+
+### MIME-aware Bytes in workflow drafts
+
+For a [MIME-aware Bytes](schema.md#mime-aware-bytes) field, a draft never stores
+the media content. It stores a client-local file link when one exists; an
+in-memory value received from the server stores only a marker to use the
+freshly initialized value after recovery. An explicit clear stores an
+undefined marker. The link and its temporary file stay within the client and
+are never sent to the Hub. A missing or unreadable link on recovery makes
+only that field undefined and reports which field needs a new file; the other
+edits restore. If no corresponding fresh value exists for an in-memory marker,
+that field is undefined. This is an exception to full-value draft storage,
+not a relaxation of identity or schema checks. `MimeTypes` cannot occur
+within a `CacheIdentity` field because that identity is persisted. A temporary
+file remains while an active editor or unexpired draft refers to it and is
+automatically removed after its last reference and a cleanup grace period.
 
 `NextResponse` on SubscriptionData declares [Compatible SubscriptionData](protocols.md#compatible-subscriptiondata), rather than correlated replies.

@@ -190,6 +190,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     || attr.path().is_ident("libertas_format")
                     || attr.path().is_ident("libertas_money")
                     || attr.path().is_ident("libertas_formatted_text")
+                    || attr.path().is_ident("libertas_mime_types")
                     || attr.path().is_ident("libertas_chart")
                     || attr.path().is_ident("libertas_chart_channel")
                     || attr.path().is_ident("libertas_chart_scale")
@@ -538,6 +539,7 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_format,
     libertas_money,
     libertas_formatted_text,
+    libertas_mime_types,
     libertas_endpoint_schema, 
     libertas_endpoint_server, 
     libertas_endpoint_base_objects,

@@ -35,7 +35,13 @@ field. Mandatory-field validation and `ValidationRules` are complementary,
 independent requirements. A rule MAY accept a temporary `null`, but that success
 does not make the field optional or suppress the final mandatory-field check.
 Final submission separately requires structural schema validity, including
-every non-`Nullable` field, and all validation rules to pass.
+every non-`Nullable` field, and all validation rules to pass. A zero-length
+[MIME-aware Bytes](schema.md#mime-aware-bytes) value is a present, encodable
+Bytes field but has undefined media meaning and evaluates as null. Its
+non-`Nullable` declaration and size bounds do not require media selection;
+an App requiring a file declares a rule such as
+`[] != null : "IMAGE_REQUIRED";`. A defined LMB1 value evaluates as non-null,
+even when its content is empty. Ordinary Bytes keep their existing valuation.
 
 ValidationRules uses the [shared schema reference contract](schema.md#availability-null-and-interaction-ownership).
 Rules may occur in editable Request/SubscriptionRequest data, inherited types,

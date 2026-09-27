@@ -267,6 +267,16 @@ When defining properties and function parameters, utilize the provided native Li
 - **`LibertasVirtualDevice`**: Presents a virtual device picker.
 - **`LibertasLanDevice`**: Presents a WiFi or Ethernet network device picker.
 
+For a MIME-aware `Vec<u8>` field, use
+`#[libertas_mime_types("image/png,image/jpeg")]`. The parser emits `MimeTypes`;
+Studio validates its filter and effective Bytes host. The
+[MIME-aware Bytes contract](../schema.md#mime-aware-bytes) owns LMB1 encoding,
+empty values, and client presentation. Apps can use
+`libertas::encode_mime_bytes("image/png", content)` to create a defined value
+and `libertas::decode_mime_bytes(bytes)` to inspect one; an empty `Vec<u8>` is
+the valid media-undefined value. Keep unannotated `Vec<u8>` fields for raw
+binary protocols.
+
 ### Matter status values
 
 `libertas-matter` exposes client `MatterStatus` as a raw `u32`; zero means

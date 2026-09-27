@@ -400,10 +400,9 @@ every other layout arranges all children one way.
 
 Android maps tokens to Material 3 roles and window size classes, iOS to SwiftUI
 roles and size classes, and Studio to its control-view variables. A `media`
-token that renders a bytes field as a picture is **deferred**: the schema has
-no MIME-type attribute for bytes fields yet, and the token needs one to know
-what the bytes are. Until that schema attribute exists, `media` is not part of
-the catalog and a bytes field renders as it does today.
+token for larger inline image placement remains **deferred**. It is not part
+of this catalog. The default media field and preview
+behavior are defined [below](#mime-aware-bytes-presentation).
 
 #### Behavior hints
 
@@ -571,6 +570,35 @@ Studio compiles it into the [Display Template](#display-template) as the
 
 For `Unordered`, AI tool-call descriptions automatically explain that order has
 no semantic meaning and that this attribute does not prohibit duplicates.
+
+## MIME-aware Bytes presentation
+
+A `Bytes` field with effective [`MimeTypes`](schema.md#mime-aware-bytes) uses
+one media control in Android,
+iOS, Studio, and the pure Web client. Its compact row shows the field name, a
+bounded thumbnail for a safely decodable raster image or a generic media
+icon, the exact MIME and content size when defined, and no local path.
+Undefined media shows “No file selected.” It never displays Base64 or hex.
+Ordinary Bytes keep their existing editor.
+
+Editable media rows offer Choose file, Remove, and Take photo when the field
+accepts an image format that the client's camera can produce. The camera
+stores its output as a private temporary file and the editor holds a local
+link until outbound encoding. Camera permission denial or cancellation leaves
+the previous value intact; Choose file remains available. Read-only rows
+offer preview when supported. Tapping or clicking the thumbnail opens a larger
+platform preview. A corrupt or unsupported image shows the generic icon and
+an error when previewed; clients do not render SVG or arbitrary HTML as an
+inline image. Local paths and temporary link identifiers are not displayed or
+sent to the Hub. Camera availability is conditional on device, browser, and
+host permissions.
+
+A missing temporary file during draft recovery makes the field undefined and
+identifies it for reselection. A file that disappears at submission produces a
+field error and stops that attempt. The [draft and cleanup rules](annotations.md#mime-aware-bytes-in-workflow-drafts)
+and [LMB1 contract](schema.md#mime-aware-bytes) own those behaviors. The
+deferred Display Template `media` token may later provide larger inline
+placement; the standard media control and explicit preview require no token.
 
 ## TableHeader: promoted fields and Union selectors
 

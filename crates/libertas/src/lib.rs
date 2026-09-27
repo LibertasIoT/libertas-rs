@@ -30,6 +30,7 @@ extern crate self as libertas;
 mod avro;
 mod data;
 mod log;
+mod mime_bytes;
 mod notification;
 
 pub use avro::{AvroDecode, AvroEncode, NotBytesDecode, NotBytesEncode};
@@ -52,6 +53,8 @@ pub use data::{
 };
 pub use libertas_utils::{InlineByteBuffer, STACK_BUF_SIZE};
 pub use log::{LogLevel, libertas_log};
+pub use mime_bytes::{MimeBytes, decode_mime_bytes, encode_mime_bytes,
+    is_exact_mime_type, mime_type_matches_filter};
 pub use notification::{
     LibertasMessageArgument, LibertasMessageArgumentDecode, NotificationImportance,
     libertas_formatted_text, libertas_notification_send, libertas_notification_send_literal,
