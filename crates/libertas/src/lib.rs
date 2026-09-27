@@ -28,28 +28,43 @@ extern crate alloc;
 extern crate self as libertas;
 
 mod avro;
-mod notification;
 mod data;
 mod log;
+mod notification;
 
 pub use avro::{AvroDecode, AvroEncode, NotBytesDecode, NotBytesEncode};
+pub use data::{
+    DataError, libertas_data_try_get_indexed_names, libertas_data_try_get_single_names,
+    libertas_data_try_indexed_store_exists,
+    libertas_data_try_open_indexed, libertas_data_try_read_indexed,
+    libertas_data_try_read_indexed_range, libertas_data_try_read_single,
+    libertas_data_try_remove_indexed, libertas_data_try_remove_indexed_name,
+    libertas_data_try_remove_indexed_records, libertas_data_try_remove_single,
+    libertas_data_try_write_indexed, libertas_data_try_write_single,
+};
+pub use data::{
+    DataName, IndexDirection, IndexedData, IndexedDataStat, libertas_data_get_indexed_names,
+    libertas_data_get_single_names, libertas_data_indexed_store_exists,
+    libertas_data_open_indexed, libertas_data_read_indexed,
+    libertas_data_read_indexed_range, libertas_data_read_single, libertas_data_remove_indexed,
+    libertas_data_remove_indexed_name, libertas_data_remove_indexed_records,
+    libertas_data_remove_single, libertas_data_write_indexed, libertas_data_write_single,
+};
+pub use libertas_utils::{InlineByteBuffer, STACK_BUF_SIZE};
+pub use log::{LogLevel, libertas_log};
 pub use notification::{
     LibertasMessageArgument, LibertasMessageArgumentDecode, NotificationImportance,
     libertas_formatted_text, libertas_notification_send, libertas_notification_send_literal,
 };
-pub use data::{DataError, libertas_data_try_get_single_names, libertas_data_try_get_indexed_names, libertas_data_try_remove_single, libertas_data_try_remove_indexed, libertas_data_try_remove_indexed_name, libertas_data_try_remove_indexed_records, libertas_data_try_open_indexed, libertas_data_try_write_single, libertas_data_try_write_indexed, libertas_data_try_read_single, libertas_data_try_read_indexed_range, libertas_data_try_read_indexed, libertas_data_try_indexed_store_exists};
-pub use data::{DataName, IndexedData, IndexDirection, IndexedDataStat, libertas_data_get_single_names, libertas_data_get_indexed_names, libertas_data_write_single, libertas_data_write_indexed, libertas_data_read_single, libertas_data_read_indexed, libertas_data_read_indexed_range, libertas_data_remove_single, libertas_data_remove_indexed, libertas_data_remove_indexed_name, libertas_data_remove_indexed_records, libertas_data_open_indexed, libertas_data_indexed_store_exists};
-pub use log::{LogLevel, libertas_log};
-pub use libertas_utils::{InlineByteBuffer, STACK_BUF_SIZE};
 
-use alloc::{slice, boxed::Box, rc::Rc, vec::Vec};
-use core::ffi::c_void;
-use core::{any::Any, cell::RefCell};
+use alloc::{boxed::Box, rc::Rc, slice, vec::Vec};
 use core::cmp::Reverse;
+use core::ffi::c_void;
 use core::sync::atomic::{AtomicPtr, AtomicU8, Ordering};
+use core::{any::Any, cell::RefCell};
 
-use hashbrown::HashMap;
 use hashbrown::DefaultHashBuilder;
+use hashbrown::HashMap;
 use priority_queue::PriorityQueue;
 
 /// Platform identity. Allocated IDs are positive and at most `i64::MAX`.
@@ -298,7 +313,6 @@ pub type LibertasLanDevice = LibertasId;
 /// an explicit schema Default when an initial identity is intended.
 pub type LibertasUser = LibertasId;
 
-
 /// Transaction identifier carried by every Libertas interaction.
 ///
 /// A `LibertasTransId` is never optional at the runtime boundary. Libertas does
@@ -482,7 +496,7 @@ pub const OP_ENDPOINT_PEER_ALIVE: u8 = 24;
 // LibertasRuntimeApi::device_send. App code uses the shutdown APIs below and
 // never handles the opcode directly.
 const OP_APP_SHUT_DOWN: u8 = 0xfd;
-const OP_SYSTEM_WAKE_UP: u8 = 255;         // See 
+const OP_SYSTEM_WAKE_UP: u8 = 255; // See
 const PROTOCOL_LIBERTAS: u16 = 0;
 
 const DEVICE_SYSTEM: LibertasDevice = 0;
@@ -500,10 +514,11 @@ const OP_SYSTEM_DATABASE_CHECKED: u8 = 0xf6;
 const OP_SYSTEM_DATABASE_DECODE_FAILURE: u8 = 0xf7;
 const OP_SYSTEM_DATABASE_INDEXED_STORE_EXISTS: u8 = 0xf8;
 
-const CURRENT_VERSION: u32 = 0x000300;     // Version 0.3.0, 1.0 shall be 0x10000, each sub version must be within [0,255]
+const CURRENT_VERSION: u32 = 0x000300; // Version 0.3.0, 1.0 shall be 0x10000, each sub version must be within [0,255]
 
 type LibertasTimerCallback = dyn FnMut(u32, u64, &mut Box<dyn Any>);
-type LibertasDeviceCallback = dyn FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, LibertasTransId, LibertasPeer);
+type LibertasDeviceCallback =
+    dyn FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, LibertasTransId, LibertasPeer);
 type LibertasWakeupCallback = dyn FnMut(&mut Box<dyn Any>);
 type LibertasShutdownHandler = dyn FnMut(&mut Box<dyn Any>);
 
@@ -514,8 +529,8 @@ const SHUTDOWN_COMPLETED: u8 = 2;
 // A count down timer
 enum TimerState {
     Idle,
-    ArmedInterval ( u64 ),
-    ArmedDeadline ( u64 ),
+    ArmedInterval(u64),
+    ArmedDeadline(u64),
 }
 struct Timer {
     task: LibertasTaskId,
@@ -552,24 +567,25 @@ struct TimerDriverResult {
 #[repr(C)]
 struct ReadResult {
     success: bool,
-    data: *const u8, 
+    data: *const u8,
     data_len: usize,
 }
 
-/// C API provided by Libertas OS runtime to the App package. This struct is passed to the App package during 
+/// C API provided by Libertas OS runtime to the App package. This struct is passed to the App package during
 /// initialization and contains function pointers for all interactions with the system.
 #[repr(C)]
 struct LibertasRuntimeApi {
-    version: u32,                       // Runtime ABI/API version identifier.
+    version: u32, // Runtime ABI/API version identifier.
     get_random: extern "C" fn(u8) -> u64,
     get_task_id: extern "C" fn() -> LibertasTaskId,
-    set_task_id: extern "C" fn(LibertasTaskId),    // Used internally in callback driver. Only useful if we are driving multiple tasks within one thread.
+    set_task_id: extern "C" fn(LibertasTaskId), // Used internally in callback driver. Only useful if we are driving multiple tasks within one thread.
     get_sys_ticks: extern "C" fn() -> u64,
     get_utc_time: extern "C" fn() -> u64,
     utc_to_local: extern "C" fn(i64) -> i64,
     local_to_utc: extern "C" fn(i64) -> i64,
-    device_send: extern "C" fn(u16, LibertasDevice, LibertasTransId, u8, *const u8, usize, LibertasPeer),           // Protocol, device (virtual device src), trans_id, op_code, data, data_len, opaque peer route handle
-    device_read: extern "C" fn(u16, LibertasDevice, u8, *const u8, usize) -> ReadResult,       // Synchronous kernel operation for current task. protocol, device, op_code, data, data_len
+    device_send:
+        extern "C" fn(u16, LibertasDevice, LibertasTransId, u8, *const u8, usize, LibertasPeer), // Protocol, device (virtual device src), trans_id, op_code, data, data_len, opaque peer route handle
+    device_read: extern "C" fn(u16, LibertasDevice, u8, *const u8, usize) -> ReadResult, // Synchronous kernel operation for current task. protocol, device, op_code, data, data_len
     // Completes only the current host-stamped private SUB delivery boundary.
     // Endpoint wrappers call it after decoding; Apps never call it.
     endpoint_subscription_delivery_result: extern "C" fn(u8),
@@ -582,9 +598,17 @@ pub struct LibertasPackageCallback {
     version: u32,
     init_task: extern "C" fn(LibertasTaskId),
     remove_task: extern "C" fn(LibertasTaskId),
-    timer_driver: extern "C" fn(u64, u64)->TimerDriverResult,
+    timer_driver: extern "C" fn(u64, u64) -> TimerDriverResult,
     // Returns one only when the registered callback was actually invoked.
-    device_callback: extern "C" fn(LibertasTaskId, LibertasDevice, u8, LibertasTransId, *const c_void, usize, LibertasPeer) -> u8, // task, device (virtual device dst), op_code, trans_id, data, data_len, source (virtual device & endpoint)
+    device_callback: extern "C" fn(
+        LibertasTaskId,
+        LibertasDevice,
+        u8,
+        LibertasTransId,
+        *const c_void,
+        usize,
+        LibertasPeer,
+    ) -> u8, // task, device (virtual device dst), op_code, trans_id, data, data_len, source (virtual device & endpoint)
 }
 
 struct Context {
@@ -605,7 +629,9 @@ extern "C" fn libertas_impl_init_task(task_id: LibertasTaskId) {
     unsafe {
         match ENV {
             Some(ref mut env) => env.init_task(task_id),
-            None => { unreachable!(); }
+            None => {
+                unreachable!();
+            }
         }
     }
 }
@@ -614,25 +640,41 @@ extern "C" fn libertas_impl_remove_task(task_id: LibertasTaskId) {
     unsafe {
         match ENV {
             Some(ref mut env) => env.remove_task(task_id),
-            None => { unreachable!(); }
+            None => {
+                unreachable!();
+            }
         }
     }
 }
 
-extern "C" fn libertas_impl_device_callback(task: LibertasTaskId, device: LibertasDevice, op_code: u8, trans_id: LibertasTransId, data: *const c_void, data_len: usize, peer: LibertasPeer) -> u8 {
+extern "C" fn libertas_impl_device_callback(
+    task: LibertasTaskId,
+    device: LibertasDevice,
+    op_code: u8,
+    trans_id: LibertasTransId,
+    data: *const c_void,
+    data_len: usize,
+    peer: LibertasPeer,
+) -> u8 {
     if device == DEVICE_SYSTEM && op_code == OP_APP_SHUT_DOWN {
-        if SHUTDOWN_STATE.compare_exchange(
+        if SHUTDOWN_STATE
+            .compare_exchange(
                 SHUTDOWN_RUNNING,
                 SHUTDOWN_REQUESTED,
                 Ordering::AcqRel,
-                Ordering::Acquire).is_err() {
+                Ordering::Acquire,
+            )
+            .is_err()
+        {
             return 0;
         }
 
         let handler = unsafe {
             let env_ptr = &raw mut ENV;
             match *env_ptr {
-                Some(ref mut env) => env.contexts.get_mut(&task)
+                Some(ref mut env) => env
+                    .contexts
+                    .get_mut(&task)
                     .and_then(|context| context.shutdown_handler.as_ref())
                     .map(|handler| (Rc::clone(&handler.cb), Rc::clone(&handler.context))),
                 None => None,
@@ -663,16 +705,26 @@ extern "C" fn libertas_impl_device_callback(task: LibertasTaskId, device: Libert
                             }
                             slice::from_raw_parts(data as *const u8, data_len)
                         };
-                        if op_code == OP_ENDPOINT_SUB_REQ &&
-                                !dcb.handles_endpoint_subscription_delivery {
+                        if op_code == OP_ENDPOINT_SUB_REQ
+                            && !dcb.handles_endpoint_subscription_delivery
+                        {
                             libertas_endpoint_subscription_delivery_result(true);
                         }
-                        (dcb.cb.borrow_mut())(device, op_code, d, &mut *dcb.context.borrow_mut(), trans_id, peer);
+                        (dcb.cb.borrow_mut())(
+                            device,
+                            op_code,
+                            d,
+                            &mut *dcb.context.borrow_mut(),
+                            trans_id,
+                            peer,
+                        );
                         return 1;
                     }
                 }
             }
-            _ => { unreachable!(); }
+            _ => {
+                unreachable!();
+            }
         }
     }
     0
@@ -691,7 +743,9 @@ extern "C" fn libertas_impl_timer_driver(monotonic: u64, utc: u64) -> TimerDrive
                 Some(ref mut env) => {
                     // Process wakeup callback first if exists.
                     if let Some(ref wakeup_callback) = env.wakeup_callbacks {
-                        (wakeup_callback.cb.borrow_mut())(&mut *wakeup_callback.context.borrow_mut());
+                        (wakeup_callback.cb.borrow_mut())(
+                            &mut *wakeup_callback.context.borrow_mut(),
+                        );
                     }
                     // A wakeup callback may complete asynchronous shutdown.
                     // Once completed, no timer or other App callback may start.
@@ -711,8 +765,13 @@ extern "C" fn libertas_impl_timer_driver(monotonic: u64, utc: u64) -> TimerDrive
                                     t.state = TimerState::Idle;
                                     env.timers_active_interval.pop();
                                     (runtime_api.set_task_id)(t.task);
-                                    (t.cb.borrow_mut())(timer, monotonic, &mut *t.context.borrow_mut());
-                                    if SHUTDOWN_STATE.load(Ordering::Acquire) == SHUTDOWN_COMPLETED {
+                                    (t.cb.borrow_mut())(
+                                        timer,
+                                        monotonic,
+                                        &mut *t.context.borrow_mut(),
+                                    );
+                                    if SHUTDOWN_STATE.load(Ordering::Acquire) == SHUTDOWN_COMPLETED
+                                    {
                                         return TimerDriverResult {
                                             next_monotonic: u64::MAX,
                                             next_utc: u64::MAX,
@@ -736,7 +795,8 @@ extern "C" fn libertas_impl_timer_driver(monotonic: u64, utc: u64) -> TimerDrive
                                     env.timers_active_deadline.pop();
                                     (runtime_api.set_task_id)(t.task);
                                     (t.cb.borrow_mut())(timer, utc, &mut *t.context.borrow_mut());
-                                    if SHUTDOWN_STATE.load(Ordering::Acquire) == SHUTDOWN_COMPLETED {
+                                    if SHUTDOWN_STATE.load(Ordering::Acquire) == SHUTDOWN_COMPLETED
+                                    {
                                         return TimerDriverResult {
                                             next_monotonic: u64::MAX,
                                             next_utc: u64::MAX,
@@ -753,16 +813,17 @@ extern "C" fn libertas_impl_timer_driver(monotonic: u64, utc: u64) -> TimerDrive
                     }
                     TimerDriverResult {
                         next_monotonic: next_mono,
-                        next_utc: next_time
+                        next_utc: next_time,
                     }
                 }
-                _ => { unreachable!(); }
+                _ => {
+                    unreachable!();
+                }
             }
         } else {
             unreachable!();
         }
     }
-
 }
 
 struct LibertasPackageEnv {
@@ -771,21 +832,21 @@ struct LibertasPackageEnv {
     timers: HashMap<u32, Timer>,
     timers_active_interval: PriorityQueue<u32, Reverse<u64>, DefaultHashBuilder>,
     timers_active_deadline: PriorityQueue<u32, Reverse<u64>, DefaultHashBuilder>,
-    contexts: HashMap<LibertasTaskId, Context>,    // Key is task ID
+    contexts: HashMap<LibertasTaskId, Context>, // Key is task ID
     package_callback: LibertasPackageCallback,
     wakeup_callbacks: Option<WakeupCallback>,
 }
 
-impl LibertasPackageEnv{
+impl LibertasPackageEnv {
     #[inline(always)]
     fn new() -> Self {
-        Self { 
-            timer_id: 0, 
-            trans_id:0, 
-            timers: HashMap::new(), 
-            timers_active_interval: PriorityQueue::with_default_hasher(), 
-            timers_active_deadline: PriorityQueue::with_default_hasher(), 
-            contexts: HashMap::new(), 
+        Self {
+            timer_id: 0,
+            trans_id: 0,
+            timers: HashMap::new(),
+            timers_active_interval: PriorityQueue::with_default_hasher(),
+            timers_active_deadline: PriorityQueue::with_default_hasher(),
+            contexts: HashMap::new(),
             package_callback: LibertasPackageCallback {
                 version: CURRENT_VERSION,
                 init_task: libertas_impl_init_task,
@@ -805,7 +866,7 @@ impl LibertasPackageEnv{
     #[inline(always)]
     fn remove_task(&mut self, task_id: LibertasTaskId) {
         self.contexts.remove(&task_id);
-        self.timers.retain( |k, timer| {
+        self.timers.retain(|k, timer| {
             if timer.task == task_id {
                 if let TimerState::ArmedInterval(_) = timer.state {
                     self.timers_active_interval.remove(k);
@@ -852,12 +913,12 @@ static mut ENV: Option<LibertasPackageEnv> = None;
 
 /**
  * Internal use only by Libertas SDK. The Libertas Apps are driven by a single thread. No locking is required.
- * This API is called only once as soon as the dynamic library is loaded by Libertas OS App engine. 
+ * This API is called only once as soon as the dynamic library is loaded by Libertas OS App engine.
  * Attempting to call it again is considered a security attack and the caller App will be banned.
  * This function will be re-exported with a new unique name assigned by Libertas builder for each App package.
  */
 #[doc(hidden)]
-pub fn __libertas_init_package(runtime_api:*mut c_void) -> *const LibertasPackageCallback {
+pub fn __libertas_init_package(runtime_api: *mut c_void) -> *const LibertasPackageCallback {
     unsafe {
         // Reject an incompatible host before reading any widened callback signature.
         if runtime_api.is_null() || *(runtime_api as *const u32) != CURRENT_VERSION {
@@ -874,7 +935,7 @@ pub fn __libertas_init_package(runtime_api:*mut c_void) -> *const LibertasPackag
             callback_ptr
         } else {
             core::ptr::null()
-        }        
+        }
     }
 }
 
@@ -886,7 +947,7 @@ pub fn __libertas_init_package(runtime_api:*mut c_void) -> *const LibertasPackag
 #[doc(hidden)]
 pub fn __libertas_release_package() {
     unsafe {
-        ENV = None;     // Drop all memory
+        ENV = None; // Drop all memory
     }
 }
 
@@ -906,9 +967,10 @@ where
         match ENV {
             Some(ref mut env) => {
                 let task_id = libertas_get_task_id();
-                let task_context = env.contexts.get_mut(&task_id).unwrap_or_else(|| {
-                    panic!("libertas_register_shutdown_handler invalid task")
-                });
+                let task_context = env
+                    .contexts
+                    .get_mut(&task_id)
+                    .unwrap_or_else(|| panic!("libertas_register_shutdown_handler invalid task"));
                 if task_context.shutdown_handler.is_some() {
                     panic!("Duplicate shutdown handler registered");
                 }
@@ -934,11 +996,15 @@ where
 /// The first call made after the host's shutdown request notifies the host.
 /// Calls made before a request or duplicate completion calls are ignored.
 pub fn libertas_shutdown_complete() {
-    if SHUTDOWN_STATE.compare_exchange(
+    if SHUTDOWN_STATE
+        .compare_exchange(
             SHUTDOWN_REQUESTED,
             SHUTDOWN_COMPLETED,
             Ordering::AcqRel,
-            Ordering::Acquire).is_err() {
+            Ordering::Acquire,
+        )
+        .is_err()
+    {
         return;
     }
 
@@ -954,21 +1020,30 @@ pub fn libertas_shutdown_complete() {
             OP_APP_SHUT_DOWN,
             core::ptr::null(),
             0,
-            0);
+            0,
+        );
     }
 }
 
 /// Wake up the main thread loop. This function is usually called from another thread, for example, after sending to the main thread.
-/// 
+///
 /// The callback registered by [`libertas_register_wakeup_callback`] will be called the first when main thread wakes up.
-/// 
-/// Multi-threading communication with main thread must be non-blocking on both sides. If the sender from another thread is blocking, 
+///
+/// Multi-threading communication with main thread must be non-blocking on both sides. If the sender from another thread is blocking,
 /// it will not have a chance to call [`libertas_wake_up`]. The wake up callback implementation must ensure both sending and receiving operations are non-blocking.
-/// 
+///
 pub fn libertas_wake_up() {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
-            (runtime_api.device_send)(PROTOCOL_LIBERTAS, DEVICE_SYSTEM, 0, OP_SYSTEM_WAKE_UP, core::ptr::null(), 0, 0);
+            (runtime_api.device_send)(
+                PROTOCOL_LIBERTAS,
+                DEVICE_SYSTEM,
+                0,
+                OP_SYSTEM_WAKE_UP,
+                core::ptr::null(),
+                0,
+                0,
+            );
         } else {
             unreachable!();
         }
@@ -976,13 +1051,13 @@ pub fn libertas_wake_up() {
 }
 
 /// Generates random bytes from the system RNG.
-/// 
+///
 /// # Arguments
 /// * `bytes` - Number of random bytes to generate (1-8).
-/// 
+///
 /// # Returns
 /// Random data in the least significant bits of a u64.
-/// 
+///
 /// # Notes
 /// Only the lower `bytes` are valid. May call RNG multiple times for embedded systems.
 pub fn libertas_get_random(bytes: u8) -> u64 {
@@ -1071,7 +1146,12 @@ pub fn libertas_get_task_id() -> LibertasTaskId {
     }
 }
 
-fn libertas_timer_new(expiration: u64, interval: bool, callback: Box<LibertasTimerCallback>, context: Box<dyn Any>) -> u32 {
+fn libertas_timer_new(
+    expiration: u64,
+    interval: bool,
+    callback: Box<LibertasTimerCallback>,
+    context: Box<dyn Any>,
+) -> u32 {
     unsafe {
         match ENV {
             Some(ref mut env) => {
@@ -1081,64 +1161,87 @@ fn libertas_timer_new(expiration: u64, interval: bool, callback: Box<LibertasTim
                 let wrapped_tag = Rc::new(RefCell::new(context));
                 if expiration > 0 {
                     if interval {
-                        env.timers.insert(id, Timer {
-                            task: task_id,
-                            state: TimerState::ArmedInterval(expiration),
-                            cb: wrapped_cb,
-                            context: wrapped_tag,
-                        });
+                        env.timers.insert(
+                            id,
+                            Timer {
+                                task: task_id,
+                                state: TimerState::ArmedInterval(expiration),
+                                cb: wrapped_cb,
+                                context: wrapped_tag,
+                            },
+                        );
                         env.timers_active_interval.push(id, Reverse(expiration));
                     } else {
-                        env.timers.insert(id, Timer {
-                            task: task_id,
-                            state: TimerState::ArmedDeadline(expiration),
-                            cb: wrapped_cb,
-                            context: wrapped_tag,
-                        });
+                        env.timers.insert(
+                            id,
+                            Timer {
+                                task: task_id,
+                                state: TimerState::ArmedDeadline(expiration),
+                                cb: wrapped_cb,
+                                context: wrapped_tag,
+                            },
+                        );
                         env.timers_active_deadline.push(id, Reverse(expiration));
                     }
                 } else {
-                    env.timers.insert(id, Timer {
-                        task: task_id,
-                        state: TimerState::Idle,
-                        cb: wrapped_cb,
-                        context: wrapped_tag,
-                    });
+                    env.timers.insert(
+                        id,
+                        Timer {
+                            task: task_id,
+                            state: TimerState::Idle,
+                            cb: wrapped_cb,
+                            context: wrapped_tag,
+                        },
+                    );
                 }
                 id
             }
-            _ => { unreachable!(); }
+            _ => {
+                unreachable!();
+            }
         }
     }
 }
 
 /// Creates an interval timer that fires at the specified system tick.
-/// 
+///
 /// # Arguments
 /// * `expiration` - Expiration time in system ticks (microseconds).
 /// * `callback` - Called on fire with (timer_id, current_ticks, context).
 /// * `context` - User data passed to callback.
-/// 
+///
 /// # Returns
 /// Timer ID for management.
-pub fn libertas_timer_new_interval<F>(expiration: u64, callback: F, context: Box<dyn Any>) -> u32 where F: FnMut(u32, u64, &mut Box<dyn Any>) + Sized + 'static {
+pub fn libertas_timer_new_interval<F>(expiration: u64, callback: F, context: Box<dyn Any>) -> u32
+where
+    F: FnMut(u32, u64, &mut Box<dyn Any>) + Sized + 'static,
+{
     return libertas_timer_new(expiration, true, Box::new(callback), context);
 }
 
 /// Creates a deadline timer that fires at the specified UTC time.
-/// 
+///
 /// # Arguments
 /// * `expiration` - Deadline in UTC microseconds.
 /// * `callback` - Called on fire with (timer_id, deadline_time, context).
 /// * `context` - User data passed to callback.
-/// 
+///
 /// # Returns
 /// Timer ID for management.
-pub fn libertas_timer_new_deadline<F>(expiration: u64, callback: F, context: Box<dyn Any>) -> u32 where F: FnMut(u32, u64, &mut Box<dyn Any>) + Sized + 'static {
+pub fn libertas_timer_new_deadline<F>(expiration: u64, callback: F, context: Box<dyn Any>) -> u32
+where
+    F: FnMut(u32, u64, &mut Box<dyn Any>) + Sized + 'static,
+{
     return libertas_timer_new(expiration, false, Box::new(callback), context);
 }
 
-fn libertas_timer_update(timer: u32, expiration: u64, interval: bool, callback: Option<Box<LibertasTimerCallback>>, new_context: Option<Box<dyn Any>>) {
+fn libertas_timer_update(
+    timer: u32,
+    expiration: u64,
+    interval: bool,
+    callback: Option<Box<LibertasTimerCallback>>,
+    new_context: Option<Box<dyn Any>>,
+) {
     unsafe {
         match ENV {
             Some(ref mut env) => {
@@ -1150,7 +1253,8 @@ fn libertas_timer_update(timer: u32, expiration: u64, interval: bool, callback: 
                         if let TimerState::ArmedInterval(old_exp) = t.state {
                             if old_exp != expiration {
                                 t.state = TimerState::ArmedInterval(expiration);
-                                env.timers_active_interval.change_priority(&timer, Reverse(expiration));
+                                env.timers_active_interval
+                                    .change_priority(&timer, Reverse(expiration));
                             }
                         } else {
                             if let TimerState::ArmedDeadline(_) = t.state {
@@ -1163,7 +1267,8 @@ fn libertas_timer_update(timer: u32, expiration: u64, interval: bool, callback: 
                         if let TimerState::ArmedDeadline(old_exp) = t.state {
                             if old_exp != expiration {
                                 t.state = TimerState::ArmedDeadline(expiration);
-                                env.timers_active_deadline.change_priority(&timer, Reverse(expiration));
+                                env.timers_active_deadline
+                                    .change_priority(&timer, Reverse(expiration));
                             }
                         } else {
                             if let TimerState::ArmedInterval(_) = t.state {
@@ -1183,17 +1288,19 @@ fn libertas_timer_update(timer: u32, expiration: u64, interval: bool, callback: 
                     panic!("libertas_timer_update invalid timer");
                 }
             }
-            _ => { unreachable!(); }
+            _ => {
+                unreachable!();
+            }
         }
     }
 }
 
 /// Updates an interval timer's expiration time.
-/// 
+///
 /// # Arguments
 /// * `timer` - Timer ID.
 /// * `expiration` - New expiration in system ticks.
-/// 
+///
 /// # Panics
 /// If timer invalid or not owned by current task.
 pub fn libertas_timer_update_interval(timer: u32, expiration: u64) {
@@ -1201,11 +1308,11 @@ pub fn libertas_timer_update_interval(timer: u32, expiration: u64) {
 }
 
 /// Updates a deadline timer's deadline.
-/// 
+///
 /// # Arguments
 /// * `timer` - Timer ID.
 /// * `expiration` - New deadline in UTC microseconds.
-/// 
+///
 /// # Panics
 /// If timer invalid or not owned by current task.
 pub fn libertas_timer_update_deadline(timer: u32, expiration: u64) {
@@ -1213,42 +1320,68 @@ pub fn libertas_timer_update_deadline(timer: u32, expiration: u64) {
 }
 
 /// Updates an interval timer with new expiration and callback.
-/// 
+///
 /// # Arguments
 /// * `timer` - Timer ID.
 /// * `expiration` - New expiration in system ticks.
 /// * `callback` - New callback closure.
 /// * `new_context` - New user data.
-/// 
+///
 /// # Panics
 /// If timer invalid or not owned by current task.
-pub fn libertas_timer_update_interval_callback<F>(timer: u32, expiration: u64, callback: F, new_context: Box<dyn Any>) where F: FnMut(u32, u64, &mut Box<dyn Any>) + Sized + 'static {
-    libertas_timer_update(timer, expiration, true, Some(Box::new(callback)), Some(new_context));
+pub fn libertas_timer_update_interval_callback<F>(
+    timer: u32,
+    expiration: u64,
+    callback: F,
+    new_context: Box<dyn Any>,
+) where
+    F: FnMut(u32, u64, &mut Box<dyn Any>) + Sized + 'static,
+{
+    libertas_timer_update(
+        timer,
+        expiration,
+        true,
+        Some(Box::new(callback)),
+        Some(new_context),
+    );
 }
 
 /// Updates a deadline timer with new deadline and callback.
-/// 
+///
 /// # Arguments
 /// * `timer` - Timer ID.
 /// * `expiration` - New deadline in UTC microseconds.
 /// * `callback` - New callback closure.
 /// * `new_context` - New user data.
-/// 
+///
 /// # Panics
 /// If timer invalid or not owned by current task.
-pub fn libertas_timer_update_deadline_callback<F>(timer: u32, expiration: u64, callback: F, new_context: Box<dyn Any>) where F: FnMut(u32, u64, &mut Box<dyn Any>) + Sized + 'static {
-    libertas_timer_update(timer, expiration, false, Some(Box::new(callback)), Some(new_context));
+pub fn libertas_timer_update_deadline_callback<F>(
+    timer: u32,
+    expiration: u64,
+    callback: F,
+    new_context: Box<dyn Any>,
+) where
+    F: FnMut(u32, u64, &mut Box<dyn Any>) + Sized + 'static,
+{
+    libertas_timer_update(
+        timer,
+        expiration,
+        false,
+        Some(Box::new(callback)),
+        Some(new_context),
+    );
 }
 
 /// Cancels a running timer without deleting it.
 /// Timer can be restarted later.
-/// 
+///
 /// # Arguments
 /// * `timer` - Timer ID.
-/// 
+///
 /// # Panics
 /// If timer invalid or not owned by current task.
-pub fn libertas_timer_cancel(timer: u32) {  
+pub fn libertas_timer_cancel(timer: u32) {
     unsafe {
         match ENV {
             Some(ref mut env) => {
@@ -1267,17 +1400,19 @@ pub fn libertas_timer_cancel(timer: u32) {
                     panic!("timer_cancel invalid timer");
                 }
             }
-            _ => { unreachable!(); }
+            _ => {
+                unreachable!();
+            }
         }
     }
 }
 
 /// Destroys a timer and frees its resources.
 /// Timer cannot be used again.
-/// 
+///
 /// # Arguments
 /// * `timer` - Timer ID.
-/// 
+///
 /// # Panics
 /// If timer invalid or not owned by current task.
 pub fn libertas_timer_destroy(timer: u32) {
@@ -1298,9 +1433,11 @@ pub fn libertas_timer_destroy(timer: u32) {
                     panic!("timer_destroy invalid timer");
                 }
             }
-            _ => { unreachable!(); }
+            _ => {
+                unreachable!();
+            }
         }
-    }    
+    }
 }
 
 fn libertas_register_device_listener_impl(
@@ -1314,20 +1451,25 @@ fn libertas_register_device_listener_impl(
             Some(ref mut env) => {
                 let task_id = libertas_get_task_id();
                 let wrapped_cb = Rc::new(RefCell::new(callback));
-                let wrapped_tag = Rc::new(RefCell::new(tag));                
+                let wrapped_tag = Rc::new(RefCell::new(tag));
                 if let Some(context) = env.contexts.get_mut(&task_id) {
-                    if let Some(_v) = context.device_callbacks.insert(device, DeviceCallback {
-                        cb: wrapped_cb,
-                        context: wrapped_tag,
-                        handles_endpoint_subscription_delivery,
-                    }) {
+                    if let Some(_v) = context.device_callbacks.insert(
+                        device,
+                        DeviceCallback {
+                            cb: wrapped_cb,
+                            context: wrapped_tag,
+                            handles_endpoint_subscription_delivery,
+                        },
+                    ) {
                         panic!("Duplicate device callback registered");
                     }
                 } else {
                     unreachable!();
                 }
             }
-            _ => { unreachable!(); }
+            _ => {
+                unreachable!();
+            }
         }
     }
 }
@@ -1336,7 +1478,7 @@ fn libertas_register_device_listener_impl(
 ///
 /// Registers a callback that will be invoked when events occur on the specified device.
 /// The callback receives device responses, attribute updates, and other device-related events.
-/// 
+///
 /// # Remarks
 /// Developer shall not call this API directly. Instead, they should use the protocol-specific APIs built on top of this API. For example, for Matter protocol, developers should use `matter_register_device_callback` instead of this API. The protocol-specific APIs will handle the protocol details and provide a more user-friendly interface.
 ///
@@ -1348,7 +1490,7 @@ fn libertas_register_device_listener_impl(
 ///   back to the applicable endpoint API, but never construct, inspect, or
 ///   interpret it as a task, object, or endpoint ID.
 /// * `context` - Developer-defined data passed to the callback function
-/// 
+///
 /// # Remarks
 /// The transaction ID is always supplied. Libertas does not interpret any
 /// transaction ID as absent; the interaction protocol may designate and
@@ -1356,26 +1498,37 @@ fn libertas_register_device_listener_impl(
 ///
 /// Only one callback can be registered per device. Registering a new callback for the same device will cause panic. For devices that the task doesn't
 /// have "read access", only responses to its own requests will trigger the callback. App can not subscribe from "write-only" devices.
-/// 
+///
 /// A task is advised to collect all devices from function arguments before registering any callback to eliminate potential duplicates.
-/// 
+///
 #[doc(hidden)]
 #[inline(always)]
-pub fn libertas_register_device_listener<F>(device: LibertasDevice, callback: F, context: Box<dyn Any>) where F: FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, LibertasTransId, LibertasPeer) + Sized + 'static {
+pub fn libertas_register_device_listener<F>(
+    device: LibertasDevice,
+    callback: F,
+    context: Box<dyn Any>,
+) where
+    F: FnMut(LibertasDevice, u8, &[u8], &mut Box<dyn Any>, LibertasTransId, LibertasPeer)
+        + Sized
+        + 'static,
+{
     libertas_register_device_listener_impl(device, Box::new(callback), context, false);
 }
 
 /// Registers a callback function for wakeup events. The callback will be called first thing after the task is waken up before timers are processed.
-/// 
+///
 /// All multi-threadng communication with main thread must be performed in this callback.
-/// 
+///
 /// This callback must be non-blocking on both sending and receiving! Read [`libertas_wake_up`] for more details.
-/// 
+///
 /// # Arguments
 /// * `callback` - Closure called on wakeup with mutable context.
 /// * `context` - Developer-defined data passed to the callback function.
-/// 
-pub fn libertas_register_wakeup_callback<F>(callback: F, context: Box<dyn Any>) where F: FnMut(&mut Box<dyn Any>) + Sized + 'static {
+///
+pub fn libertas_register_wakeup_callback<F>(callback: F, context: Box<dyn Any>)
+where
+    F: FnMut(&mut Box<dyn Any>) + Sized + 'static,
+{
     unsafe {
         match ENV {
             Some(ref mut env) => {
@@ -1384,7 +1537,9 @@ pub fn libertas_register_wakeup_callback<F>(callback: F, context: Box<dyn Any>) 
                     context: Rc::new(RefCell::new(context)),
                 });
             }
-            _ => { unreachable!(); }
+            _ => {
+                unreachable!();
+            }
         }
     }
 }
@@ -1475,7 +1630,7 @@ fn libertas_endpoint_send_invalid_message(
 ///   message, or [`LibertasEndpointStatus::InvalidMessage`] to reject a decoded
 ///   request or subscription request.
 /// * `context` - User data.
-/// 
+///
 /// The endpoint protocol always supplies `trans_id` and designates
 /// [`LIBERTAS_ENDPOINT_IGNORED_TRANS_ID`] for interactions that do not correlate
 /// with a transaction.
@@ -1494,30 +1649,30 @@ pub fn libertas_register_endpoint_listener<T, F>(
     id: LibertasEndpoint,
     mut callback: F,
     context: Box<dyn Any>,
-)
-        where 
-            T: AvroDecode + 'static,
-            F: FnMut(
-                LibertasEndpoint,
-                u8,
-                Option<T>,
-                &mut Box<dyn Any>,
-                LibertasTransId,
-                LibertasPeer,
-            ) -> LibertasEndpointStatus + Sized + 'static {
+) where
+    T: AvroDecode + 'static,
+    F: FnMut(
+            LibertasEndpoint,
+            u8,
+            Option<T>,
+            &mut Box<dyn Any>,
+            LibertasTransId,
+            LibertasPeer,
+        ) -> LibertasEndpointStatus
+        + Sized
+        + 'static,
+{
     libertas_register_endpoint_status_listener(
         id,
         move |device, opcode, message, context, trans_id, peer| {
             let data = match message {
                 LibertasEndpointMessage::Data(value) => Some(value),
-                LibertasEndpointMessage::InvalidMessage |
-                LibertasEndpointMessage::Status(_) |
-                LibertasEndpointMessage::NoPayload => None,
+                LibertasEndpointMessage::InvalidMessage
+                | LibertasEndpointMessage::Status(_)
+                | LibertasEndpointMessage::NoPayload => None,
             };
             match callback(device, opcode, data, context, trans_id, peer) {
-                LibertasEndpointStatus::Success => {
-                    LibertasEndpointHandlerResult::Handled
-                }
+                LibertasEndpointStatus::Success => LibertasEndpointHandlerResult::Handled,
                 LibertasEndpointStatus::InvalidMessage => {
                     LibertasEndpointHandlerResult::InvalidMessage
                 }
@@ -1551,135 +1706,144 @@ pub fn libertas_register_endpoint_status_listener<T, F>(
     id: LibertasEndpoint,
     callback: F,
     context: Box<dyn Any>,
-)
-        where
-            T: AvroDecode + 'static,
-            F: FnMut(
-                LibertasEndpoint,
-                u8,
-                LibertasEndpointMessage<T>,
-                &mut Box<dyn Any>,
-                LibertasTransId,
-                LibertasPeer,
-            ) -> LibertasEndpointHandlerResult + Sized + 'static {
+) where
+    T: AvroDecode + 'static,
+    F: FnMut(
+            LibertasEndpoint,
+            u8,
+            LibertasEndpointMessage<T>,
+            &mut Box<dyn Any>,
+            LibertasTransId,
+            LibertasPeer,
+        ) -> LibertasEndpointHandlerResult
+        + Sized
+        + 'static,
+{
     let listener = Box::new(EndpointStatusListener {
         callback: Box::new(callback),
         context,
     });
-    libertas_register_device_listener_impl(id, Box::new(|device, opcode, data, tag_any, trans_id, peer| {
-        let tag = tag_any.downcast_mut::<EndpointStatusListener<T>>().unwrap();
+    libertas_register_device_listener_impl(
+        id,
+        Box::new(|device, opcode, data, tag_any, trans_id, peer| {
+            let tag = tag_any.downcast_mut::<EndpointStatusListener<T>>().unwrap();
 
-        if opcode == OP_ENDPOINT_PEER_DOWN ||
-                opcode == OP_ENDPOINT_PEER_UP ||
-                opcode == OP_ENDPOINT_PEER_ALIVE ||
-                opcode == OP_ENDPOINT_PEER_TIMEOUT {
-            (tag.callback)(
-                device,
-                opcode,
-                LibertasEndpointMessage::NoPayload,
-                &mut tag.context,
-                trans_id,
-                peer,
-            );
-            return;
-        }
-
-        let message = match data.first().copied() {
-            Some(status) if status == LibertasEndpointStatus::Success as u8 => {
-                let mut offset = 1;
-                match T::avro_decode(data, &mut offset) {
-                    Ok(value) if offset == data.len() => {
-                        Some(LibertasEndpointMessage::Data(value))
-                    }
-                    _ => None,
-                }
-            }
-            Some(status)
-                if status == LibertasEndpointStatus::InvalidMessage as u8 &&
-                    data.len() == 1 &&
-                    opcode != OP_ENDPOINT_REQ &&
-                    opcode != OP_ENDPOINT_SUB_REQ =>
+            if opcode == OP_ENDPOINT_PEER_DOWN
+                || opcode == OP_ENDPOINT_PEER_UP
+                || opcode == OP_ENDPOINT_PEER_ALIVE
+                || opcode == OP_ENDPOINT_PEER_TIMEOUT
             {
-                Some(LibertasEndpointMessage::InvalidMessage)
-            }
-            Some(status)
-                if status == LibertasEndpointStatus::StandardStatus as u8 &&
-                    data.len() == 2 &&
-                    opcode == OP_ENDPOINT_RSP =>
-            {
-                LibertasEndpointStandardStatus::from_code(data[1])
-                    .map(LibertasEndpointMessage::Status)
-            }
-            _ => None,
-        };
-
-        let Some(message) = message else {
-            if opcode == OP_ENDPOINT_REQ || opcode == OP_ENDPOINT_SUB_REQ {
-                if opcode == OP_ENDPOINT_SUB_REQ {
-                    let status = [LibertasEndpointStatus::InvalidMessage as u8];
-                    libertas_device_send_response(
-                        PROTOCOL_LIBERTAS,
-                        device,
-                        OP_ENDPOINT_RSP,
-                        &status,
-                        trans_id,
-                        peer,
-                    );
-                    // Keep the correlated rejection ahead of the private
-                    // negative completion on the runtime-to-host FIFO.
-                    libertas_endpoint_subscription_delivery_result(false);
-                } else {
-                    libertas_endpoint_send_invalid_message(device, opcode, trans_id, peer);
-                }
-            } else {
                 (tag.callback)(
                     device,
                     opcode,
-                    LibertasEndpointMessage::InvalidMessage,
+                    LibertasEndpointMessage::NoPayload,
                     &mut tag.context,
                     trans_id,
                     peer,
                 );
+                return;
             }
-            return;
-        };
 
-        if opcode == OP_ENDPOINT_SUB_REQ {
-            // The runtime-private positive result must precede synchronous
-            // Data/Alive emitted by the registered App callback.
-            libertas_endpoint_subscription_delivery_result(true);
-        }
-        let result = (tag.callback)(
-            device,
-            opcode,
-            message,
-            &mut tag.context,
-            trans_id,
-            peer,
-        );
-        if opcode == OP_ENDPOINT_REQ || opcode == OP_ENDPOINT_SUB_REQ {
-            libertas_endpoint_send_handler_result(
-                device,
-                opcode,
-                trans_id,
-                peer,
-                result,
-            );
-        }
-    }), listener, true);
+            let message = match data.first().copied() {
+                Some(status) if status == LibertasEndpointStatus::Success as u8 => {
+                    let mut offset = 1;
+                    match T::avro_decode(data, &mut offset) {
+                        Ok(value) if offset == data.len() => {
+                            Some(LibertasEndpointMessage::Data(value))
+                        }
+                        _ => None,
+                    }
+                }
+                Some(status)
+                    if status == LibertasEndpointStatus::InvalidMessage as u8
+                        && data.len() == 1
+                        && opcode != OP_ENDPOINT_REQ
+                        && opcode != OP_ENDPOINT_SUB_REQ =>
+                {
+                    Some(LibertasEndpointMessage::InvalidMessage)
+                }
+                Some(status)
+                    if status == LibertasEndpointStatus::StandardStatus as u8
+                        && data.len() == 2
+                        && opcode == OP_ENDPOINT_RSP =>
+                {
+                    LibertasEndpointStandardStatus::from_code(data[1])
+                        .map(LibertasEndpointMessage::Status)
+                }
+                _ => None,
+            };
+
+            let Some(message) = message else {
+                if opcode == OP_ENDPOINT_REQ || opcode == OP_ENDPOINT_SUB_REQ {
+                    if opcode == OP_ENDPOINT_SUB_REQ {
+                        let status = [LibertasEndpointStatus::InvalidMessage as u8];
+                        libertas_device_send_response(
+                            PROTOCOL_LIBERTAS,
+                            device,
+                            OP_ENDPOINT_RSP,
+                            &status,
+                            trans_id,
+                            peer,
+                        );
+                        // Keep the correlated rejection ahead of the private
+                        // negative completion on the runtime-to-host FIFO.
+                        libertas_endpoint_subscription_delivery_result(false);
+                    } else {
+                        libertas_endpoint_send_invalid_message(device, opcode, trans_id, peer);
+                    }
+                } else {
+                    (tag.callback)(
+                        device,
+                        opcode,
+                        LibertasEndpointMessage::InvalidMessage,
+                        &mut tag.context,
+                        trans_id,
+                        peer,
+                    );
+                }
+                return;
+            };
+
+            if opcode == OP_ENDPOINT_SUB_REQ {
+                // The runtime-private positive result must precede synchronous
+                // Data/Alive emitted by the registered App callback.
+                libertas_endpoint_subscription_delivery_result(true);
+            }
+            let result = (tag.callback)(device, opcode, message, &mut tag.context, trans_id, peer);
+            if opcode == OP_ENDPOINT_REQ || opcode == OP_ENDPOINT_SUB_REQ {
+                libertas_endpoint_send_handler_result(device, opcode, trans_id, peer, result);
+            }
+        }),
+        listener,
+        true,
+    );
 }
 
-fn __libertas_device_send_raw(protocol: u16, device: LibertasDevice, op: u8, peer: LibertasPeer, trans_id: LibertasTransId, data: *const u8, data_len: usize) {
+fn __libertas_device_send_raw(
+    protocol: u16,
+    device: LibertasDevice,
+    op: u8,
+    peer: LibertasPeer,
+    trans_id: LibertasTransId,
+    data: *const u8,
+    data_len: usize,
+) {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
             (runtime_api.device_send)(protocol, device, trans_id, op, data, data_len, peer);
         } else {
             unreachable!();
         }
-    }    
+    }
 }
 
-fn __libertas_device_read_raw(protocol: u16, device: LibertasDevice, op: u8, data: *const u8, data_len: usize) -> ReadResult{
+fn __libertas_device_read_raw(
+    protocol: u16,
+    device: LibertasDevice,
+    op: u8,
+    data: *const u8,
+    data_len: usize,
+) -> ReadResult {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
             (runtime_api.device_read)(protocol, device, op, data, data_len)
@@ -1690,7 +1854,14 @@ fn __libertas_device_read_raw(protocol: u16, device: LibertasDevice, op: u8, dat
 }
 
 #[doc(hidden)]
-pub fn __libertas_device_send_raw_req(protocol: u16, device: LibertasDevice, op: u8, peer: LibertasPeer, data: *const u8, data_len: usize) -> LibertasTransId {
+pub fn __libertas_device_send_raw_req(
+    protocol: u16,
+    device: LibertasDevice,
+    op: u8,
+    peer: LibertasPeer,
+    data: *const u8,
+    data_len: usize,
+) -> LibertasTransId {
     unsafe {
         match ENV {
             Some(ref mut env) => {
@@ -1702,36 +1873,43 @@ pub fn __libertas_device_send_raw_req(protocol: u16, device: LibertasDevice, op:
                 }
                 return ret;
             }
-            _ => { unreachable!(); }
+            _ => {
+                unreachable!();
+            }
         }
-    }    
+    }
 }
 
 /// Sends a request to a LibertasDevice. A response is always expected as a transaction. Thus, a unique transaction ID is generated and returned.
-/// 
+///
 /// # Remarks
 /// Developers shall not call this API directly. Instead, they should use the protocol-specific APIs built on top of this API. For example, for Matter protocol, developers should use `matter_send_invoke_request` instead of this API. The protocol-specific APIs will handle the protocol details and provide a more user-friendly interface.
-/// 
+///
 /// # Arguments
 /// * `protocol` - The protocol ID for the request.
 /// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasEndpoint`.
 /// * `op` - Operation code for the request. This is an application defined.
 /// * `data` - Binary blob containing the request data. The content is application defined.
-/// 
+///
 /// # Returns
 /// Unique transaction ID for tracking the response
-/// 
+///
 #[doc(hidden)]
 #[inline(always)]
-pub fn libertas_device_send_request(protocol: u16, device: LibertasDevice, op: u8, data: &[u8]) -> LibertasTransId {
+pub fn libertas_device_send_request(
+    protocol: u16,
+    device: LibertasDevice,
+    op: u8,
+    data: &[u8],
+) -> LibertasTransId {
     __libertas_device_send_raw_req(protocol, device, op, 0, data.as_ptr(), data.len())
 }
 
 /// Sends a response to a device request. This API is used to respond to a request received from a device, using the transaction ID provided in the request callback.
-/// 
+///
 /// # Remarks
 /// Developers shall not call this API directly. Instead, they should use the protocol-specific APIs built on top of this API. For example, for Matter protocol, developers should use `matter_send_invoke_response` instead of this API. The protocol-specific APIs will handle the protocol details and provide a more user-friendly interface.
-/// 
+///
 /// # Arguments
 /// * `protocol` - The protocol ID for the request.
 /// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasEndpoint`.
@@ -1739,18 +1917,33 @@ pub fn libertas_device_send_request(protocol: u16, device: LibertasDevice, op: u
 /// * `data` - Binary blob containing the response data
 /// * `trans_id` - Transaction ID from the original request to correlate the response.
 /// * `peer` - The peer that sent the original request.
-/// 
+///
 #[doc(hidden)]
 #[inline(always)]
-pub fn libertas_device_send_response(protocol: u16, device: LibertasDevice, op: u8, data: &[u8], trans_id: LibertasTransId, peer: LibertasPeer) {
-    __libertas_device_send_raw(protocol, device, op, peer, trans_id, data.as_ptr(), data.len());
+pub fn libertas_device_send_response(
+    protocol: u16,
+    device: LibertasDevice,
+    op: u8,
+    data: &[u8],
+    trans_id: LibertasTransId,
+    peer: LibertasPeer,
+) {
+    __libertas_device_send_raw(
+        protocol,
+        device,
+        op,
+        peer,
+        trans_id,
+        data.as_ptr(),
+        data.len(),
+    );
 }
 
 /// Sends a report to a device without expecting a response. This API can be used for unsolicited updates to the device.
-/// 
+///
 /// # Remarks
 /// Developers shall not call this API directly. Instead, they should use the protocol-specific APIs built on top of this API. For example, for Matter protocol, developers should use `matter_send_report` instead of this API. The protocol-specific APIs will handle the protocol details and provide a more user
-/// 
+///
 /// # Arguments
 /// * `protocol` - The protocol ID for the request.
 /// * `device` - A `LibertasDevice` or `LibertasVirtualDevice` or `LibertasEndpoint`.
@@ -1759,12 +1952,27 @@ pub fn libertas_device_send_response(protocol: u16, device: LibertasDevice, op: 
 /// * `trans_id` - Transaction ID required by the interaction protocol. The
 ///   protocol may designate a special value as ignored for unsolicited reports.
 /// * `peer` - The peer that sent the original request.
-/// 
+///
 #[doc(hidden)]
-pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8, data: &[u8], trans_id: LibertasTransId, peer: LibertasPeer) {
+pub fn libertas_device_send_report(
+    protocol: u16,
+    device: LibertasDevice,
+    op: u8,
+    data: &[u8],
+    trans_id: LibertasTransId,
+    peer: LibertasPeer,
+) {
     unsafe {
         if let Some(runtime_api) = RUNTIME_API.as_ref() {
-            (runtime_api.device_send)(protocol, device, trans_id, op, data.as_ptr(), data.len(), peer);
+            (runtime_api.device_send)(
+                protocol,
+                device,
+                trans_id,
+                op,
+                data.as_ptr(),
+                data.len(),
+                peer,
+            );
         } else {
             unreachable!();
         }
@@ -1785,15 +1993,16 @@ pub fn libertas_device_send_report(protocol: u16, device: LibertasDevice, op: u8
 ///
 /// # Returns
 /// Transaction ID that can be used to correlate responses from the device
-/// 
+///
 /// # Note
 /// Unlike Matter protocol, the data can be any data structure defined and published by the server developer, encoded with Apache Avro format.
-/// We don't need any other Matter interactions. For example, Read and Write can all be implemented as InvokeRequest with custom data. We 
+/// We don't need any other Matter interactions. For example, Read and Write can all be implemented as InvokeRequest with custom data. We
 /// even included default request in the standard like in HTTP.
 #[inline(always)]
 pub fn libertas_endpoint_request<T>(server: LibertasEndpoint, data: &T) -> LibertasTransId
-    where 
-        T: AvroEncode + 'static {
+where
+    T: AvroEncode + 'static,
+{
     let mut bytes: Vec<_> = Vec::new();
     bytes.push(LibertasEndpointStatus::Success as u8);
     data.avro_encode(&mut bytes);
@@ -1815,15 +2024,16 @@ pub fn libertas_endpoint_request<T>(server: LibertasEndpoint, data: &T) -> Liber
 ///
 /// # Returns
 /// Transaction ID that can be used to correlate responses from the device
-/// 
+///
 /// # Note
 /// Unlike Matter protocol, the data can be any data structure defined and published by the server developer, encoded with Apache Avro format.
-/// We don't need any other Matter interactions. For example, Read and Write can all be implemented as InvokeRequest with custom data. We 
+/// We don't need any other Matter interactions. For example, Read and Write can all be implemented as InvokeRequest with custom data. We
 /// even included default request in the standard like in HTTP.
 #[inline(always)]
 pub fn libertas_endpoint_subscribe_request<T>(server: LibertasEndpoint, data: &T) -> LibertasTransId
-    where 
-        T: AvroEncode + 'static {
+where
+    T: AvroEncode + 'static,
+{
     let mut bytes: Vec<_> = Vec::new();
     bytes.push(LibertasEndpointStatus::Success as u8);
     data.avro_encode(&mut bytes);
@@ -1849,13 +2059,25 @@ pub fn libertas_endpoint_subscribe_request<T>(server: LibertasEndpoint, data: &T
 /// # Note
 /// Unlike Matter protocol, the data can be any data structure defined and published by the server developer, encoded with Apache Avro format.
 #[inline(always)]
-pub fn libertas_endpoint_response<T>(server: LibertasEndpoint, data: &T, trans_id: LibertasTransId, dest: LibertasPeer)
-    where 
-        T: AvroEncode + 'static {
+pub fn libertas_endpoint_response<T>(
+    server: LibertasEndpoint,
+    data: &T,
+    trans_id: LibertasTransId,
+    dest: LibertasPeer,
+) where
+    T: AvroEncode + 'static,
+{
     let mut bytes: Vec<_> = Vec::new();
     bytes.push(LibertasEndpointStatus::Success as u8);
     data.avro_encode(&mut bytes);
-    libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_RSP, &bytes, trans_id, dest);
+    libertas_device_send_response(
+        PROTOCOL_LIBERTAS,
+        server,
+        OP_ENDPOINT_RSP,
+        &bytes,
+        trans_id,
+        dest,
+    );
 }
 
 /// Replies with a complete Request for the client to edit and resubmit.
@@ -1864,13 +2086,25 @@ pub fn libertas_endpoint_response<T>(server: LibertasEndpoint, data: &T, trans_i
 /// installs these values directly, without CopyFrom, defaults, or automatic
 /// submission. Unfinished drafts remain client-local and cannot be sent here.
 #[inline(always)]
-pub fn libertas_endpoint_edit_request<T>(server: LibertasEndpoint, data: &T, trans_id: LibertasTransId, dest: LibertasPeer)
-    where
-        T: AvroEncode + 'static {
+pub fn libertas_endpoint_edit_request<T>(
+    server: LibertasEndpoint,
+    data: &T,
+    trans_id: LibertasTransId,
+    dest: LibertasPeer,
+) where
+    T: AvroEncode + 'static,
+{
     let mut bytes = Vec::new();
     bytes.push(LibertasEndpointStatus::Success as u8);
     data.avro_encode(&mut bytes);
-    libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_EDIT_REQ, &bytes, trans_id, dest);
+    libertas_device_send_response(
+        PROTOCOL_LIBERTAS,
+        server,
+        OP_ENDPOINT_EDIT_REQ,
+        &bytes,
+        trans_id,
+        dest,
+    );
 }
 
 /// Sends a canonical failure status for an endpoint request.
@@ -1889,10 +2123,7 @@ pub fn libertas_endpoint_status_response(
     trans_id: LibertasTransId,
     dest: LibertasPeer,
 ) {
-    let bytes = [
-        LibertasEndpointStatus::StandardStatus as u8,
-        status.code(),
-    ];
+    let bytes = [LibertasEndpointStatus::StandardStatus as u8, status.code()];
     libertas_device_send_response(
         PROTOCOL_LIBERTAS,
         server,
@@ -1933,13 +2164,21 @@ pub fn libertas_endpoint_status_response(
 /// unsolicited reports do not correlate with a transaction.
 #[inline(always)]
 pub fn libertas_endpoint_report<T>(server: LibertasEndpoint, data: &T, peer: Option<LibertasPeer>)
-    where 
-        T: AvroEncode + 'static {
+where
+    T: AvroEncode + 'static,
+{
     let peer_id = peer.unwrap_or(LIBERTAS_BROADCAST_DEST);
     let mut bytes: Vec<_> = Vec::new();
     bytes.push(LibertasEndpointStatus::Success as u8);
     data.avro_encode(&mut bytes);
-    libertas_device_send_report(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_DATA, &bytes, LIBERTAS_ENDPOINT_IGNORED_TRANS_ID, peer_id);
+    libertas_device_send_report(
+        PROTOCOL_LIBERTAS,
+        server,
+        OP_ENDPOINT_DATA,
+        &bytes,
+        LIBERTAS_ENDPOINT_IGNORED_TRANS_ID,
+        peer_id,
+    );
 }
 
 /// Sends a standardized payloadless endpoint liveness signal.
@@ -1981,21 +2220,28 @@ pub fn libertas_endpoint_peer_alive(server: LibertasEndpoint, peer: Option<Liber
 /// delivery/removal, routing, and rogue-App enforcement contract.
 ///
 /// Because the protocol can be anything designed by the developer. There is
-/// no way for Libertas OS runtime to know whether a subscribe request has failed. After the 
+/// no way for Libertas OS runtime to know whether a subscribe request has failed. After the
 /// task sends back a reject response, it has to notify the host to remove the
 /// subscriber from the host-owned process-memory subscription map.
 /// * A broadcast data report will not be sent to this peer.
 /// * OS will not try to maintain the session to keep it alive.
-/// 
+///
 /// # Arguments
 /// * `server` - A endpoint server id. The link created when a Libertas machine is created.
 /// * `peer` - The subscriber's opaque route handle received by the server.
 ///   Pass it through unchanged; never construct or interpret it as an ID.
-/// 
+///
 #[inline(always)]
 pub fn libertas_endpoint_remove_subscriber(server: LibertasEndpoint, peer: LibertasPeer) {
     let empty_slice: &[u8] = &[];
-    libertas_device_send_response(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_REMOVE_PEER, empty_slice, LIBERTAS_ENDPOINT_IGNORED_TRANS_ID, peer);
+    libertas_device_send_response(
+        PROTOCOL_LIBERTAS,
+        server,
+        OP_ENDPOINT_REMOVE_PEER,
+        empty_slice,
+        LIBERTAS_ENDPOINT_IGNORED_TRANS_ID,
+        peer,
+    );
 }
 
 #[cfg(test)]
@@ -2034,11 +2280,19 @@ mod tests {
     static ENDPOINT_SUB_CALLBACKS: AtomicUsize = AtomicUsize::new(0);
     static ENDPOINT_SUB_ACKS_OBSERVED_BY_CALLBACK: AtomicUsize = AtomicUsize::new(0);
 
-    extern "C" fn fake_get_random(_: u8) -> u64 { 0 }
-    extern "C" fn fake_get_task_id() -> LibertasTaskId { 7 }
+    extern "C" fn fake_get_random(_: u8) -> u64 {
+        0
+    }
+    extern "C" fn fake_get_task_id() -> LibertasTaskId {
+        7
+    }
     extern "C" fn fake_set_task_id(_: LibertasTaskId) {}
-    extern "C" fn fake_get_time() -> u64 { 0 }
-    extern "C" fn fake_convert_time(value: i64) -> i64 { value }
+    extern "C" fn fake_get_time() -> u64 {
+        0
+    }
+    extern "C" fn fake_convert_time(value: i64) -> i64 {
+        value
+    }
     extern "C" fn fake_device_send(
         protocol: u16,
         device: LibertasDevice,
@@ -2048,12 +2302,9 @@ mod tests {
         data_len: usize,
         peer: LibertasPeer,
     ) {
-        if protocol == PROTOCOL_LIBERTAS &&
-                device == DEVICE_SYSTEM &&
-                op_code == OP_APP_SHUT_DOWN {
+        if protocol == PROTOCOL_LIBERTAS && device == DEVICE_SYSTEM && op_code == OP_APP_SHUT_DOWN {
             SHUTDOWN_SENDS.fetch_add(1, Ordering::AcqRel);
-        } else if protocol == PROTOCOL_LIBERTAS &&
-                op_code == OP_ENDPOINT_PEER_ALIVE {
+        } else if protocol == PROTOCOL_LIBERTAS && op_code == OP_ENDPOINT_PEER_ALIVE {
             ENDPOINT_ALIVE_SENDS.fetch_add(1, Ordering::AcqRel);
             if data.is_null() {
                 ENDPOINT_ALIVE_NULL_PAYLOADS.fetch_add(1, Ordering::AcqRel);
@@ -2063,13 +2314,16 @@ mod tests {
             ENDPOINT_LAST_TRANS_ID.store(trans_id as usize, Ordering::Release);
             ENDPOINT_LAST_PEER.store(peer as usize, Ordering::Release);
         } else if protocol == PROTOCOL_LIBERTAS && op_code == OP_ENDPOINT_EDIT_REQ {
-            *ENDPOINT_EDIT_PAYLOAD.lock().unwrap() = unsafe { slice::from_raw_parts(data, data_len) }.to_vec();
+            *ENDPOINT_EDIT_PAYLOAD.lock().unwrap() =
+                unsafe { slice::from_raw_parts(data, data_len) }.to_vec();
             ENDPOINT_LAST_DEVICE.store(device as usize, Ordering::Release);
             ENDPOINT_LAST_TRANS_ID.store(trans_id as usize, Ordering::Release);
             ENDPOINT_LAST_PEER.store(peer as usize, Ordering::Release);
         } else if protocol == PROTOCOL_LIBERTAS && op_code == OP_ENDPOINT_RSP {
-            if data_len == 1 && !data.is_null() &&
-                    unsafe { *data } == LibertasEndpointStatus::InvalidMessage as u8 {
+            if data_len == 1
+                && !data.is_null()
+                && unsafe { *data } == LibertasEndpointStatus::InvalidMessage as u8
+            {
                 ENDPOINT_INVALID_RESPONSES.fetch_add(1, Ordering::AcqRel);
                 ENDPOINT_LAST_DEVICE.store(device as usize, Ordering::Release);
                 ENDPOINT_LAST_TRANS_ID.store(trans_id as usize, Ordering::Release);
@@ -2121,27 +2375,48 @@ mod tests {
             local_to_utc: fake_convert_time,
             device_send: fake_device_send,
             device_read: fake_device_read,
-            endpoint_subscription_delivery_result:
-                fake_endpoint_subscription_delivery_result,
+            endpoint_subscription_delivery_result: fake_endpoint_subscription_delivery_result,
         }
     }
 
     static DATA_TEST_STATUS: AtomicUsize = AtomicUsize::new(0);
-    extern "C" fn checked_data_read(_: u16, _: LibertasDevice, operation: u8, data: *const u8, len: usize) -> ReadResult {
+    extern "C" fn checked_data_read(
+        _: u16,
+        _: LibertasDevice,
+        operation: u8,
+        data: *const u8,
+        len: usize,
+    ) -> ReadResult {
         #[repr(C)]
-        struct Request { operation: u8, data: *const u8, len: usize }
+        struct Request {
+            operation: u8,
+            data: *const u8,
+            len: usize,
+        }
         #[repr(C)]
-        struct Reply { status: u32, value: ReadResult }
+        struct Reply {
+            status: u32,
+            value: ReadResult,
+        }
         assert_eq!(operation, 0xf6);
         assert_eq!(len, core::mem::size_of::<Request>());
         assert!(!data.is_null());
         let request = unsafe { &*(data as *const Request) };
         assert!((0xf0..=0xf5).contains(&request.operation));
         let status = DATA_TEST_STATUS.load(Ordering::Acquire) as u32;
-        let reply = Box::leak(Box::new(Reply { status, value: ReadResult {
-            success: status == 0, data: core::ptr::null(), data_len: 0,
-        }}));
-        ReadResult { success: true, data: reply as *const _ as *const u8, data_len: core::mem::size_of::<Reply>() }
+        let reply = Box::leak(Box::new(Reply {
+            status,
+            value: ReadResult {
+                success: status == 0,
+                data: core::ptr::null(),
+                data_len: 0,
+            },
+        }));
+        ReadResult {
+            success: true,
+            data: reply as *const _ as *const u8,
+            data_len: core::mem::size_of::<Reply>(),
+        }
     }
 
     #[test]
@@ -2153,11 +2428,15 @@ mod tests {
         let mut env = LibertasPackageEnv::new();
         let task: LibertasTaskId = (1 << 53) + 7;
         env.init_task(task);
-        env.timers.insert(1, Timer {
-            task, state: TimerState::Idle,
-            cb: Rc::new(RefCell::new(Box::new(|_, _, _| {}))),
-            context: Rc::new(RefCell::new(Box::new(()))),
-        });
+        env.timers.insert(
+            1,
+            Timer {
+                task,
+                state: TimerState::Idle,
+                cb: Rc::new(RefCell::new(Box::new(|_, _, _| {}))),
+                context: Rc::new(RefCell::new(Box::new(()))),
+            },
+        );
         env.remove_task(task);
         assert!(env.timers.is_empty());
         assert!(env.contexts.is_empty());
@@ -2170,19 +2449,36 @@ mod tests {
         runtime_api.device_read = checked_data_read;
         __libertas_init_package(&raw mut runtime_api as *mut LibertasRuntimeApi as *mut c_void);
         DATA_TEST_STATUS.store(3, Ordering::Release);
-        assert_eq!(libertas_data_try_write_single("TEST", &[], &42u32), Err(DataError::StorageError));
-        assert_eq!(libertas_data_try_read_single::<u32>("TEST", &[]), Err(DataError::StorageError));
+        assert_eq!(
+            libertas_data_try_write_single("TEST", &[], &42u32),
+            Err(DataError::StorageError)
+        );
+        assert_eq!(
+            libertas_data_try_read_single::<u32>("TEST", &[]),
+            Err(DataError::StorageError)
+        );
         let mut records = Vec::<IndexedData<u32>>::new();
-        assert_eq!(libertas_data_try_read_indexed_range(1, 0, IndexDirection::Above, 10, &mut records), Err(DataError::StorageError));
+        assert_eq!(
+            libertas_data_try_read_indexed_range(1, 0, IndexDirection::Above, 10, &mut records),
+            Err(DataError::StorageError)
+        );
         assert!(records.is_empty());
         DATA_TEST_STATUS.store(1, Ordering::Release);
-        assert_eq!(libertas_data_try_read_single::<u32>("MISSING", &[]), Ok(None));
+        assert_eq!(
+            libertas_data_try_read_single::<u32>("MISSING", &[]),
+            Ok(None)
+        );
         DATA_TEST_STATUS.store(0, Ordering::Release);
         assert_eq!(libertas_data_try_remove_single("MISSING", &[]), Ok(()));
         assert!(libertas_data_try_get_single_names().unwrap().is_empty());
         DATA_TEST_STATUS.store(4, Ordering::Release);
-        assert_eq!(libertas_data_try_read_single::<u32>("TEST", &[]), Err(DataError::DataIntegrityError));
-        unsafe { RUNTIME_API = core::ptr::null_mut(); }
+        assert_eq!(
+            libertas_data_try_read_single::<u32>("TEST", &[]),
+            Err(DataError::DataIntegrityError)
+        );
+        unsafe {
+            RUNTIME_API = core::ptr::null_mut();
+        }
     }
 
     #[test]
@@ -2192,8 +2488,8 @@ mod tests {
         SHUTDOWN_HANDLERS.store(0, Ordering::Release);
 
         let mut runtime_api = fake_runtime_api();
-        let callbacks = __libertas_init_package(
-            &raw mut runtime_api as *mut LibertasRuntimeApi as *mut c_void);
+        let callbacks =
+            __libertas_init_package(&raw mut runtime_api as *mut LibertasRuntimeApi as *mut c_void);
         unsafe {
             ((*callbacks).init_task)(7);
         }
@@ -2206,22 +2502,18 @@ mod tests {
                 0,
                 core::ptr::null(),
                 0,
-                0)
+                0,
+            )
         };
         assert_eq!(shutdown_callback_invoked, 1);
         assert_eq!(SHUTDOWN_SENDS.load(Ordering::Acquire), 1);
         assert_eq!(SHUTDOWN_STATE.load(Ordering::Acquire), SHUTDOWN_COMPLETED);
-        assert_eq!(unsafe {
-            ((*callbacks).device_callback)(
-                7,
-                55,
-                OP_ENDPOINT_DATA,
-                0,
-                core::ptr::null(),
-                0,
-                0,
-            )
-        }, 0);
+        assert_eq!(
+            unsafe {
+                ((*callbacks).device_callback)(7, 55, OP_ENDPOINT_DATA, 0, core::ptr::null(), 0, 0)
+            },
+            0
+        );
 
         // Duplicate Host requests and App completions are idempotent.
         unsafe {
@@ -2232,14 +2524,15 @@ mod tests {
                 0,
                 core::ptr::null(),
                 0,
-                0);
+                0,
+            );
         }
         libertas_shutdown_complete();
         assert_eq!(SHUTDOWN_SENDS.load(Ordering::Acquire), 1);
         __libertas_release_package();
 
-        let callbacks = __libertas_init_package(
-            &raw mut runtime_api as *mut LibertasRuntimeApi as *mut c_void);
+        let callbacks =
+            __libertas_init_package(&raw mut runtime_api as *mut LibertasRuntimeApi as *mut c_void);
         unsafe {
             ((*callbacks).init_task)(7);
         }
@@ -2247,7 +2540,8 @@ mod tests {
             |_| {
                 SHUTDOWN_HANDLERS.fetch_add(1, Ordering::AcqRel);
             },
-            Box::new(()));
+            Box::new(()),
+        );
         unsafe {
             ((*callbacks).device_callback)(
                 7,
@@ -2256,7 +2550,8 @@ mod tests {
                 0,
                 core::ptr::null(),
                 0,
-                0);
+                0,
+            );
         }
         assert_eq!(SHUTDOWN_HANDLERS.load(Ordering::Acquire), 1);
         assert_eq!(SHUTDOWN_SENDS.load(Ordering::Acquire), 1);
@@ -2266,9 +2561,7 @@ mod tests {
         assert_eq!(SHUTDOWN_SENDS.load(Ordering::Acquire), 2);
         assert_eq!(SHUTDOWN_STATE.load(Ordering::Acquire), SHUTDOWN_COMPLETED);
 
-        let timer_result = unsafe {
-            ((*callbacks).timer_driver)(0, 0)
-        };
+        let timer_result = unsafe { ((*callbacks).timer_driver)(0, 0) };
         assert_eq!(timer_result.next_monotonic, u64::MAX);
         assert_eq!(timer_result.next_utc, u64::MAX);
         __libertas_release_package();
@@ -2290,8 +2583,8 @@ mod tests {
         ENDPOINT_SUB_ACKS_OBSERVED_BY_CALLBACK.store(0, Ordering::Release);
 
         let mut runtime_api = fake_runtime_api();
-        let callbacks = __libertas_init_package(
-            &raw mut runtime_api as *mut LibertasRuntimeApi as *mut c_void);
+        let callbacks =
+            __libertas_init_package(&raw mut runtime_api as *mut LibertasRuntimeApi as *mut c_void);
         unsafe {
             ((*callbacks).init_task)(7);
         }
@@ -2336,21 +2629,36 @@ mod tests {
         };
 
         // Invalid Avro and semantic rejection both produce InvalidMessage.
-        deliver(OP_ENDPOINT_REQ, 101, &[LibertasEndpointStatus::Success as u8, 2]);
-        deliver(OP_ENDPOINT_REQ, 102, &[LibertasEndpointStatus::Success as u8, 0]);
+        deliver(
+            OP_ENDPOINT_REQ,
+            101,
+            &[LibertasEndpointStatus::Success as u8, 2],
+        );
+        deliver(
+            OP_ENDPOINT_REQ,
+            102,
+            &[LibertasEndpointStatus::Success as u8, 0],
+        );
         assert_eq!(ENDPOINT_INVALID_RESPONSES.load(Ordering::Acquire), 2);
         assert_eq!(ENDPOINT_CALLBACKS_WITH_DATA.load(Ordering::Acquire), 1);
 
         // A malformed subscription never reaches the user callback. Its
         // private negative completion retires the inactive host delivery token;
         // no public REMOVE is needed for state the App never received.
-        deliver(OP_ENDPOINT_SUB_REQ, 103, &[LibertasEndpointStatus::Success as u8]);
+        deliver(
+            OP_ENDPOINT_SUB_REQ,
+            103,
+            &[LibertasEndpointStatus::Success as u8],
+        );
         assert_eq!(ENDPOINT_INVALID_RESPONSES.load(Ordering::Acquire), 3);
         assert_eq!(ENDPOINT_REMOVALS.load(Ordering::Acquire), 0);
         assert_eq!(ENDPOINT_SUB_CALLBACKS.load(Ordering::Acquire), 0);
         assert_eq!(ENDPOINT_SUB_DELIVERY_POSITIVE.load(Ordering::Acquire), 0);
         assert_eq!(ENDPOINT_SUB_DELIVERY_NEGATIVE.load(Ordering::Acquire), 1);
-        assert_eq!(ENDPOINT_LAST_DEVICE.load(Ordering::Acquire), ENDPOINT as usize);
+        assert_eq!(
+            ENDPOINT_LAST_DEVICE.load(Ordering::Acquire),
+            ENDPOINT as usize
+        );
         assert_eq!(ENDPOINT_LAST_TRANS_ID.load(Ordering::Acquire), 103);
         assert_eq!(
             ENDPOINT_LAST_PEER.load(Ordering::Acquire),
@@ -2411,7 +2719,11 @@ mod tests {
             105,
             &[LibertasEndpointStatus::InvalidMessage as u8],
         );
-        deliver(OP_ENDPOINT_DATA, 0, &[LibertasEndpointStatus::Success as u8, 2]);
+        deliver(
+            OP_ENDPOINT_DATA,
+            0,
+            &[LibertasEndpointStatus::Success as u8, 2],
+        );
         assert_eq!(ENDPOINT_CALLBACKS_WITHOUT_DATA.load(Ordering::Acquire), 2);
         assert_eq!(ENDPOINT_INVALID_RESPONSES.load(Ordering::Acquire), 3);
 
@@ -2456,7 +2768,11 @@ mod tests {
         assert_eq!(ENDPOINT_CALLBACKS_WITHOUT_DATA.load(Ordering::Acquire), 5);
 
         // Valid data is decoded, while trailing bytes and unknown statuses reject.
-        deliver(OP_ENDPOINT_RSP, 105, &[LibertasEndpointStatus::Success as u8, 1]);
+        deliver(
+            OP_ENDPOINT_RSP,
+            105,
+            &[LibertasEndpointStatus::Success as u8, 1],
+        );
         deliver(
             OP_ENDPOINT_REQ,
             106,
@@ -2486,61 +2802,38 @@ mod tests {
         ENDPOINT_REMOVALS.store(0, Ordering::Release);
 
         let mut runtime_api = fake_runtime_api();
-        let callbacks = __libertas_init_package(
-            &raw mut runtime_api as *mut LibertasRuntimeApi as *mut c_void);
+        let callbacks =
+            __libertas_init_package(&raw mut runtime_api as *mut LibertasRuntimeApi as *mut c_void);
         unsafe {
             ((*callbacks).init_task)(7);
         }
         libertas_register_endpoint_status_listener::<bool, _>(
             ENDPOINT,
-            |device, opcode, message, _, trans_id, peer| {
-                match message {
-                    LibertasEndpointMessage::Data(false)
-                        if opcode == OP_ENDPOINT_REQ ||
-                            opcode == OP_ENDPOINT_SUB_REQ =>
-                    {
-                        LibertasEndpointHandlerResult::Status(
-                            LibertasEndpointStandardStatus::PermissionDenied,
-                        )
-                    }
-                    LibertasEndpointMessage::Status(status) => {
-                        ENDPOINT_RECEIVED_STATUSES.fetch_add(1, Ordering::AcqRel);
-                        ENDPOINT_LAST_STATUS.store(
-                            status.code() as usize,
-                            Ordering::Release,
-                        );
-                        LibertasEndpointHandlerResult::Handled
-                    }
-                    LibertasEndpointMessage::InvalidMessage => {
-                        ENDPOINT_RECEIVED_INVALID_MESSAGES.fetch_add(
-                            1,
-                            Ordering::AcqRel,
-                        );
-                        LibertasEndpointHandlerResult::Handled
-                    }
-                    LibertasEndpointMessage::NoPayload
-                        if opcode == OP_ENDPOINT_PEER_ALIVE =>
-                    {
-                        ENDPOINT_RECEIVED_NO_PAYLOAD.fetch_add(
-                            1,
-                            Ordering::AcqRel,
-                        );
-                        ENDPOINT_ALIVE_RECEIVED_DEVICE.store(
-                            device as usize,
-                            Ordering::Release,
-                        );
-                        ENDPOINT_ALIVE_RECEIVED_TRANS_ID.store(
-                            trans_id as usize,
-                            Ordering::Release,
-                        );
-                        ENDPOINT_ALIVE_RECEIVED_PEER.store(
-                            peer as usize,
-                            Ordering::Release,
-                        );
-                        LibertasEndpointHandlerResult::Handled
-                    }
-                    _ => LibertasEndpointHandlerResult::Handled,
+            |device, opcode, message, _, trans_id, peer| match message {
+                LibertasEndpointMessage::Data(false)
+                    if opcode == OP_ENDPOINT_REQ || opcode == OP_ENDPOINT_SUB_REQ =>
+                {
+                    LibertasEndpointHandlerResult::Status(
+                        LibertasEndpointStandardStatus::PermissionDenied,
+                    )
                 }
+                LibertasEndpointMessage::Status(status) => {
+                    ENDPOINT_RECEIVED_STATUSES.fetch_add(1, Ordering::AcqRel);
+                    ENDPOINT_LAST_STATUS.store(status.code() as usize, Ordering::Release);
+                    LibertasEndpointHandlerResult::Handled
+                }
+                LibertasEndpointMessage::InvalidMessage => {
+                    ENDPOINT_RECEIVED_INVALID_MESSAGES.fetch_add(1, Ordering::AcqRel);
+                    LibertasEndpointHandlerResult::Handled
+                }
+                LibertasEndpointMessage::NoPayload if opcode == OP_ENDPOINT_PEER_ALIVE => {
+                    ENDPOINT_RECEIVED_NO_PAYLOAD.fetch_add(1, Ordering::AcqRel);
+                    ENDPOINT_ALIVE_RECEIVED_DEVICE.store(device as usize, Ordering::Release);
+                    ENDPOINT_ALIVE_RECEIVED_TRANS_ID.store(trans_id as usize, Ordering::Release);
+                    ENDPOINT_ALIVE_RECEIVED_PEER.store(peer as usize, Ordering::Release);
+                    LibertasEndpointHandlerResult::Handled
+                }
+                _ => LibertasEndpointHandlerResult::Handled,
             },
             Box::new(()),
         );
@@ -2663,15 +2956,24 @@ mod tests {
         const PEER: LibertasPeer = (1 << 53) + 75;
         let mut runtime_api = fake_runtime_api();
         let callbacks = __libertas_init_package(&raw mut runtime_api as *mut c_void);
-        unsafe { ((*callbacks).init_task)(7); }
+        unsafe {
+            ((*callbacks).init_task)(7);
+        }
         ENDPOINT_EDIT_CALLBACKS.store(0, Ordering::Release);
         libertas_endpoint_edit_request(ENDPOINT, &true, TRANSACTION, PEER);
         let payload = ENDPOINT_EDIT_PAYLOAD.lock().unwrap().clone();
         assert_eq!(payload, [0, 1]);
-        assert_eq!(ENDPOINT_LAST_DEVICE.load(Ordering::Acquire), ENDPOINT as usize);
-        assert_eq!(ENDPOINT_LAST_TRANS_ID.load(Ordering::Acquire), TRANSACTION as usize);
+        assert_eq!(
+            ENDPOINT_LAST_DEVICE.load(Ordering::Acquire),
+            ENDPOINT as usize
+        );
+        assert_eq!(
+            ENDPOINT_LAST_TRANS_ID.load(Ordering::Acquire),
+            TRANSACTION as usize
+        );
         assert_eq!(ENDPOINT_LAST_PEER.load(Ordering::Acquire), PEER as usize);
-        libertas_register_endpoint_status_listener::<bool, _>(ENDPOINT,
+        libertas_register_endpoint_status_listener::<bool, _>(
+            ENDPOINT,
             |device, operation, message, _, transaction, peer| {
                 assert_eq!(device, ENDPOINT);
                 assert_eq!(operation, OP_ENDPOINT_EDIT_REQ);
@@ -2680,9 +2982,20 @@ mod tests {
                 assert_eq!(peer, PEER);
                 ENDPOINT_EDIT_CALLBACKS.fetch_add(1, Ordering::AcqRel);
                 LibertasEndpointHandlerResult::Handled
-            }, Box::new(()));
-        unsafe { ((*callbacks).device_callback)(7, ENDPOINT, OP_ENDPOINT_EDIT_REQ,
-            TRANSACTION, payload.as_ptr().cast(), payload.len(), PEER); }
+            },
+            Box::new(()),
+        );
+        unsafe {
+            ((*callbacks).device_callback)(
+                7,
+                ENDPOINT,
+                OP_ENDPOINT_EDIT_REQ,
+                TRANSACTION,
+                payload.as_ptr().cast(),
+                payload.len(),
+                PEER,
+            );
+        }
         assert_eq!(ENDPOINT_EDIT_CALLBACKS.load(Ordering::Acquire), 1);
         __libertas_release_package();
     }
@@ -2698,14 +3011,19 @@ mod tests {
         ENDPOINT_LAST_DATA_LEN.store(usize::MAX, Ordering::Release);
 
         let mut runtime_api = fake_runtime_api();
-        __libertas_init_package(
-            &raw mut runtime_api as *mut c_void);
+        __libertas_init_package(&raw mut runtime_api as *mut c_void);
 
         libertas_endpoint_peer_alive(ENDPOINT, None);
         assert_eq!(ENDPOINT_ALIVE_SENDS.load(Ordering::Acquire), 1);
-        assert_eq!(ENDPOINT_LAST_DEVICE.load(Ordering::Acquire), ENDPOINT as usize);
+        assert_eq!(
+            ENDPOINT_LAST_DEVICE.load(Ordering::Acquire),
+            ENDPOINT as usize
+        );
         assert_eq!(ENDPOINT_LAST_TRANS_ID.load(Ordering::Acquire), 0);
-        assert_eq!(ENDPOINT_LAST_PEER.load(Ordering::Acquire), LIBERTAS_BROADCAST_DEST as usize);
+        assert_eq!(
+            ENDPOINT_LAST_PEER.load(Ordering::Acquire),
+            LIBERTAS_BROADCAST_DEST as usize
+        );
         assert_eq!(ENDPOINT_LAST_DATA_LEN.load(Ordering::Acquire), 0);
 
         libertas_endpoint_peer_alive(ENDPOINT, Some(OPAQUE_PEER_HANDLE));

@@ -1,6 +1,6 @@
 use crate::*;
 
-/// The log level for a log message, indicating the severity or importance of the log. 
+/// The log level for a log message, indicating the severity or importance of the log.
 /// This enum is used as a parameter in the `libertas_log` function to specify the level of the log message.
 /// The log levels are defined as follows:
 /// - `Trace`: The least severe log level, used for very detailed information that is typically only useful for debugging purposes. This level may include information about the internal state of the application, the flow of execution, and other fine-grained details that can help developers understand how the application is behaving. Log messages at this level are usually very verbose and may not be enabled in production environments due to their high volume.
@@ -26,9 +26,9 @@ struct LogInternal {
     message_len: usize,
 }
 
-/// Write a log message with the specified log level and message content. This function allows you to log messages from your application, which can be useful for debugging, monitoring, and analyzing the behavior of your application. 
-/// The `level` parameter specifies the severity or importance of the log message using the `LogLevel` enum, 
-/// while the `message` parameter is a string slice that contains the content of the log message you want to send. 
+/// Write a log message with the specified log level and message content. This function allows you to log messages from your application, which can be useful for debugging, monitoring, and analyzing the behavior of your application.
+/// The `level` parameter specifies the severity or importance of the log message using the `LogLevel` enum,
+/// while the `message` parameter is a string slice that contains the content of the log message you want to send.
 ///
 pub fn libertas_log(level: LogLevel, message: &str) {
     let log_internal = LogInternal {
@@ -36,5 +36,13 @@ pub fn libertas_log(level: LogLevel, message: &str) {
         message: message.as_ptr(),
         message_len: message.len(),
     };
-    __libertas_device_send_raw(PROTOCOL_LIBERTAS, DEVICE_SYSTEM, OP_SYSTEM_LOG, 0, 0, &log_internal as *const LogInternal as *const u8, core::mem::size_of::<LogInternal>());
+    __libertas_device_send_raw(
+        PROTOCOL_LIBERTAS,
+        DEVICE_SYSTEM,
+        OP_SYSTEM_LOG,
+        0,
+        0,
+        &log_internal as *const LogInternal as *const u8,
+        core::mem::size_of::<LogInternal>(),
+    );
 }

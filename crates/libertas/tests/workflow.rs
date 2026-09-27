@@ -20,10 +20,16 @@ enum ProfileProtocol {
 
 #[test]
 fn workflow_annotations_preserve_payload_encoding() {
-    let value = ProfileProtocol::Edit { cookie: 42, name: "Profile".into() };
+    let value = ProfileProtocol::Edit {
+        cookie: 42,
+        name: "Profile".into(),
+    };
     let mut bytes = Vec::new();
     value.avro_encode(&mut bytes);
     let mut offset = 0;
-    assert_eq!(ProfileProtocol::avro_decode(&bytes, &mut offset).unwrap(), value);
+    assert_eq!(
+        ProfileProtocol::avro_decode(&bytes, &mut offset).unwrap(),
+        value
+    );
     assert_eq!(offset, bytes.len());
 }

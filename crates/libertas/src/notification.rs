@@ -1,11 +1,10 @@
+use crate::*;
+use alloc::string::String;
 /// Libertas Rust SDK - Notification API
 ///
 /// Provides functions for sending notifications with severity levels and arguments.
-
 use alloc::vec::Vec;
-use alloc::string::String;
-use libertas_macros::{LibertasAvroEncode, LibertasAvroDecode};
-use crate::*;
+use libertas_macros::{LibertasAvroDecode, LibertasAvroEncode};
 
 /// Notification severity levels.
 /// - `Debug`: Debugging info.
@@ -40,11 +39,11 @@ pub enum LibertasMessageArgument<'a> {
     Unsigned(u64),
     Float(f32),
     Double(f64),
-    UnitSigned {unit_type: &'a str, value: i64},
-    UnitUnsigned {unit_type: &'a str, value: u64},
-    UnitFloat {unit_type: &'a str, value: f32},
-    UnitDouble {unit_type: &'a str, value: f64},
-    ResourceText (&'a str),
+    UnitSigned { unit_type: &'a str, value: i64 },
+    UnitUnsigned { unit_type: &'a str, value: u64 },
+    UnitFloat { unit_type: &'a str, value: f32 },
+    UnitDouble { unit_type: &'a str, value: f64 },
+    ResourceText(&'a str),
     Plural(i64),
 }
 
@@ -92,11 +91,11 @@ pub enum LibertasMessageArgumentDecode {
     Unsigned(u64),
     Float(f32),
     Double(f64),
-    UnitSigned {unit_type: String, value: i64},
-    UnitUnsigned {unit_type: String, value: u64},
-    UnitFloat {unit_type: String, value: f32},
-    UnitDouble {unit_type: String, value: f64},
-    ResourceText (String),
+    UnitSigned { unit_type: String, value: i64 },
+    UnitUnsigned { unit_type: String, value: u64 },
+    UnitFloat { unit_type: String, value: f32 },
+    UnitDouble { unit_type: String, value: f64 },
+    ResourceText(String),
     Plural(i64),
 }
 
@@ -138,20 +137,77 @@ impl LibertasMessageArgumentDecode {
 impl PartialEq<LibertasMessageArgument<'_>> for LibertasMessageArgumentDecode {
     fn eq(&self, other: &LibertasMessageArgument<'_>) -> bool {
         match (self, other) {
-            (LibertasMessageArgumentDecode::LiteralText(s1), LibertasMessageArgument::LiteralText(s2)) => s1 == s2,
-            (LibertasMessageArgumentDecode::Object(o1), LibertasMessageArgument::Object(o2)) => o1 == o2,
-            (LibertasMessageArgumentDecode::Boolean(b1), LibertasMessageArgument::Boolean(b2)) => b1 == b2,
-            (LibertasMessageArgumentDecode::Signed(i1), LibertasMessageArgument::Signed(i2)) => i1 == i2,
-            (LibertasMessageArgumentDecode::Unsigned(u1), LibertasMessageArgument::Unsigned(u2)) => u1 == u2,
-            (LibertasMessageArgumentDecode::Float(f1), LibertasMessageArgument::Float(f2)) => f1 == f2,
-            (LibertasMessageArgumentDecode::Double(d1), LibertasMessageArgument::Double(d2)) => d1 == d2,
-            (LibertasMessageArgumentDecode::UnitSigned {unit_type: ut1, value: v1}, LibertasMessageArgument::UnitSigned {unit_type: ut2, value: v2}) => ut1 == ut2 && v1 == v2,
-            (LibertasMessageArgumentDecode::UnitUnsigned {unit_type: ut1, value: v1}, LibertasMessageArgument::UnitUnsigned {unit_type: ut2, value: v2}) => ut1 == ut2 && v1 == v2,
-            (LibertasMessageArgumentDecode::UnitFloat {unit_type: ut1, value: v1}, LibertasMessageArgument::UnitFloat {unit_type: ut2, value: v2}) => ut1 == ut2 && v1 == v2,
-            (LibertasMessageArgumentDecode::UnitDouble {unit_type: ut1, value: v1}, LibertasMessageArgument::UnitDouble {unit_type: ut2, value: v2}) => ut1 == ut2 && v1 == v2,
-            (LibertasMessageArgumentDecode::ResourceText(s1), LibertasMessageArgument::ResourceText(s2)) => s1 == s2,
-            (LibertasMessageArgumentDecode::Plural(p1), LibertasMessageArgument::Plural(p2)) => p1 == p2,
-            _ => false
+            (
+                LibertasMessageArgumentDecode::LiteralText(s1),
+                LibertasMessageArgument::LiteralText(s2),
+            ) => s1 == s2,
+            (LibertasMessageArgumentDecode::Object(o1), LibertasMessageArgument::Object(o2)) => {
+                o1 == o2
+            }
+            (LibertasMessageArgumentDecode::Boolean(b1), LibertasMessageArgument::Boolean(b2)) => {
+                b1 == b2
+            }
+            (LibertasMessageArgumentDecode::Signed(i1), LibertasMessageArgument::Signed(i2)) => {
+                i1 == i2
+            }
+            (
+                LibertasMessageArgumentDecode::Unsigned(u1),
+                LibertasMessageArgument::Unsigned(u2),
+            ) => u1 == u2,
+            (LibertasMessageArgumentDecode::Float(f1), LibertasMessageArgument::Float(f2)) => {
+                f1 == f2
+            }
+            (LibertasMessageArgumentDecode::Double(d1), LibertasMessageArgument::Double(d2)) => {
+                d1 == d2
+            }
+            (
+                LibertasMessageArgumentDecode::UnitSigned {
+                    unit_type: ut1,
+                    value: v1,
+                },
+                LibertasMessageArgument::UnitSigned {
+                    unit_type: ut2,
+                    value: v2,
+                },
+            ) => ut1 == ut2 && v1 == v2,
+            (
+                LibertasMessageArgumentDecode::UnitUnsigned {
+                    unit_type: ut1,
+                    value: v1,
+                },
+                LibertasMessageArgument::UnitUnsigned {
+                    unit_type: ut2,
+                    value: v2,
+                },
+            ) => ut1 == ut2 && v1 == v2,
+            (
+                LibertasMessageArgumentDecode::UnitFloat {
+                    unit_type: ut1,
+                    value: v1,
+                },
+                LibertasMessageArgument::UnitFloat {
+                    unit_type: ut2,
+                    value: v2,
+                },
+            ) => ut1 == ut2 && v1 == v2,
+            (
+                LibertasMessageArgumentDecode::UnitDouble {
+                    unit_type: ut1,
+                    value: v1,
+                },
+                LibertasMessageArgument::UnitDouble {
+                    unit_type: ut2,
+                    value: v2,
+                },
+            ) => ut1 == ut2 && v1 == v2,
+            (
+                LibertasMessageArgumentDecode::ResourceText(s1),
+                LibertasMessageArgument::ResourceText(s2),
+            ) => s1 == s2,
+            (LibertasMessageArgumentDecode::Plural(p1), LibertasMessageArgument::Plural(p2)) => {
+                p1 == p2
+            }
+            _ => false,
         }
     }
 }
@@ -208,9 +264,19 @@ struct LibertasNotificationRaw {
 ///
 /// # Panics
 /// On size limits or permission violations.
-pub fn libertas_notification_send(recipients: &[LibertasUser], level: NotificationImportance, source: Option<LibertasId>, resource_name: &str, args: &[LibertasMessageArgument]) {
-    let sourceid = if let Some(source) = source { source } else { libertas_get_task_id() };
-    let n = LibertasNotification{
+pub fn libertas_notification_send(
+    recipients: &[LibertasUser],
+    level: NotificationImportance,
+    source: Option<LibertasId>,
+    resource_name: &str,
+    args: &[LibertasMessageArgument],
+) {
+    let sourceid = if let Some(source) = source {
+        source
+    } else {
+        libertas_get_task_id()
+    };
+    let n = LibertasNotification {
         level,
         source: sourceid,
         resource_name,
@@ -222,9 +288,17 @@ pub fn libertas_notification_send(recipients: &[LibertasUser], level: Notificati
         recipients: recipients.as_ptr(),
         recipients_len: recipients.len(),
         data: data.as_ptr(),
-        data_len: data.len()
+        data_len: data.len(),
     };
-    __libertas_device_send_raw(PROTOCOL_LIBERTAS, DEVICE_SYSTEM, OP_SYSTEM_MESSAGE, 0, 0, &raw const raw_message as *const u8, core::mem::size_of::<LibertasNotificationRaw>())
+    __libertas_device_send_raw(
+        PROTOCOL_LIBERTAS,
+        DEVICE_SYSTEM,
+        OP_SYSTEM_MESSAGE,
+        0,
+        0,
+        &raw const raw_message as *const u8,
+        core::mem::size_of::<LibertasNotificationRaw>(),
+    )
 }
 
 /// Sends a literal text notification.
@@ -236,7 +310,11 @@ pub fn libertas_notification_send(recipients: &[LibertasUser], level: Notificati
 ///
 /// # Panics
 /// On size limits or permission violations.
-pub fn libertas_notification_send_literal(recipients: &[LibertasUser], level: NotificationImportance, text: &str) {
+pub fn libertas_notification_send_literal(
+    recipients: &[LibertasUser],
+    level: NotificationImportance,
+    text: &str,
+) {
     let arg = LibertasMessageArgument::LiteralText(text);
     libertas_notification_send(recipients, level, None, "SYS_LITERAL", &[arg]);
 }
@@ -269,17 +347,10 @@ mod tests {
 
     #[test]
     fn formatted_text_encoder_matches_the_canonical_tuple() {
+        assert_eq!(libertas_formatted_text("READY", &[]), b"\x0aREADY\x00",);
         assert_eq!(
-            libertas_formatted_text("READY", &[]),
-            b"\x0aREADY\x00",
-        );
-        assert_eq!(
-            libertas_formatted_text(
-                "DEVICE",
-                &[LibertasMessageArgument::Object(42)],
-            ),
+            libertas_formatted_text("DEVICE", &[LibertasMessageArgument::Object(42)],),
             b"\x0cDEVICE\x02\x02\x54\x00",
         );
     }
-
 }
