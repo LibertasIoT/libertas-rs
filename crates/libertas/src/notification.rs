@@ -100,6 +100,41 @@ pub enum LibertasMessageArgumentDecode {
     Plural(i64),
 }
 
+impl LibertasMessageArgumentDecode {
+    /// Borrows an owned decoded argument for APIs that accept message arguments.
+    /// This preserves the variant and value without allocating or re-encoding.
+    pub fn as_message_argument(&self) -> LibertasMessageArgument<'_> {
+        use LibertasMessageArgument as A;
+        match self {
+            Self::LiteralText(text) => A::LiteralText(text),
+            Self::Object(id) => A::Object(*id),
+            Self::Boolean(value) => A::Boolean(*value),
+            Self::Signed(value) => A::Signed(*value),
+            Self::Unsigned(value) => A::Unsigned(*value),
+            Self::Float(value) => A::Float(*value),
+            Self::Double(value) => A::Double(*value),
+            Self::UnitSigned { unit_type, value } => A::UnitSigned {
+                unit_type,
+                value: *value,
+            },
+            Self::UnitUnsigned { unit_type, value } => A::UnitUnsigned {
+                unit_type,
+                value: *value,
+            },
+            Self::UnitFloat { unit_type, value } => A::UnitFloat {
+                unit_type,
+                value: *value,
+            },
+            Self::UnitDouble { unit_type, value } => A::UnitDouble {
+                unit_type,
+                value: *value,
+            },
+            Self::ResourceText(key) => A::ResourceText(key),
+            Self::Plural(value) => A::Plural(*value),
+        }
+    }
+}
+
 impl PartialEq<LibertasMessageArgument<'_>> for LibertasMessageArgumentDecode {
     fn eq(&self, other: &LibertasMessageArgument<'_>) -> bool {
         match (self, other) {
@@ -209,6 +244,28 @@ pub fn libertas_notification_send_literal(recipients: &[LibertasUser], level: No
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn decoded_arguments_borrow_without_changing_type_or_value() {
+        let arguments = [
+            LibertasMessageArgumentDecode::LiteralText(String::from("text")),
+            LibertasMessageArgumentDecode::Object(42),
+            LibertasMessageArgumentDecode::Boolean(true),
+            LibertasMessageArgumentDecode::Signed(-7),
+            LibertasMessageArgumentDecode::Unsigned(7),
+            LibertasMessageArgumentDecode::Float(1.25),
+            LibertasMessageArgumentDecode::Double(2.5),
+            LibertasMessageArgumentDecode::UnitSigned { unit_type: String::from("kg"), value: -3 },
+            LibertasMessageArgumentDecode::UnitUnsigned { unit_type: String::from("kg"), value: 3 },
+            LibertasMessageArgumentDecode::UnitFloat { unit_type: String::from("kg"), value: 1.5 },
+            LibertasMessageArgumentDecode::UnitDouble { unit_type: String::from("kg"), value: 2.5 },
+            LibertasMessageArgumentDecode::ResourceText(String::from("READY")),
+            LibertasMessageArgumentDecode::Plural(4),
+        ];
+        for argument in &arguments {
+            assert_eq!(argument, &argument.as_message_argument());
+        }
+    }
 
     #[test]
     fn formatted_text_encoder_matches_the_canonical_tuple() {

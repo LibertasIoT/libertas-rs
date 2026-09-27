@@ -1718,6 +1718,14 @@ let zone_name = [LibertasMessageArgument::Object(zone_valve)];
 let history = libertas_data_open_indexed("ZONE_HISTORY", &zone_name);
 ```
 
+To test whether one indexed store already exists, use
+`libertasDataIndexedStoreExists(resourceName, arguments)` or
+`libertas_data_indexed_store_exists(resource_name, arguments)`. This is a
+read-only lookup of the exact `DataName`; an absent store returns `false` and
+does not create a catalog or store. `OpenIndexed` creates the store when it is
+absent. Name enumeration is for listing stores, not testing one store's
+existence.
+
 Use the installed SDK's exact argument constructors and Data API signatures.
 Never pre-render the name, pass literal human text as the key, Base64-wrap the
 canonical bytes, or maintain a separate machine name. Reuse the exact resource

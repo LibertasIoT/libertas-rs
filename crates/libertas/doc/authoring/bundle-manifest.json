@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "sdkVersion": "0.3.0",
-  "sourceRevision": "f21d50783048a9461699fdab86c96da5c3a3a9fc",
+  "sourceRevision": "b8510d3030fa83fab01f13003a22a5440faf94c8",
   "sourceDirty": false,
-  "sourceContentSha256": "83138d5239176fd4345132b37c3e75d6f5063ed9a3d1918856164d4967b2aa58",
+  "sourceContentSha256": "9eb805d208f594f5617a2a8177c45089948d9545d1320b66987f4928cb89b047",
   "entryContentSha256": "80ab16c55edbd462203d27da61a74cb78bb16639929bbb9e82729e07142646b0",
   "files": {
     "assets/comment/chart_code.png": "61b793cb5efad9cec765af07788d44c64c48a266fda143622d2a70288d29423b",
@@ -122,7 +122,7 @@
     "reference/message-format.md": "d77fd2d6fa346eae489286faaec574f00b3fa2f582cd17492d30a493eec23054",
     "reference/network-access.md": "5227c5f68ad96f9e03f586a47784c49d677fcf3644130f6e69e7ba9faf80eb09",
     "reference/presentation.md": "3293c4583af6d08aaf4e58983f04cc27b9f3518c68f03d0ddf233ceec7eebc72",
-    "reference/protocols.md": "e081e714d9be12e3e1e2b26838f3d76d0c2ee970a274863f78d5e9a573e50e4f",
+    "reference/protocols.md": "ab9cd635a8aaea3cd907d0780cbf982071f39a2f05d2246d56aabc021a045ad6",
     "reference/publication.md": "f49c62d1ca88fa0a3f49d991bee10585d30cfaa6216ec90627cf8482d912c81e",
     "reference/schema.md": "a8feaf21e905293fab98fea9641ce230b00668111762c1be6bc3655061855096",
     "reference/translation.md": "bc8a72f69c2571e37c3589b6309bdc276ace3e40ffabe41b149aa3ce1ad0db19",

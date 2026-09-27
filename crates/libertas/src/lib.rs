@@ -37,8 +37,8 @@ pub use notification::{
     LibertasMessageArgument, LibertasMessageArgumentDecode, NotificationImportance,
     libertas_formatted_text, libertas_notification_send, libertas_notification_send_literal,
 };
-pub use data::{DataError, libertas_data_try_get_single_names, libertas_data_try_get_indexed_names, libertas_data_try_remove_single, libertas_data_try_remove_indexed, libertas_data_try_remove_indexed_name, libertas_data_try_remove_indexed_records, libertas_data_try_open_indexed, libertas_data_try_write_single, libertas_data_try_write_indexed, libertas_data_try_read_single, libertas_data_try_read_indexed_range, libertas_data_try_read_indexed};
-pub use data::{DataName, IndexedData, IndexDirection, IndexedDataStat, libertas_data_get_single_names, libertas_data_get_indexed_names, libertas_data_write_single, libertas_data_write_indexed, libertas_data_read_single, libertas_data_read_indexed, libertas_data_read_indexed_range, libertas_data_remove_single, libertas_data_remove_indexed, libertas_data_remove_indexed_name, libertas_data_remove_indexed_records, libertas_data_open_indexed};
+pub use data::{DataError, libertas_data_try_get_single_names, libertas_data_try_get_indexed_names, libertas_data_try_remove_single, libertas_data_try_remove_indexed, libertas_data_try_remove_indexed_name, libertas_data_try_remove_indexed_records, libertas_data_try_open_indexed, libertas_data_try_write_single, libertas_data_try_write_indexed, libertas_data_try_read_single, libertas_data_try_read_indexed_range, libertas_data_try_read_indexed, libertas_data_try_indexed_store_exists};
+pub use data::{DataName, IndexedData, IndexDirection, IndexedDataStat, libertas_data_get_single_names, libertas_data_get_indexed_names, libertas_data_write_single, libertas_data_write_indexed, libertas_data_read_single, libertas_data_read_indexed, libertas_data_read_indexed_range, libertas_data_remove_single, libertas_data_remove_indexed, libertas_data_remove_indexed_name, libertas_data_remove_indexed_records, libertas_data_open_indexed, libertas_data_indexed_store_exists};
 pub use log::{LogLevel, libertas_log};
 pub use libertas_utils::{InlineByteBuffer, STACK_BUF_SIZE};
 
@@ -498,6 +498,7 @@ const OP_SYSTEM_DATABASE_REMOVE_DATA: u8 = 0xf4;
 const OP_SYSTEM_DATABASE_REMOVE_RECORD: u8 = 0xf5;
 const OP_SYSTEM_DATABASE_CHECKED: u8 = 0xf6;
 const OP_SYSTEM_DATABASE_DECODE_FAILURE: u8 = 0xf7;
+const OP_SYSTEM_DATABASE_INDEXED_STORE_EXISTS: u8 = 0xf8;
 
 const CURRENT_VERSION: u32 = 0x000300;     // Version 0.3.0, 1.0 shall be 0x10000, each sub version must be within [0,255]
 

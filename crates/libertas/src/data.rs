@@ -219,6 +219,24 @@ pub fn libertas_data_open_indexed(resource_name: &str, arguments: &[LibertasMess
     }
 }
 
+/// Tests whether the named indexed store already exists without creating it.
+/// The canonical resource key and typed arguments identify one store directly;
+/// enumerating all store names is unnecessary for an existence check.
+pub fn libertas_data_indexed_store_exists(
+    resource_name: &str,
+    arguments: &[LibertasMessageArgument],
+) -> bool {
+    let serialized = libertas_formatted_text(resource_name, arguments);
+    __libertas_device_read_raw(
+        PROTOCOL_LIBERTAS,
+        DEVICE_SYSTEM_DATABASE_INDEXED,
+        OP_SYSTEM_DATABASE_INDEXED_STORE_EXISTS,
+        serialized.as_ptr(),
+        serialized.len(),
+    )
+    .success
+}
+
 /// Writes a single record.
 /// 
 /// # Arguments
@@ -465,6 +483,22 @@ pub fn libertas_data_try_open_indexed(resource_name: &str, arguments: &[Libertas
     } else {
         Err(DataError::DataIntegrityError)
     }
+}
+
+/// Status-returning indexed-store existence check; requires
+/// `#[libertas_data_error_status]`. An absent store returns `Ok(false)`.
+pub fn libertas_data_try_indexed_store_exists(
+    resource_name: &str,
+    arguments: &[LibertasMessageArgument],
+) -> Result<bool, DataError> {
+    let serialized = libertas_formatted_text(resource_name, arguments);
+    let result = checked_data_operation(
+        DEVICE_SYSTEM_DATABASE_INDEXED,
+        OP_SYSTEM_DATABASE_INDEXED_STORE_EXISTS,
+        serialized.as_ptr(),
+        serialized.len(),
+    )?;
+    Ok(result.success)
 }
 
 /// Status-returning counterpart; requires `#[libertas_data_error_status]`.
