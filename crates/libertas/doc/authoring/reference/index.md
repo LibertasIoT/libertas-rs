@@ -17,6 +17,7 @@ language pages, while portable semantics belong in the relevant topic below.
 - [Data-type evolution](data-type-evolution.md)
 - [Validation rules](validation-rules.md)
 - [Endpoint protocols](protocols.md)
+- [LLM document transformation](llm-document-transformation.md)
 - [Endpoint lifecycle](endpoint-lifecycle.md)
 - [Endpoint presentation](endpoint-presentation.md)
 - [Presentation and localization](presentation.md)

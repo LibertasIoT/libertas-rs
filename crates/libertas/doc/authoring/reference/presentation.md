@@ -307,7 +307,7 @@ A selector may end in one runtime state or one data condition:
 | --- | --- | --- |
 | `:pending` | The node owns an operation still awaiting its reply and shows the existing pending indicator: a submit, a link, or a calculation. | Style only |
 | `:error` | The node currently shows validation or submission feedback. | Style only |
-| `:selected` | The node is the selected member: the member shown in a `master-detail` detail pane, or the current `tabs` or `stepper` section. | Style only |
+| `:selected` | The node is the selected member: the member shown in a `master-detail` detail pane, or the current `tabs` section. | Style only |
 | `:condition(expression)` | The expression, evaluated on the displayed value, is true. | Style, layout, or fold state |
 
 A data condition uses the [ValidationRules expression language](validation-rules.md)
@@ -356,6 +356,15 @@ The catalog is closed: every renderer implements each layout, token, and hint
 below. There is no free-form CSS, pixel value, literal color, or font. Studio
 rejects a layout on a node kind its row does not allow.
 
+Sequential screens are a workflow, not a layout. A step-by-step layout would
+add a second Previous and Next inside screens that already move through a
+workflow's Previous and Next, which confuses users; an App that wants
+sequential screens splits the request into a
+[workflow](protocols.md#workflow-interactions), where the service validates,
+branches, and saves each step. `tabs` is how one request is split into
+sections. `stepper` is not a Display Template layout: Studio rejects it, and a
+client that meets it draws `rows` under the forward-tolerant rule.
+
 | Layout | Applies to | Behavior |
 | --- | --- | --- |
 | `rows` | Any node | The default: one row per child. |
@@ -365,7 +374,6 @@ rejects a layout on a node kind its row does not allow.
 | `tabs` | Union, or Table with `sections` | One tab per Union branch or section. |
 | `master-detail` | Response with one List | `detail` selects the List's members. The List shows in the leading pane; the tapped member's linked page shows in the trailing pane. The member type requires a [`Link`](protocols.md#links). Applies only while the widening gate holds; otherwise `rows`. |
 | `accordion` | Table or List | Folding sections with the [folding](#folding-structs-and-unions) behavior and `initially_open`. |
-| `stepper` | Table with `sections` | One section at a time with Previous and Next. A workflow's Submit stays on the last step. |
 | `split` | Table | Two or three `regions` in a `direction`, `row` or `column`. See below. |
 
 `sections` is an ordered list of `{ "fields": [...], "title": "KEY" }`
@@ -450,13 +458,22 @@ template unless:
 
 Rules of equal rank that set the same member on the same node are allowed, the
 later one winning, and are reported as a warning. Studio additionally lints
-minimum touch targets; the number of rendered (non-Hidden) fields on each
-screen reachable from a Request, Response, or SubscriptionData payload or a
-function's configuration, counted once per Table or Union (a Union by its
-largest branch, never the sum) and skipped under a `sections`/`tabs`/`stepper`/
-`split` rule or a fold that closes the node; a required field folded closed
-while `form: phone` may apply; contrast by color role; and a `split` whose
-regions leave a required field unlisted in a nested region only.
+minimum touch targets; more than about eight rendered (non-Hidden) fields
+shown together on a screen reachable from a Request, Response, or
+SubscriptionData payload or a function's configuration; a required field
+folded closed while `form: phone` may apply; contrast by color role; and a
+`split` whose regions leave a required field unlisted in a nested region only.
+
+The fields-per-screen lint reports each Table once, under its own name and
+source line; an inline Union branch is named `Union.Branch`. A screen sums
+the fields of its nested Tables, so several small Tables add up. A field
+whose content shows only on demand counts one row: a Union, whose chosen
+branch is linted as its own screen, so a Union counts by its largest branch
+and never the sum; a Nullable container; and a nested Table reported on its
+own. A node is exempt under `sections` with `tabs`, a `split`,
+or a fold that starts closed, from `display.json` or a source `Foldable`.
+Exemption holds only on the forms its rule's `when.form` names, so a rule
+limited to tablet and desktop still leaves one phone warning, which says so.
 
 ## Common field metadata
 
@@ -725,6 +742,24 @@ List member retains its position and membership controls without the struct
 name. The dropdown of a suppressed struct row passes to the first row the
 struct still produces, as [folding](#folding-structs-and-unions) describes.
 Hidden still suppresses the whole subtree.
+
+### Actions on a promoted or suppressed row
+
+Attributes that add an interaction to a value's row, currently `Link` and
+`LLMDocTrans` (AI Import), follow that value when `TableHeader` changes its
+presentation. A promoted field's action appears on the owning Table's visible
+row. If a Table has no row of its own, its action appears on the first visible
+row that represents that Table; when the Table is the selected payload of a
+promoted Union, this is the Union's owning row. A List member keeps its own
+row and its own actions. If several values represented by one row declare
+actions, the row offers each applicable action; a child `Link` takes precedence
+over an enclosing `Link` for the row tap target.
+
+Only the **affordance** moves. Each action retains its declaring value, path,
+request context, eligibility, and pending state. `TableHeader` never copies an
+attribute to another schema or value node. `Hidden` suppresses the action with
+its value subtree; `ReadOnly`, `Fixed`, and other action-specific restrictions
+still apply. Data, validation, access, and lifecycle attributes do not move.
 
 On Union and Array/List declarations the option does not hide their selector or
 collection row. The field's direct option controls ordinary promotion naming;

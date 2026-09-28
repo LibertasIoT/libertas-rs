@@ -441,6 +441,8 @@ they are not additional public authoring forms. `@LibertasFormattedText` and
 
 - **`@LibertasReadOnly`**: Marks the field as read-only in the UI.
 - **`@LibertasHidden`**: Hides the field from the UI entirely.
+- **`@LibertasLLMToolCall(false)` / `@LibertasLLMToolCall(true)`**: On a protocol Union or Request variant, controls whether the Hub generates an LLM tool definition. A Union's value applies to its variants unless a variant overrides it; omission defaults to true. See [the shared attribute contract](../annotations.md#endpoint-and-protocol-annotations).
+- **`@LibertasLLMDocTrans(instruction="...", validation="@.facts", doc_type="image/*", accept_multiple_inputs=true)`**: On a named Table interface, declares one AI Import action per editable Request occurrence. Only `instruction` is required; the other named arguments are optional. Its direct result fields use `@LibertasLLMDocField` or `@LibertasLLMDocField(allowEmpty=false)`. A non-Nullable Number defaults to `allowEmpty=true` and needs a meaningful Schema `Default`; a clearly blank box maps to that typed Default. See [document transformation](../llm-document-transformation.md#app-schema-authoring) for Schema Path facts, numeric conversion, source files, and application.
 - **`@LibertasExcludeUI`**: Makes an Endpoint server carrying a resolved
   protocol schema, or a reachable `Request`/`SubscriptionRequest` variant,
   nonexistent to Control UI. The Hub Control service omits the marked server

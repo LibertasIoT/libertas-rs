@@ -446,6 +446,18 @@ types, variants, and fields.
 - `#[libertas_read_only]` emits `ReadOnly=true`.
 - `#[libertas_hidden]` emits `Hidden=true`.
 
+For document-assisted Request entry, place
+`#[libertas_llm_doc_trans(instruction = "...", validation = "@.facts",
+doc_type = "image/*", accept_multiple_inputs = true)]` on a named struct.
+Only `instruction` is required. Mark direct result fields with
+`#[libertas_llm_doc_field]` or
+`#[libertas_llm_doc_field(allow_empty = false)]`. A non-Nullable numeric
+field defaults to `allow_empty = true` and therefore needs a meaningful
+`#[libertas_default(value)]` for a truly blank form box. Keep the field's
+domain type; do not add `Option` solely for document recognition. The
+[document transformation contract](../llm-document-transformation.md#app-schema-authoring)
+owns fact paths, supported result types, input media, and human review.
+
 `#[libertas_exclude_ui]` is deliberately narrower than `libertas_hidden`. It
 emits `ExcludeUI=true` only on a `LibertasEndpoint` field carrying
 `#[libertas_endpoint_server]` and a resolved protocol schema, or on a reachable
@@ -458,6 +470,12 @@ serialization, routing, subscriptions, or authorization. Every server Endpoint
 sharing one resolved
 `ProtocolSchema` root must use the same `ExcludeUI` value; see the
 [Endpoint declaration contract](../protocols.md#declaring-an-endpoint).
+
+`#[libertas_llm_tool_call(false)]` on a protocol enum excludes its Request
+variants from Hub LLM tool definitions. A variant can opt back in with
+`#[libertas_llm_tool_call(true)]`; omission defaults to true. The same Boolean
+attribute on one Request variant affects only that variant. See the
+[shared attribute contract](../annotations.md#endpoint-and-protocol-annotations).
 
 ### Table-header promotion
 

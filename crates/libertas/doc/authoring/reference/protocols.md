@@ -600,9 +600,36 @@ Only the constructed calculation request must be complete and valid to send;
 the parent editor may still contain undefined, unencodable fields.
 
 Every copied input is a calculation dependency. Studio validates current-request
-participation in both directions: every current-request source field used by
-CopyFrom participates in the calculation, and every participating field is
-used by CopyFrom. Reference-object candidates follow the same
+participation in both directions: every participating field is used by
+CopyFrom, and every current-request source field used by CopyFrom participates
+in the calculation unless it is an invariant source.
+
+<a id="invariant-calculation-inputs"></a>
+
+**Invariant inputs.** A source that nothing can change while the editor is open
+may feed a calculation without declaring its `CalculationRequest`:
+
+- a current-request value that is `Hidden`, `Fixed`, or `ReadOnly` on the value
+  or an enclosing Table or Union, and that no calculation or [link return](#link-return)
+  `CopyTo` writes in that request. Its value then comes only from the editor's
+  construction: EditRequest, construction CopyFrom, default initialization, or
+  a `Fixed` declaration or session value.
+  `ReadOnly` on a List protects only its membership, so an undeclared List
+  source also needs its elements protected. A `CopyTo` destination, including
+  a [calculated allowed set](#calculated-allowed-sets) and the fields it
+  constrains, is not invariant even when hidden or read-only;
+- a value in the interaction's [reference context](#interaction-reference-context),
+  whose reference objects the editor never changes. Only their replacement
+  under that rule is an input change, as described under
+  [changes](#changes-resets-and-deferred-calculation).
+
+An invariant current-request input never triggers the calculation. Its value is
+read when a declared field triggers it and resolves in that invocation's context, so a
+page-level hidden list is available to a per-row calculation invoked by a row
+field. Declaring participation on an invariant field is unnecessary, and makes
+it an invoking field whose occurrence must bind every input. Every other
+current-request source, including every user-editable field, must declare the
+calculation. Reference-object candidates follow the same
 [interaction context](#interaction-reference-context): a Request variant is
 never a reference object, and a Response or SubscriptionData variant is a
 candidate only when its own NextRequest or WorkflowRequest actually offers the
@@ -1829,7 +1856,9 @@ calculation cannot also write a field whose allowed set another calculation
 writes, and a calculation cannot read, directly or through other calculations,
 a field whose allowed set it writes. The last rule is what makes a reply unable
 to trigger itself: the acyclic dependency graph is proved with the constrained
-fields counted as outputs.
+fields counted as outputs. A written source and its constrained fields are
+therefore never [invariant inputs](#invariant-calculation-inputs), even when
+hidden or read-only: another calculation reading them must declare it.
 
 When a client applies a result that changes a source, it re-filters every
 chooser reading that source. A current selection inside the new set, and its

@@ -126,7 +126,14 @@ Consequences:
   protected ([applying results](../reference/protocols.md#applying-calculation-results)).
 - **Calculations.** Fixed inputs need no CopyFrom (a hidden
   `Fixed("current-user")` is resolved from the session and Hub-verified);
-  every other input declares CopyFrom. A change resets affected outputs
+  every other input declares CopyFrom. A current-request source declares the
+  calculation unless it is invariant: Hidden, ReadOnly or Fixed and no CopyTo writes
+  it (a calculated allowed set is not invariant). Invariant and
+  reference-context inputs need no declaration, never trigger from the editor,
+  and resolve in the invoking field's context, so a page-level hidden list
+  feeds a per-row calculation
+  ([invariant inputs](../reference/protocols.md#invariant-calculation-inputs)).
+  A change resets affected outputs
   through ordinary initialization. Deferred work is one ordered queue per
   editor: a new change removes the instance's entry and appends it to the
   tail; the in-flight invoking node stays immutable; deferred requests are

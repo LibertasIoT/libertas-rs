@@ -41,12 +41,16 @@ Write each rule as four relations:
   is rejected: write `package::Type`.
 - **What arranges it:** `layout` from the closed [catalog](../reference/presentation.md#display-template-catalog):
   `rows` (default), `form-grid`, `card`, `table`, `tabs`, `master-detail`,
-  `accordion`, `stepper`, or `split`. Every layout except `rows` applies only
+  `accordion`, or `split`. Every layout except `rows` applies only
   where a rule asks; `table` and `master-detail` also need the widening gate
   (`form` `tablet` or `desktop`, or `width: expanded` without `height:
   compact`) and otherwise render as `rows`. `master-detail` needs a `Link` on
   the member type. `split` nests at most three levels and renders as `rows` on
-  phones unless a phone rule asks for it.
+  phones unless a phone rule asks for it. There is no `stepper`: Studio
+  rejects it and clients draw `rows`. Sequential screens are a
+  [workflow](../reference/protocols.md#workflow-interactions), where the
+  service validates, branches, and saves each step; a second in-page
+  Previous/Next inside a workflow confuses users.
 - **What styles it:** `style` tokens (`density`, `emphasis`, `align`, `role`,
   `color`, `spacing`, `span`, `icon`) and behavior hints (`inline`, `fold`,
   `promote`, `suppress_title`, `include_description`, `format`, `scale`,
@@ -75,9 +79,11 @@ Decide arrangement with this procedure:
 - A hub Response with a List whose member type has a `Link`:
   `master-detail` with `form` `tablet` or `desktop`, `rows` on phones,
   whatever the orientation.
-- More than about eight fields on a page: `sections` (groups of direct
-  children, each optionally titled by a `StringResources` key) with `tabs` or
-  `stepper`.
+- More than about eight fields on a page, counting the fields of nested
+  Tables: `sections` (groups of direct children, each optionally titled by a
+  `StringResources` key) with `tabs`, a `split` (rows on a phone unless a
+  phone rule asks for it), or a fold that starts closed. The lint judges each `when.form`
+  separately.
 - Numbers compared down a column: `align: end`.
 - A status value: `:condition(...)` or `switch` with `color` and `icon`.
 
@@ -93,7 +99,7 @@ long line List: `split` with `card` regions on tablet and desktop, `card` on
 phone, and `table` for the line List on wide screens. Studio's
 [lints](../reference/presentation.md#template-validation) catch the mistakes
 this procedure exists to avoid: too many `form-grid` or `table` columns on
-phone, more than about eight fields with no `sections`, a required field
+phone, more than about eight fields shown together, a required field
 folded closed on phone, a clashing `color` role, and a `split` that strands a
 required field in a nested region.
 
