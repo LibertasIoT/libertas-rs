@@ -214,6 +214,8 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     || attr.path().is_ident("libertas_inline_choices")
                     || attr.path().is_ident("libertas_link")
                     || attr.path().is_ident("libertas_link_only")
+                    || attr.path().is_ident("libertas_llm_doc_trans")
+                    || attr.path().is_ident("libertas_llm_doc_field")
                     || attr.path().is_ident("libertas_cache_identity")
                     || attr.path().is_ident("libertas_ui_header")
                     || attr.path().is_ident("libertas_ui_name")
@@ -222,6 +224,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     || attr.path().is_ident("libertas_read_only")
                     || attr.path().is_ident("libertas_hidden")
                     || attr.path().is_ident("libertas_exclude_ui")
+                    || attr.path().is_ident("libertas_llm_tool_call")
                     || attr.path().is_ident("libertas_number")
                     || attr.path().is_ident("libertas_size")
                     || attr.path().is_ident("libertas_time_interval")
@@ -570,6 +573,8 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_link,
     // Offers a Request variant only through declared links, not in Actions.
     libertas_link_only,
+    libertas_llm_doc_trans,
+    libertas_llm_doc_field,
     // Requests that clients render the long description beside the short
     // display name. This is presentation metadata only.
     libertas_ui_include_description,
@@ -578,6 +583,7 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     // Omits a server Endpoint or protocol variant from client-generated UI;
     // runtime protocol behavior and wire encoding remain unchanged.
     libertas_exclude_ui,
+    libertas_llm_tool_call,
     libertas_number,
     libertas_size,
     libertas_time_interval,
