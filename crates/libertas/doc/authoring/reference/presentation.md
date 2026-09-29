@@ -138,7 +138,7 @@ three tests in order:
 | --- | --- |
 | Hidden, ReadOnly, Fixed, Default, Nullable, Size, Number ranges, Unique, Unordered | TableHeader promotion and flattening, with `use_parent_name` |
 | ValidationRules, RangeMin, RangeMax, EnumSource, ConstrainedBy | Foldable and `initially_open` |
-| CopyFrom, CopyTo, CalculationRequest, Link, LinkOnly | InlineChoices |
+| CopyFrom, CopyTo, CalculationRequest, Link, LinkOnly, RequestConfirmation | InlineChoices |
 | NextRequest, NextResponse, PrevRequest, WorkflowRequest, DefaultRequest, ExcludeUI | SuppressTitle, UIIncludeDescription |
 | AccessPrivilege, CacheIdentity | `Format` display pattern and precision, never the value or currency |
 | Money, PhysicalUnit, DateOnly, FormattedText, UIName, descriptions | Chart scale type, guide position, and palette |
@@ -170,7 +170,7 @@ Studio, see [the Studio MCP live-preview guide](../guides/studio.md#live-preview
   "rules": [
     { "select": "^<Hub.topics>[]", "layout": "rows", "style": { "emphasis": "primary" } },
     { "select": "^<Hub>", "when": { "form": "tablet" }, "layout": "master-detail",
-      "detail": "^<Hub.topics>[]" },
+      "detail": "^<Hub.topics>[]", "refresh": "OpenHub" },
     { "select": "^<Review.return_lines>", "when": { "form": "desktop" }, "layout": "table",
       "columns": ["form_line", "amount"] },
     { "select": "^<IncomeDocumentItem>", "layout": "card", "when": { "form": "phone" } },
@@ -376,7 +376,7 @@ client that meets it draws `rows` under the forward-tolerant rule.
 | `card` | Table or List member | A bordered block titled by the node's header text. |
 | `table` | List of Tables with scalar fields | One row per member; `columns` names the member fields shown, in order; an optional `sort` names one of them and orders the rows ascending by it for display only, never changing the List. Applies only while the [widening gate](#display-template-conditions) holds; otherwise `rows`. |
 | `tabs` | Union, or Table with `sections` | One tab per Union branch or section. |
-| `master-detail` | Response with one List | `detail` selects the List's members. The List is a direct field of the Response or is reached through struct fields only, never through another List or a Union, so a titled struct can head it (`^<Hub.topics.items>[]`); the Response has no other List on such a path. The Response, with the List, shows in the leading pane; the tapped member's linked page shows in the trailing pane. The member type requires a [`Link`](protocols.md#links). Applies only while the widening gate holds; otherwise `rows`. |
+| `master-detail` | Response with one List | `detail` selects the List's members, and the optional `refresh` names the [refresh request](#master-detail-panes). The List is a direct field of the Response or is reached through struct fields only, never through another List or a Union, so a titled struct can head it (`^<Hub.topics.items>[]`); the Response has no other List on such a path. The Response, with the List, shows in the leading pane; the tapped member's linked page shows in the trailing pane. The member type requires a [`Link`](protocols.md#links). Applies only while the widening gate holds; otherwise `rows`. |
 | `accordion` | Table or List | Folding sections with the [folding](#folding-structs-and-unions) behavior and `initially_open`. |
 | `split` | Table | Two or three `regions` in a `direction`, `row` or `column`. See below. |
 
@@ -394,14 +394,18 @@ endpoint's one working surface, and interaction stays strictly ordered:
   does and then opens the selected member's link.
 - A reply of the leading page's own variant replaces the leading page and
   empties the trailing pane.
-- **Refresh.** The client keeps the Request that produced the leading page.
+- **Refresh.** The rule's `refresh` member names one Request variant of the
+  same protocol, the **refresh request**. It is a pure navigation request: it
+  changes nothing in the service and answers with the current leading page.
   After a Submit or a previous action in the trailing pane receives any reply
-  that is not an Error, the client sends that kept Request again, unchanged. A
+  that is not an Error, the client constructs the refresh request from the
+  current leading page by the ordinary construction rules, with no bound
+  member, and sends it. The client never sends again the Request that
+  produced the leading page, which may have been a save. A
   link return and a calculation result do not refresh, because the trailing
   editor stays open. A reply that itself replaced the leading page needs no
-  refresh, and none is sent. A leading page that a subscription produced is
-  never refreshed: its reports keep it current, and sending its Request again
-  would subscribe again.
+  refresh, and none is sent. Without `refresh` no refresh is sent: the leading
+  page stays as shown, or a subscription's reports keep it current.
 - The refresh is an ordinary Request in strict order. While it is pending, the
   leading pane shows loading and its rows cannot be selected.
 - A refresh reply of the leading page's variant replaces the leading page and
@@ -409,9 +413,12 @@ endpoint's one working surface, and interaction stays strictly ordered:
   it is on a phone. An Error reply leaves the previous leading page in place
   and is reported by the standard error procedure.
 
-The kept Request carries the values it had when first sent, such as an
-earlier revision, so the service admits a request that only navigates by
-identity rather than by revision. A tablet therefore sends one Request more
+The refresh request is constructed from the leading page as it is shown, so
+after a save it carries that page's earlier values, such as a revision; the
+service admits a request that only navigates by identity rather than by
+revision. Naming it changes no action set and offers the person nothing: the
+request is declared in the schema, and the template only says which one
+reloads this arrangement. A tablet therefore sends one Request more
 than a phone does. What is the same on every device is the rule: every
 Request is constructed from a current page by the same construction rules.
 Below the widening gate the layout is `rows`, the linked page replaces the
@@ -499,7 +506,11 @@ template unless:
 - no rule member is outside the catalog, including every schema-only
   attribute;
 - every layout selects a node kind its row allows; `master-detail` members
-  carry a `Link`; `table` columns and `sort` name scalar fields of the member
+  carry a `Link`; a `refresh` names a Request of the same protocol whose
+  `NextResponse` admits the selected Response, whose constructed input has no
+  editable field and copies only from that Response, and which is neither a
+  `SubscriptionRequest` nor marked `RequestConfirmation`, and a rule with
+  `refresh` selects a Response that does not carry `SubscriptionData`; `table` columns and `sort` name scalar fields of the member
   type; `sections`, `regions`, and `fields` name direct children; a `title`
   names a package `StringResources` key; and splits nest at most three levels;
 - every hint satisfies its source attribute's placement rules and value

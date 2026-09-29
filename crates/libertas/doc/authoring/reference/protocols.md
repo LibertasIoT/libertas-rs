@@ -1130,8 +1130,11 @@ landing, or to another pane.
 Leaving an endpoint is part of normal interaction. A person may leave at any
 time, whether or not a reply is outstanding, and a task with several endpoints
 follows the same rule as a task with one. The Control session continues
-unless its transport breaks or times out; a session that is lost leaves every
-endpoint in it in the same way. Leaving abandons the endpoint's
+unless its transport breaks or times out. Every connection is a new
+connection: when the session is lost, the data of every endpoint in it is
+cleared, including surfaces, reference contexts, snapshots, and pending
+operations and calculations, and after reconnecting an endpoint starts again
+from its entry request as when first entered. Leaving abandons the endpoint's
 surfaces with their pending operations and calculations and queues the
 release of its explicit subscriptions; a reply that arrives afterwards is
 discarded, and nothing the backend already received is retracted. Entering
@@ -2090,6 +2093,41 @@ request, with ordinary validation and request correlation: recomposition,
 repeated taps, or returning to a retained response must not replay it. A
 popup or an editor whose originating surface has been left or replaced cannot
 send.
+
+<a id="request-confirmation"></a>
+
+**Critical requests.** `@LibertasRequestConfirmation` and
+`#[libertas_request_confirmation]` take no argument and emit
+`{"Name":"RequestConfirmation","Value":"true"}` on a protocol Request variant,
+the marker form of DefaultRequest and LinkOnly.
+Whenever a person's choice or submission is about to send a marked request,
+the client first shows a dialog that names the action, with its display name
+and description, and offers **Send** and **Cancel**. The rule holds for every
+entry point and every input:
+
+| Constructed request input | Presentation of a marked request |
+| --- | --- |
+| No editable input fields | The dialog takes the place of the immediate send, also when Actions has only one eligible request and skips its chooser. |
+| One editable primitive or enum field | The one-field popup, then the dialog after the popup is confirmed. |
+| More complex input | The full request editor, also a workflow editor, then the dialog after Submit. A previous action that names a marked request shows the dialog before it is sent. |
+
+Opening the dialog does not start a pending request. **Cancel** sends nothing
+and returns to the surface, the popup, or the editor as it was, with the
+reference context unchanged. **Send** validates and sends once. A dialog whose
+originating surface has been left or replaced cannot send.
+
+The marker is a rule for presentation to a person and a requirement on the
+AI assistant. For the AI assistant, the Hub starts the generated tool's
+description with "Requires user confirmation." and instructs the assistant,
+in every turn that offers such a tool, to state the action and its values and
+to call the tool only after the user confirms in a later message; the Hub
+does not verify the confirmation. The marker does not change the wire form of the request or its
+validation. A program that calls the endpoint directly is not affected, and
+the service still validates every request. Studio
+rejects RequestConfirmation on anything other than a protocol variant carrying
+Request, on a DefaultRequest, and on a request that a
+[CalculationRequest](#field-calculation-requests) names, because the client
+sends those two by itself and asks nobody.
 
 Only the person's choice sends a request without editable input.
 [Automatic singleton selection](#response-action-constraints) is not such a

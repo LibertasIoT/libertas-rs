@@ -1284,6 +1284,10 @@ see [links](../protocols.md#links) and [link rendering](../presentation.md#link-
 targets offers it only through links, never in Actions; see
 [link-only requests](../protocols.md#link-only).
 
+`#[libertas_request_confirmation]`, with no argument, on a Request variant
+makes a client ask the person to confirm before it sends the request; see
+[critical requests](../protocols.md#request-confirmation).
+
 ### Semantic validation rules
 
 Use `#[libertas_validation_rules("...")]` on a public function, any field or

@@ -1336,6 +1336,10 @@ see [links](../protocols.md#links) and [link rendering](../presentation.md#link-
 targets offers it only through links, never in Actions; see
 [link-only requests](../protocols.md#link-only).
 
+`@LibertasRequestConfirmation`, with no argument, on a Request variant
+makes a client ask the person to confirm before it sends the request; see
+[critical requests](../protocols.md#request-confirmation).
+
 ### Advanced Chaining & Caching
 - **`@LibertasNextRequest("...")`** / **`@LibertasNextResponse("...")`**: Connects multi-step conversations by specifying the next valid step. The value **must be non-empty and match the native name of variants** (which is the resolved discriminator value name). You can provide a comma-delimited list for multiple valid next steps. `NextRequest` is optional on a Response; omission is the non-transition acknowledgement above, not an implicit list of every Request.
 

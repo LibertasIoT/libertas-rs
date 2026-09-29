@@ -83,8 +83,10 @@ every submission. Modifiers:
   ([link-only](../reference/protocols.md#link-only)).
 - **Presentation by input.** A Request without editable input is sent at
   once when the person chooses it, by a link, from Actions, or from Quick
-  Actions, with no confirmation; give a Request that needs confirmation a
-  field the person sets. Automatic singleton selection never sends. One
+  Actions, with no confirmation; mark a critical Request
+  `RequestConfirmation` and the person confirms in a Send/Cancel dialog before
+  any send ([critical requests](../reference/protocols.md#request-confirmation)).
+  Automatic singleton selection never sends. One
   primitive or enum field uses the one-field popup; complex input uses the
   full editor. Cancel sends nothing; a repeated choice cannot send twice
   ([single action](../reference/protocols.md#single-action-confirmation-and-input-presentation)).
@@ -255,7 +257,8 @@ owns its reply, and within a Control session replies apply in
 SubscriptionData. A pending Request is never abandoned on its own: dismissing
 anything that awaits a reply leaves the endpoint. A person may leave an
 endpoint at any time; late replies are discarded, and entering again repeats
-the entry request, so admit it in every state the endpoint can be left in.
+the entry request, so admit it in every state the endpoint can be left in. A
+lost connection clears every endpoint's data; reconnecting starts from entry.
 
 - Cancel pops only the composer: nothing is sent and the screen and context
   stay.

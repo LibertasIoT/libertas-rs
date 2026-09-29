@@ -47,9 +47,10 @@ Write each rule as four relations:
   compact`) and otherwise render as `rows`. `master-detail` needs a `Link` on
   the member type; its List may sit under struct fields (not a List or Union),
   so a titled struct can head it. After a Submit or previous action in
-  the trailing pane gets a non-Error reply, the client re-sends the Request
-  that produced the leading page, unless that reply replaced the leading page
-  or a subscription produced it
+  the trailing pane gets a non-Error reply, the client sends the Request the
+  rule names in `refresh`, built from the leading page, unless that reply
+  replaced the leading page; `refresh` must be a pure navigation Request with
+  no editable input, never a save
   ([panes](../reference/presentation.md#master-detail-panes)), so admit
   navigation requests by identity, not by revision. `split` nests at most three levels and renders as `rows` on
   phones unless a phone rule asks for it. There is no `stepper`: Studio
