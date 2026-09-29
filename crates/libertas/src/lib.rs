@@ -56,7 +56,8 @@ pub use log::{LogLevel, libertas_log};
 pub use mime_bytes::{MimeBytes, decode_mime_bytes, encode_mime_bytes,
     is_exact_mime_type, mime_type_matches_filter};
 pub use notification::{
-    LibertasMessageArgument, LibertasMessageArgumentDecode, NotificationImportance,
+    LibertasFormattedTextArgument, LibertasMessageArgument, LibertasMessageArgumentDecode,
+    NotificationImportance,
     libertas_formatted_text, libertas_notification_send, libertas_notification_send_literal,
 };
 

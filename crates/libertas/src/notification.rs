@@ -6,6 +6,23 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use libertas_macros::{LibertasAvroDecode, LibertasAvroEncode};
 
+/// Borrowed canonical FormattedText bytes encoded as Avro Bytes, not an array of integers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LibertasFormattedTextArgument<'a>(&'a [u8]);
+
+impl<'a> From<&'a [u8]> for LibertasFormattedTextArgument<'a> {
+    fn from(value: &'a [u8]) -> Self {
+        Self(value)
+    }
+}
+
+impl AvroEncode for LibertasFormattedTextArgument<'_> {
+    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+        (self.0.len() as i64).avro_encode(buffer);
+        buffer.extend_from_slice(self.0);
+    }
+}
+
 /// Notification severity levels.
 /// - `Debug`: Debugging info.
 /// - `Info`: General info.
@@ -45,6 +62,15 @@ pub enum LibertasMessageArgument<'a> {
     UnitDouble { unit_type: &'a str, value: f64 },
     ResourceText(&'a str),
     Plural(i64),
+    /// A complete canonical FormattedText tuple, rendered in this message's locale.
+    FormattedText(LibertasFormattedTextArgument<'a>),
+}
+
+impl<'a> LibertasMessageArgument<'a> {
+    /// Uses a canonical tuple returned by [`libertas_formatted_text`] as one argument.
+    pub fn formatted_text(value: &'a [u8]) -> Self {
+        Self::FormattedText(value.into())
+    }
 }
 
 /// An owned, decoded Libertas Message Argument that can be compared with `LibertasMessageArgument`. This type decodes Avro-encoded arguments and uses owned values (for example, `String` instead of `&str`). Each variant corresponds to the same variant in `LibertasMessageArgument`; `PartialEq` supports encoding tests and wire verification.
@@ -97,6 +123,7 @@ pub enum LibertasMessageArgumentDecode {
     UnitDouble { unit_type: String, value: f64 },
     ResourceText(String),
     Plural(i64),
+    FormattedText(Vec<u8>),
 }
 
 impl LibertasMessageArgumentDecode {
@@ -130,6 +157,7 @@ impl LibertasMessageArgumentDecode {
             },
             Self::ResourceText(key) => A::ResourceText(key),
             Self::Plural(value) => A::Plural(*value),
+            Self::FormattedText(value) => A::formatted_text(value),
         }
     }
 }
@@ -207,6 +235,10 @@ impl PartialEq<LibertasMessageArgument<'_>> for LibertasMessageArgumentDecode {
             (LibertasMessageArgumentDecode::Plural(p1), LibertasMessageArgument::Plural(p2)) => {
                 p1 == p2
             }
+            (
+                LibertasMessageArgumentDecode::FormattedText(value),
+                LibertasMessageArgument::FormattedText(other),
+            ) => value.as_slice() == other.0,
             _ => false,
         }
     }
@@ -339,6 +371,7 @@ mod tests {
             LibertasMessageArgumentDecode::UnitDouble { unit_type: String::from("kg"), value: 2.5 },
             LibertasMessageArgumentDecode::ResourceText(String::from("READY")),
             LibertasMessageArgumentDecode::Plural(4),
+            LibertasMessageArgumentDecode::FormattedText(libertas_formatted_text("INNER", &[])),
         ];
         for argument in &arguments {
             assert_eq!(argument, &argument.as_message_argument());
@@ -352,5 +385,20 @@ mod tests {
             libertas_formatted_text("DEVICE", &[LibertasMessageArgument::Object(42)],),
             b"\x0cDEVICE\x02\x02\x54\x00",
         );
+        let inner = libertas_formatted_text("INNER", &[LibertasMessageArgument::Plural(2)]);
+        let outer = libertas_formatted_text(
+            "OUTER",
+            &[LibertasMessageArgument::formatted_text(&inner)],
+        );
+        assert_eq!(
+            outer,
+            b"\x0aOUTER\x02\x1a\x14\x0aINNER\x02\x18\x04\x00\x00",
+        );
+        let mut offset = 0;
+        let decoded = crate::DataName::avro_decode(&outer, &mut offset)
+            .unwrap_or_else(|error| panic!("{error}: {outer:?}"));
+        assert_eq!(offset, outer.len());
+        assert_eq!(decoded.resource_name, "OUTER");
+        assert_eq!(decoded.arguments, Vec::from([LibertasMessageArgumentDecode::FormattedText(inner)]));
     }
 }
