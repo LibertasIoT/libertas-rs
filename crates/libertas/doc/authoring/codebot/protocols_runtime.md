@@ -81,11 +81,12 @@ every submission. Modifiers:
   and the singleton count never offer it. It must be a link target, cannot be
   `DefaultRequest` or `ExcludeUI`, and older clients still show it in Actions
   ([link-only](../reference/protocols.md#link-only)).
-- **Presentation by entry point.** A fieldless direct link sends at once; a
-  fieldless Request from Actions shows Send/Cancel, even as a singleton, and
-  the origin survives selection. One primitive or enum field uses the one-field
-  popup; complex input uses the full editor. Cancel sends nothing; stale or
-  repeated confirmations cannot send
+- **Presentation by input.** A Request without editable input is sent at
+  once when the person chooses it, by a link, from Actions, or from Quick
+  Actions, with no confirmation; give a Request that needs confirmation a
+  field the person sets. Automatic singleton selection never sends. One
+  primitive or enum field uses the one-field popup; complex input uses the
+  full editor. Cancel sends nothing; a repeated choice cannot send twice
   ([single action](../reference/protocols.md#single-action-confirmation-and-input-presentation)).
 - **`DefaultRequest`**: at most one, input-free (Nil, or only Hidden/ReadOnly
   `Fixed`/`Default` fields such as a hidden `Fixed("current-user")`), never
@@ -249,11 +250,12 @@ landing directly with no list. Above the landing sits at most one working
 screen, which successive results replace or update, and above that at most one
 [transient composer](../reference/endpoint-presentation.md#protocol-transaction-stack).
 An editor has at most one pending Submit, Prev, or link; the pending composer
-owns its reply, and within an interaction replies apply in
+owns its reply, and within a Control session replies apply in
 [send order](../reference/protocols.md#request-and-response-ordering). Interaction is strictly ordered, request by request, except
 SubscriptionData. A pending Request is never abandoned on its own: dismissing
-anything that awaits a reply ends the Control session and abandons its pending
-operations.
+anything that awaits a reply leaves the endpoint. A person may leave an
+endpoint at any time; late replies are discarded, and entering again repeats
+the entry request, so admit it in every state the endpoint can be left in.
 
 - Cancel pops only the composer: nothing is sent and the screen and context
   stay.

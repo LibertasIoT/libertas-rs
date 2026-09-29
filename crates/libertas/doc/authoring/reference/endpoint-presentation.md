@@ -182,8 +182,7 @@ The underlying ProtocolData screen remains intact while choosing or composing.
 Cancelling returns to that same screen. Opening Requests does not itself change
 its displayed data or subscription ownership. A request without editable input fields follows the
 [single-action presentation rule](protocols.md#single-action-confirmation-and-input-presentation):
-chosen from Requests it asks for Send or Cancel, and opened by a link it is
-sent at once.
+chosen from Requests or opened by a link, it is sent at once.
 If the underlying data screen is the single-endpoint root, a transitioning
 response for the default subscribed variant updates that root; it must not pop
 the root as though another default-data screen existed underneath it.

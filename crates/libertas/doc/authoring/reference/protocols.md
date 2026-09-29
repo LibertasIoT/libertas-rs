@@ -224,14 +224,16 @@ not an additional schema role, and receiving it does not invoke the request.
 **Reference context and request construction.** The **current request** is the
 value being composed or edited. Workflow and non-workflow requests may need
 related server data; a session ID is required only when the App needs one.
-A **reference context** is the lookup environment for one interaction. Its
+A **reference context** is the lookup environment of a request under
+construction. It belongs to the received value that the request is built
+from: a displayed Response, a delivered EditRequest, or a subscription. Its
 contained schema-described values are **reference objects**.
 
 | Context | Reference objects and request construction |
 | --- | --- |
 | Ordinary Response | CopyFrom probes the latest non-transition acknowledgement received since the displayed Response was installed, when one exists, then the displayed Response. A transitioning Response replaces both. |
 | EditRequest | The received complete Request is the reference object. Adopt its data directly without CopyFrom or default initialization. |
-| Subscription | CopyFrom probes the most recent eligible successful correlated Response first, then the current SubscriptionData snapshot. Either object may be absent. |
+| Subscription | The reply that completed the SubscriptionRequest is the first state of the SubscriptionData snapshot and is not kept as a separate object. CopyFrom probes the most recent successful correlated Response received after it, when one exists, then the current snapshot. Either object may be absent. |
 
 Subscription reports, including reduced-type updates, update the SubscriptionData
 snapshot without replacing the retained Response. In a subscription, a
@@ -239,10 +241,11 @@ successful correlated Response replaces the Response object even when an
 acknowledgement leaves the screen unchanged. Over a displayed Response, a
 non-transition acknowledgement replaces only the acknowledgement object, and
 the displayed Response remains the second object; a transitioning Response
-replaces both. In every interaction, a failure status or Error-marked
-Response leaves the reference context unchanged. Each context's two objects
-belong to that interaction, remain separate, and are not merged into a synthetic value. Other interactions and
-historical responses are never searched. With no eligible received data, the
+replaces both. In every context, a failure status or Error-marked
+Response leaves the reference context unchanged. The two objects of a
+context remain separate and are not merged into a synthetic value. The context
+of another displayed value, editor, or subscription, and historical responses,
+are never searched. With no eligible received data, the
 reference context has no objects.
 
 `CopyFrom` names source paths on a receiving request node. It copies
@@ -570,8 +573,8 @@ resources during task configuration.
 
 ## Request and response ordering
 
-Within one Endpoint interaction, request/response transactions follow the exact
-order in which their requests were sent. Handle requests and emit and apply
+Within one Control session, the Hub serializes the messages: request/response
+transactions follow the exact order in which their requests were sent. Handle requests and emit and apply
 their correlated replies in that order; a later transaction must not overtake
 an earlier one. This includes calculation replies, Error responses, and
 EditRequest replies. Correlation and stale-operation checks still apply: an
@@ -579,7 +582,7 @@ obsolete reply is discarded in its turn, never assigned to a later request.
 Timeout, cancellation, and transport failure use the existing operation-lifecycle
 rules; a late reply cannot revive a completed or abandoned operation.
 
-The ordering scope is one interaction, not all clients or Endpoints globally.
+The ordering scope is one Control session, not all clients globally.
 Unsolicited SubscriptionData/DataReport updates are not correlated reply slots;
 they retain their own subscription ownership and sequencing rules.
 
@@ -1113,29 +1116,37 @@ the application; the client never serializes an incomplete draft to supply them.
 
 <a id="exit-while-pending"></a>
 
-**Exit while an operation is pending.** Protocol interaction is strictly
+**Leaving while an operation is pending.** Protocol interaction is strictly
 ordered and proceeds request by request: every Request has its correlated
 reply, and only SubscriptionData arrives outside that order. A pending Request
 is therefore never abandoned on its own. A surface whose operation awaits its
 reply cannot be dismissed by itself: not a transient composer, and not an
-editor with a sent Submit, Prev, or link. Dismissing anything that awaits a
-protocol reply ends the Control session of that endpoint UI, which is the only
-way to keep the client and the service consistent. For a person, every sent
-Request therefore waits for its reply: a client offers no control that gives
-up one pending Request and keeps the session. On a waiting surface, Back,
-close, and Cancel leave the endpoint UI and end its Control session; they
-never return to the surface beneath, to a landing, or to another pane. Ending the session abandons
-every interaction in it, with their pending operations, calculations, and
-explicit subscriptions; a reply that arrives afterwards is discarded, and
-nothing the backend already received is retracted. Reopening the endpoint
-starts again from its [entry](#default-request-entry-and-dynamic-actions), and
+editor with a sent Submit, Prev, or link. For a person, every sent Request
+waits for its reply: a client offers no control that gives up one pending
+Request and stays in the endpoint. On a waiting surface, Back, close, and
+Cancel leave the endpoint; they never return to the surface beneath, to a
+landing, or to another pane.
+
+Leaving an endpoint is part of normal interaction. A person may leave at any
+time, whether or not a reply is outstanding, and a task with several endpoints
+follows the same rule as a task with one. The Control session continues
+unless its transport breaks or times out; a session that is lost leaves every
+endpoint in it in the same way. Leaving abandons the endpoint's
+surfaces with their pending operations and calculations and queues the
+release of its explicit subscriptions; a reply that arrives afterwards is
+discarded, and nothing the backend already received is retracted. Entering
+the endpoint again repeats its
+[entry](#default-request-entry-and-dynamic-actions) request, and
 [CacheIdentity](annotations.md#cacheidentity) governs any draft recovery.
+Keeping the exchange consistent for a person across leaving and entering
+again is the App developer's responsibility: the service admits the entry
+request in every state in which the endpoint can be left.
 
 **Waiting is the initiator's decision.** The protocol defines no timeout. The
 initiator of a Request decides how long to wait for its reply: a program or an
 AI participant applies its own limit, and a person dismisses when they choose
-to. Giving up ends the session as above; it never produces a reply of its own
-and never moves the interaction to another state. A client that initiates
+to. Giving up is leaving the endpoint as above; it never produces a reply of
+its own and never moves the exchange to another state. A client that initiates
 auxiliary requests itself, such as field calculations or a document
 transformation, is their initiator and may bound them; an expired auxiliary
 request is a failed one and changes no data.
@@ -1299,8 +1310,9 @@ Process reports in arrival order; schema-loading buffers cannot reorder them. Or
 non-compatible reports retain existing acceptance and replacement semantics.
 For actions originating from that subscription screen, the merged A supplies
 the SubscriptionData object in the [reference context](#interaction-reference-context),
-which also retains that interaction's latest successful Response. A report does
-not replace the Response object or another interaction's context. A compatible update does not
+which also retains the latest successful correlated Response received in that
+subscription. A report does not replace the Response object or the context of
+another subscription or displayed value. A compatible update does not
 navigate, submit a request, or execute the incoming variant's actions.
 Its delivery scope follows the [shared role rule](#protocol-role-reuse).
 
@@ -2059,32 +2071,34 @@ set is empty retains its action surface with no actions.
 
 ### Single-action confirmation and input presentation
 
-Android, iOS, and Libertas Studio preserve the request's entry point when
-choosing its presentation. A direct link already expresses the user's intent
-to run that request; opening **Actions** is not a direct link. Do not infer
-that distinction from the number of choices, the presence of reference data,
-or the request's payload type.
+Android, iOS, and Libertas Studio present a request by its constructed input.
+The entry point does not change the presentation: a direct link, a choice from
+**Actions**, and a choice from Quick Actions are each the person's choice of
+that request.
 
-| Entry point and constructed request input | Presentation |
+| Constructed request input | Presentation |
 | --- | --- |
-| Direct link, no editable input fields | Validate and send immediately, without a confirmation dialog. |
-| Actions, no editable input fields | Show a dialog naming the action with **Send** and **Cancel**. This also applies when Actions has only one eligible request and skips its chooser. |
-| Either entry point, one editable primitive or enum field | Use the existing one-field popup with its normal confirmation and cancellation controls. |
-| Either entry point, more complex input | Use the existing full request editor with its normal submit and cancellation controls. |
+| No editable input fields | Validate and send at once, without a confirmation dialog. This also applies when Actions has only one eligible request and skips its chooser. |
+| One editable primitive or enum field | Use the existing one-field popup with its normal confirmation and cancellation controls. |
+| More complex input | Use the existing full request editor with its normal submit and cancellation controls. |
 
 Use the existing request-composition rules after initialization, including hidden
 subtrees and constrained choices; count input fields, not rendered layout rows.
-Preserve the Actions origin through chooser selection and deferred presentation.
-Cancel or dismiss sends nothing and preserves the current protocol data and
-reference context. Opening confirmation does not start a pending request.
-Send uses ordinary validation and request correlation and may submit only once.
-A confirmation from an interaction that has been left or replaced cannot send.
-Recomposition, repeated taps, or returning to a retained response must not
-replay the action or reopen a cancelled confirmation automatically.
+Cancelling or dismissing a popup or an editor sends nothing and preserves the
+current protocol data and reference context. One choice sends at most one
+request, with ordinary validation and request correlation: recomposition,
+repeated taps, or returning to a retained response must not replay it. A
+popup or an editor whose originating surface has been left or replaced cannot
+send.
 
-Static and constrained NextRequest sets follow the same entry-point rule.
-Automatic singleton selection does not turn a direct link into an Actions
-invocation. Existing explicit DefaultRequest entry, default subscriptions, and
+Only the person's choice sends a request without editable input.
+[Automatic singleton selection](#response-action-constraints) is not such a
+choice: it opens a popup or an editor, and a request without editable input
+that it would select stays offered as the one action until the person chooses
+it. A reply can therefore never cause a request by itself.
+
+Static and constrained NextRequest sets follow the same rule.
+Existing explicit DefaultRequest entry, default subscriptions, and
 chart previews retain their own rules. WorkflowRequest and EditRequest
 continue to require their existing explicit editor submission.
 
@@ -2409,10 +2423,10 @@ and visibility filtering and without [link-only requests](#link-only), contains
 exactly one action, select it automatically
 once for that accepted response, then apply the
 [single-action presentation rule](#single-action-confirmation-and-input-presentation):
-fieldless requests from Actions require Send/Cancel confirmation; direct links
-send without that dialog. One primitive or enum uses the existing one-field
-popup, and complex input uses the full editor. Preserve the entry point through
-selection. Never auto-submit a workflow editor or
+one primitive or enum uses the existing one-field popup, and complex input
+uses the full editor. Automatic selection never sends: a request without
+editable input stays offered as the one action and is sent when the person
+chooses it. Never auto-submit a workflow editor or
 serialize an unfinished request. Rendering or returning to
 the same retained response must not repeat the selection. A subscription
 update re-filters the actions and never selects one, also when it leaves
