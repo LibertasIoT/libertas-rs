@@ -141,7 +141,9 @@ Consequences:
   moves the type's entry to the tail, and types scheduled together enter in
   the order the changed field's `CalculationRequest` lists them; the in-flight invoking node stays immutable; an editor has at most
   one calculation request in flight, of any calculation or instance, and the
-  rest wait in the queue; deferred requests are
+  rest wait in the queue; a change that schedules the in-flight occurrence
+  again makes its reply obsolete, which is discarded and never queued again
+  on its own; deferred requests are
   rebuilt and validated at dispatch. Submit waits for pending and deferred
   calculations to settle, then validates and sends; a calculation failure keeps
   the editor open

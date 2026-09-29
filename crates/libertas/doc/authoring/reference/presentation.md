@@ -398,7 +398,10 @@ endpoint's one working surface, and interaction stays strictly ordered:
   After a Submit or a previous action in the trailing pane receives any reply
   that is not an Error, the client sends that kept Request again, unchanged. A
   link return and a calculation result do not refresh, because the trailing
-  editor stays open.
+  editor stays open. A reply that itself replaced the leading page needs no
+  refresh, and none is sent. A leading page that a subscription produced is
+  never refreshed: its reports keep it current, and sending its Request again
+  would subscribe again.
 - The refresh is an ordinary Request in strict order. While it is pending, the
   leading pane shows loading and its rows cannot be selected.
 - A refresh reply of the leading page's variant replaces the leading page and

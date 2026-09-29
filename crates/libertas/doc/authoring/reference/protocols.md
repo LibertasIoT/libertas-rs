@@ -836,9 +836,14 @@ Clients permit continued editing. **An editor has at most one calculation
 request in flight**, whatever its calculation and whatever its instance: two
 calculation requests are never in flight together, even when they are of
 different types or belong to different List items. Every other scheduled
-calculation is deferred. Editor changes invalidate outstanding calculation replies
-and mark their work deferred, except that array removal preserves unaffected
-item-local work under the [scope rule](#array-removal-and-calculation-scope).
+calculation is deferred. A change that schedules the occurrence of the request
+in flight makes that request **obsolete**: its reply is discarded in its turn
+and assigns nothing. Obsolete work is never queued again on its own account;
+the change that made it obsolete has scheduled that occurrence by the ordinary
+rule below, in the ordinary order. A change that schedules nothing for that
+occurrence leaves the request valid and its reply is applied. Array removal
+cancels or preserves item-local work under the
+[scope rule](#array-removal-and-calculation-scope).
 Deferred calculations form one ordered queue for the editor, with **at most
 one entry per calculation type**, a type being one calculation Request
 variant. The queue orders the types. An entry records the bound occurrences of
@@ -856,7 +861,8 @@ such as the assignments of one reply, the fields are taken in assignment
 order and each field's types in its listed order.
 
 The in-flight transaction keeps its immutable invoking context. A new change
-queues a deferred execution; it cannot rewrite the transaction already sent.
+queues a deferred execution; it cannot rewrite the transaction already sent,
+and it cannot be sent before that transaction's reply has arrived.
 Only after the in-flight transaction completes, with its result applied, its
 failure reported, or its obsolete reply discarded, is the queue head
 reevaluated and, when still valid, sent. Dispatch deferred work from the queue
@@ -1082,7 +1088,11 @@ is therefore never abandoned on its own. A surface whose operation awaits its
 reply cannot be dismissed by itself: not a transient composer, and not an
 editor with a sent Submit, Prev, or link. Dismissing anything that awaits a
 protocol reply ends the Control session of that endpoint UI, which is the only
-way to keep the client and the service consistent. Ending the session abandons
+way to keep the client and the service consistent. For a person, every sent
+Request therefore waits for its reply: a client offers no control that gives
+up one pending Request and keeps the session. On a waiting surface, Back,
+close, and Cancel leave the endpoint UI and end its Control session; they
+never return to the surface beneath, to a landing, or to another pane. Ending the session abandons
 every interaction in it, with their pending operations, calculations, and
 explicit subscriptions; a reply that arrives afterwards is discarded, and
 nothing the backend already received is retracted. Reopening the endpoint
