@@ -98,12 +98,23 @@ assign. On a newly constructed destination, every unaffected node retains its
 ordinary Fixed, Default, localized default, nullable, and type initialization.
 This includes destination-only fields within a copied Table or array element.
 Ordinary initialization may yield a value, valid null, or undefined; it need not
-make the constructed request complete. Merely supplying a reference context
+make the constructed request complete. Type initialization, which applies to a
+node with no Fixed, Default, or localized default, is the same on every client.
+A Nullable node is null, a complete answer. A Table is its fields, each
+initialized by these rules; a List is empty; a Union has no selected branch.
+Every other required node is undefined, which is unanswered: a String, a
+number, a Boolean, an Enumeration, Bytes, a DateOnly, a TimeOnly, and a
+DateTime alike. A client never supplies an empty string, zero, a range bound,
+or the current time in its place, so a present value always means an answered
+one. Merely supplying a reference context
 does not change an unaffected node's initialization. On an existing destination,
 unaffected nodes keep their current values; copying another field does not
 reset them.
 
-Initialization and validation are separate. A copied value takes precedence over
+Initialization and validation are separate. Studio rejects `Fixed` together
+with `CopyFrom` on one field: a copied value that differed from the Fixed
+value would leave a protected field that blocks submission. Within a copied
+Table or array, a copied member takes precedence over
 a Fixed initializer, but still has to satisfy the Fixed constraint and every
 other applicable constraint. Copying does not waive destination protections
 such as the calculation CopyTo prohibition on overwriting Fixed fields.

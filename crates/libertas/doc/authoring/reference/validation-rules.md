@@ -1324,6 +1324,13 @@ invalid value MUST NOT remain in task data. Declarations whose effective
 `FinalOnly` value is `true` are not evaluated and cannot reject an incremental change. Incremental validation
 does not run mandatory/nullability or other static final checks.
 
+This rollback applies to the edits a user makes, on every client. A
+programmatic assignment is not a proposed change and is never rolled back by an
+incremental rule: a calculation result, a link return, a constrained-choice
+reset, and a singleton selection stay in the editor, and final validation
+governs them. A document import validates its complete candidate under
+[its own rule](llm-document-transformation.md#client-workflow).
+
 The client MUST evaluate all rule sets as part of final validation; a successful
 incremental or final rule result cannot override `StaticValid=false`.
 

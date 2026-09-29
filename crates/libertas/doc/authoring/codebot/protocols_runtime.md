@@ -74,7 +74,9 @@ every submission. Modifiers:
   links included. Links and menus use the same filtered set, so a Response
   wanting tappable rows declares no `ConstrainedBy`.
 - **Lone survivor.** A filtered set of exactly one (not counting `LinkOnly`)
-  is selected automatically once per accepted response.
+  is selected automatically once per accepted correlated Response; a
+  subscription update re-filters and never selects
+  ([action constraints](../reference/protocols.md#response-action-constraints)).
 - **`LinkOnly`** keeps a Request only on its links: Actions, menus, landings,
   and the singleton count never offer it. It must be a link target, cannot be
   `DefaultRequest` or `ExcludeUI`, and older clients still show it in Actions
@@ -125,7 +127,10 @@ Consequences:
   CopyTo or is Hidden. CopyTo never creates parents or extends arrays; an
   unavailable destination rejects the whole update; `Fixed` destinations are
   protected ([applying results](../reference/protocols.md#applying-calculation-results)).
-- **Calculations.** Fixed inputs need no CopyFrom (a hidden
+- **Calculations.** A calculation reply is plain or Error: its NextResponse
+  never names a variant with `NextRequest` or `WorkflowRequest`, or a Request
+  ([calculations](../reference/protocols.md#field-calculation-requests)).
+  Fixed inputs need no CopyFrom (a hidden
   `Fixed("current-user")` is resolved from the session and Hub-verified);
   every other input declares CopyFrom. A current-request source declares the
   calculation unless it is invariant: Hidden, ReadOnly or Fixed and no CopyTo writes
@@ -166,8 +171,10 @@ Consequences:
   peer handles are opaque. Start or renew a stream only on the current
   subscription callback, answer it with a correlated complete snapshot (exact
   peer and transaction), and use reports only for later changes; a report
-  alone leaves the request unanswered. A shared snapshot variant needs both
-  Response and SubscriptionData roles. Use `PeerAlive`, not a "no change"
+  alone leaves the request unanswered. A complete snapshot is always a
+  Response; a variant shared with later complete reports needs both Response
+  and SubscriptionData roles, and a partial report variant needs
+  SubscriptionData only. Use `PeerAlive`, not a "no change"
   payload ([runtime rules](../reference/protocols.md#endpoint-runtime-rules)).
 - **Report shapes.** SubscriptionData A with `NextResponse(B,C)` accepts
   directional root-field updates from B/C, keeping A's screen, actions, and

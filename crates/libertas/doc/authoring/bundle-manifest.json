@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "sdkVersion": "0.3.0",
-  "sourceRevision": "ca6e0fc21f3e44bb2453edaba1660b913dcc244a",
+  "sourceRevision": "4d7f10351606de7fd0039a0efb45b759655bc6b7",
   "sourceDirty": false,
-  "sourceContentSha256": "7bcfe4c08d49e28d009ce2ca6cb524df91d73fa7a3d06d2f95bb5ae92fad9882",
+  "sourceContentSha256": "63775bc31b2dc47816fe65a4db8de85ceef2341b1c0e58906b8c35e55944ad41",
   "entryContentSha256": "80ab16c55edbd462203d27da61a74cb78bb16639929bbb9e82729e07142646b0",
   "files": {
     "assets/comment/chart_code.png": "61b793cb5efad9cec765af07788d44c64c48a266fda143622d2a70288d29423b",
@@ -79,10 +79,10 @@
     "codebot/index.md": "d704c12a005ef3f12fe4d2c523e714f945702696177c4e699415fc8bd7f5a389",
     "codebot/matter.md": "5dedb462cf1c698259f4fc7f539ba655e1bc4bc0c3aa69267612c0e42ecea149",
     "codebot/presentation.md": "9a5280232c70ae38fb25e44dec4110b05fda662100269fec2c8fcb9ae85d9957",
-    "codebot/protocols_runtime.md": "abc84d1f6d968cf6af405c6b0fa8599af25bf8730db6f0dbcf93935caef10482",
+    "codebot/protocols_runtime.md": "73857962314c971d403969352afd6d7e7a8132f381fdf0e2e3773b63b7361c7c",
     "codebot/recipes.md": "010acaf316f09b0565d1c2eb1758d983fa5877e75d1530b4ee20fe5a7159790c",
     "codebot/rust.md": "6b1d1721e5165ad76dafe8a85e31c5546ba4fba3883c6ed7d4fe95070ee2cf07",
-    "codebot/schema_annotations.md": "12b6a082cacc969e8006c743f259fa6e9959f29e204a73772f8887ae329a00fb",
+    "codebot/schema_annotations.md": "de66a8da1ec0d6fc996678c0a0a86085bb6d8ec37be9c06972e10fed444e356e",
     "codebot/sources.md": "79dcfbe84095ece8664bfd276cfa3e045a56fb363de9692e438412cf2f697f0c",
     "codebot/typescript.md": "d01ca3e45c979b9abea166b5f55dc597120872ea2696a98e589422991c51e512",
     "codebot/validation_rules.md": "4b64c1593f1437aee3fc0139d345d50d935a4b9122a1bdae403ed14d700a1782",
@@ -104,7 +104,7 @@
     "guides/visualization.md": "fbb3b7a46d3c29d853cdbc7a279a3351f4504a5c5603e848d8ec3b72fabc1a38",
     "index.md": "25ae3a2c0befb44e0b20c829aac4b0a8e55fd7a03fb51ce0f8c199e204e39bef",
     "navigation.json": "b9a297f104e1de54b9e726e4463aff7d9aab4cd612a9a73b9dedd155f3ed0b45",
-    "reference/annotations.md": "b0c1a0363d905953db9b67aa8c9b2a864a50058de76986b00c195e2f19299a3d",
+    "reference/annotations.md": "4a024361ade96294f47a6d34441ca59d3cd5ad8dbad9741ebd317aeccfe660c6",
     "reference/app-contract.md": "677b3b25868969e055b5b35d5d345d22a7c8c2ef25396b203b0aefc91ef30d18",
     "reference/charts/2d.md": "776154793caf9cd443724b9af322190cf8361a563b7a1e7d98591717ae89ce7f",
     "reference/charts/3d.md": "9780e627264f978df329493bc2dd31e991c51a17338290e75dae7e4a39a00390",
@@ -122,11 +122,11 @@
     "reference/matter/status.md": "aefabe9e3d7cef25f0fdf010b9bc7793b6038b26c75bc44393dc2794b53fb791",
     "reference/message-format.md": "d77fd2d6fa346eae489286faaec574f00b3fa2f582cd17492d30a493eec23054",
     "reference/network-access.md": "5227c5f68ad96f9e03f586a47784c49d677fcf3644130f6e69e7ba9faf80eb09",
-    "reference/presentation.md": "2084cb6be85263f9af8f8551d4b40da1f8174416c58a32d5c9d5a70a061bc266",
-    "reference/protocols.md": "d6db4a6fb33b38af3f9671a1bfd1f67c76e2459dbaf9c0acf495e92061c9edf3",
+    "reference/presentation.md": "97da0156145e3999f0d7b005059592ab341d8643863217d065fc9e27d0782bb0",
+    "reference/protocols.md": "5617cd5dd219f825e0c922320288b348ab15df1d754a4e48ab2960c588010255",
     "reference/publication.md": "f49c62d1ca88fa0a3f49d991bee10585d30cfaa6216ec90627cf8482d912c81e",
-    "reference/schema.md": "12b6e4e54c0ea80f342e267fd383469e44711a53581ffd236bd1999210303850",
+    "reference/schema.md": "fc027002e0a0fa3ce40716e098635a949b8ba1a56ee6568a77f6e4365e5713a3",
     "reference/translation.md": "bc8a72f69c2571e37c3589b6309bdc276ace3e40ffabe41b149aa3ce1ad0db19",
-    "reference/validation-rules.md": "71990b8d1012d70cfd99340f40be3cab59c10453088a0a1a4aee3d29a11f55ee"
+    "reference/validation-rules.md": "2d8b4be8fdee87de5e332aa6eedacf4b00288a6ff58d25acedec88ab12b1575b"
   }
 }

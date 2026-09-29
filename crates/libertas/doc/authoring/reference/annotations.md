@@ -348,8 +348,16 @@ ask whether to restore. Declining removes the cache and keeps fresh initializati
 Accepting attempts restoration without submitting the workflow request. Ordinary
 rerendering or returning from a field picker does not repeat the prompt.
 
-Restore atomically against the current schema, including current ConstrainedBy
-restrictions on assigned choices; a source that a calculation writes is
+Restoration assigns only the values the user can edit and the destinations
+that a calculation or a link return writes; a link-return destination cannot
+be recomputed, so it is restored as saved. Every other Hidden, ReadOnly, or Fixed value, including a
+cookie and an allowed-set source that no calculation or link return writes, keeps the value
+the fresh editor supplied; the draft's copy of it is not applied. A restored
+selection outside the fresh allowed set becomes unanswered under the
+[reset rule](protocols.md#calculated-allowed-sets) and does not discard the
+draft.
+
+Restore atomically against the current schema; a source that a calculation writes is
 restored from the draft and recomputed by the seeded calculations. Corrupt encoding or any schema violation
 discards the cache and rolls back the entire attempt to the fresh editor.
 Do not partially restore, coerce incompatible data, or silently omit incompatible

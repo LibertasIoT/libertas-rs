@@ -594,6 +594,9 @@ non-empty, distinct protocol variant native names. The annotation is field-only.
 
 Each target is another ordinary Request with a Table payload in the same
 Endpoint protocol Union. Its NextResponse names its correlated Response variants.
+A calculation reply is plain or an Error: Studio rejects a calculation whose
+NextResponse names a variant that declares NextRequest or WorkflowRequest, or
+a Request variant, which only an EditRequest delivers.
 Every direct input field has CopyFrom under the
 [shared source contexts](schema.md#context-and-syntax): calculation inputs may
 read the current editor first, then reference objects in the
@@ -779,7 +782,9 @@ Studio checks mappings in each invoking editor, including reusable types,
 field types, nullability, numeric semantics and money currency. **A
 calculation may perform any assignment that cannot trigger itself.** Studio
 rejects only direct and indirect calculation cycles: a calculation that reads,
-directly or through other calculations, a field it writes. Writing a
+directly or through other calculations, a field it writes. Reading a Table, a
+List, or a reduced projection reads its membership and the descendants its
+[projection](#reduced-record-and-array-copies) includes, and only those. Writing a
 Table/List also writes its descendants, and writing a ConstrainedBy source
 counts as writing every field it constrains, because re-filtering can reset
 that field ([calculated allowed sets](#calculated-allowed-sets)). Overlapping
@@ -799,7 +804,9 @@ an editable destination is appropriate for an automatically assigned result.
 The client checks the complete mapping before applying it atomically. A null
 result assigns null to a nullable destination. An unavailable union branch,
 null parent, or out-of-bounds array destination rejects the complete update;
-CopyTo never creates missing parents or extends arrays. No unrelated field,
+CopyTo never creates missing parents or extends arrays. A rejected update is a
+calculation failure: it is reported, it ends a waiting Submit without sending,
+and it is not sent again automatically. No unrelated field,
 default initialization, or navigation is changed by a successful assignment.
 An Error response applies no assignments and uses normal error presentation.
 A [link return](#link-return) applies these rules to a plain reply to a link
@@ -811,7 +818,9 @@ assignment wins.
 Editor initialization alone does not trigger calculations. EditRequest values
 are supplied by the service. Changes to participating inputs, including results
 assigned by another calculation or changed reference context inputs, trigger
-their calculations. Changes are measured
+their calculations. Adding a List member is such a change for the calculations
+of that member's own fields, also when every input has a Default; each is sent
+once its inputs are complete. Changes are measured
 as typed editor values, including becoming undefined; formatting alone is not
 a new input. Invalid intermediate input still invalidates pending work.
 Native inline editors may buffer text until Done. Buffered changes invalidate
@@ -822,8 +831,13 @@ settle, then validates and sends its snapshot; a calculation failure keeps the
 editor open. While Submit waits, nothing has been sent: the submit control
 shows that it is busy and a repeated Submit is ignored, the fields stay
 editable, and an edit starts a new calculation round that the same Submit
-keeps waiting for. Prev and exit stay available and abandon the round. A
+keeps waiting for. Links and document import are blocked during the wait.
+Prev and exit stay available and abandon the round. A
 calculation failure ends the wait with its error shown and sends nothing.
+When a required output is undefined because its calculation cannot run, an
+input being incomplete or invalid, the error is reported on the field that
+triggers the calculation and names the input it needs, not on the output
+field, which the user cannot edit.
 
 When inputs change, reset all affected output destinations inferred from every
 successful NextResponse's CopyTo mappings through ordinary default initialization:
@@ -884,7 +898,10 @@ dropped sends nothing. Result and reset assignments which
 trigger calculations use the same remove-and-append rule after dependency
 propagation. Scheduling never changes the bindings of an in-flight transaction.
 
-Timeouts and transport failures use client retry handling; obsolete errors do
+A failed calculation, whether a timeout, a transport failure, or a
+[rejected update](#applying-calculation-results), is not sent again
+automatically: the next edit or Submit evaluates it again, and that Submit
+waits for it. Obsolete errors do
 not report against a newer edit. Leaving or replacing the editor abandons its
 pending/deferred calculations; late replies cannot reopen it or update array
 positions that have changed ownership.
@@ -954,6 +971,13 @@ Its reference context follows the [current reference context rule](#interaction-
 EditRequest replaces the active editor even when the returned variant
 is the same variant as the previous step; variant identity is not step identity.
 
+When a delivered editor, whether the target of a WorkflowRequest or the variant
+of an EditRequest, is beyond the user's [AccessPrivilege](#request-access), the
+client refuses the reply by the error procedure and keeps the originating
+surface, its reference context, and its draft. `ExcludeUI` and
+[`LinkOnly`](#link-only) govern what a client offers, not what the service
+delivers: a delivered editor that carries either is installed.
+
 On Request/SubscriptionRequest variants, NextResponse may list Response,
 SubscriptionData, or Request variants. On SubscriptionData it instead declares
 [directional compatible updates](#compatible-subscriptiondata). Permitted
@@ -963,6 +987,10 @@ a successful transition reply must be one of its named variants. Error responses
 and standardized failure statuses use the shared error/retry path and do not
 need to appear in this navigation list. These declarations constrain the
 possible replies; the client never selects the service's reply for it.
+A correlated reply whose variant the request's NextResponse does not admit, or
+whose variant carries only SubscriptionData, is handled as a failed decode: the
+client follows the error procedure, the originating surface stays, and its
+reference context is unchanged.
 
 ### Submit, previous actions, and completion
 
@@ -1071,7 +1099,11 @@ fixed step count, or client inference from previous-action lists or history.
 EditRequest uses the same correlation, status envelope, transport failures,
 and error/retry procedures as an ordinary reply. Allow only one pending Submit,
 Prev, or [link](#links) transition per editor; while one is pending, the others
-are blocked. A duplicate or late reply cannot replace an
+are blocked. Until its reply arrives, the editor accepts no edit, link,
+document import, or second transition, so a link return never arrives after
+the user edited its destination. A displayed value likewise has at most one
+pending operation: a second action or link is blocked until the reply.
+A duplicate or late reply cannot replace an
 editor after its operation was consumed, its editor superseded, or the
 interaction exited. Subscription updates and auxiliary calculation responses
 keep their own owners and cannot perform workflow navigation or overwrite a
@@ -1315,7 +1347,7 @@ bitmask.
 Schematic schema notation:
 
 ```text
-Entries: SubscriptionData, NextResponse("MoreEntries")
+Entries: Response, SubscriptionData, NextResponse("MoreEntries")
     entries: Array<Entry>
     cursor: String
 
@@ -1430,8 +1462,8 @@ and the stable variant's explicit acceptance declaration.
 CopyTo is one positional string containing a non-empty path list. For example:
 
 ```text
-ZoneState: SubscriptionData, NextResponse(NoWaterPeriodsChanged)
-ZoneSettings: SubscriptionData, NextResponse(NoWaterPeriodsChanged)
+ZoneState: Response, SubscriptionData, NextResponse(NoWaterPeriodsChanged)
+ZoneSettings: Response, SubscriptionData, NextResponse(NoWaterPeriodsChanged)
 NoWaterPeriodsChanged: SubscriptionData
     CopyTo("^<ZoneState>,^<ZoneSettings>")
 ```
@@ -1546,9 +1578,13 @@ Follow these invariants:
 - Return the exact nonzero transaction ID and peer supplied with a Request when
   sending its Response.
 - Complete an accepted SubscriptionRequest with a correlated Response carrying
-  the complete current snapshot, echoing its transaction ID and peer. When the
-  same snapshot variant is also used for later reports, declare both `Response`
-  and `SubscriptionData` on it. Publish later changes through the report API.
+  the complete current snapshot, echoing its transaction ID and peer. A
+  complete snapshot is therefore always a `Response`. When the same variant
+  also delivers later complete reports, declare both `Response` and
+  `SubscriptionData` on it. A variant that delivers only partial reports, such
+  as a [reduced](#reduced-subscriptiondata-design-pattern) or
+  [appended](#subscriptiondata-array-append) report, carries `SubscriptionData`
+  alone and need not be a `Response`. Publish later changes through the report API.
   Sending only a report does not complete the opening transaction and can leave
   the client waiting indefinitely. Rejection also requires a correlated reply.
 - Omit the peer for normal common reports/liveness and let the host fan out.
@@ -1880,15 +1916,16 @@ The source is a non-nullable list of non-nullable integers. It must be Hidden,
 either directly or inside a hidden cookie. The service writes it and the user
 never does: populate it from backend response data through CopyFrom, including
 copying its containing cookie, supply it directly in EditRequest, or assign it
-from a field calculation reply through CopyTo under the
+from a field calculation reply or a [link return](#link-return) through CopyTo under the
 [calculated allowed sets](#calculated-allowed-sets) rules. Between those
 writes the set is stable; ordinary editing never replaces the source or its
 containing data.
 
 For an Enumeration, entries are its declared numeric values. For a Union,
 entries are its original schema discriminants, never positions in the filtered
-chooser. `[1]` permits only choice 1; `[0, 2]` permits choices 0 and 2. An empty
-list permits no choice and blocks submission. Duplicate entries do not create
+chooser. `[1]` permits only choice 1; `[0, 2]` permits choices 0 and 2. An
+absent, null, or empty source offers no choice and blocks submission with the
+field error, also for a Nullable field, which cannot submit null then. Duplicate entries do not create
 extra choices. Null is not a numeric choice; ordinary Nullable semantics still
 apply when the allowed set is nonempty. Undefined remains unanswered and cannot
 be submitted for a non-nullable field.
@@ -1921,7 +1958,8 @@ Neither opens the chooser of an answered Union: only a Union with no selection
 is a candidate.
 
 Studio checks field placement, effective enum/union type, root-path resolution,
-integer-list source shape, hidden source ancestry, and the calculation writers
+integer-list source shape, hidden source ancestry, and the calculation and
+link-return writers
 of each source in every request occurrence. Runtime clients check actual cookie
 values and selection membership, and reject user edits of a source. These are
 ordinary client data constraints; the backend continues to own
@@ -1948,6 +1986,9 @@ source, or a field whose allowed set another writes; the later applied
 assignment wins. A written source and its constrained fields are
 therefore never [invariant inputs](#invariant-calculation-inputs), even when
 hidden or read-only: another calculation reading them must declare it.
+A [link return](#link-return) may write a source in the same way and then
+counts as its writer like a calculation reply: the source and the fields it
+constrains are not invariant, and the re-filtering below applies.
 
 When a client applies a result that changes a source, it re-filters every
 chooser reading that source. A current selection inside the new set, and its
@@ -1966,7 +2007,8 @@ validates it against the current set as usual.
 
 A restored [draft](annotations.md#cacheidentity) brings its calculated
 sources with it and the seeded calculations recompute them; a source no
-calculation writes must still match the current editor.
+calculation writes keeps its freshly supplied value under the
+[draft restoration rule](annotations.md#cacheidentity).
 
 
 ## Default request entry and dynamic actions
@@ -2084,6 +2126,10 @@ constructs its target:
   [context order](#interaction-reference-context). The draft is read, never
   transmitted; only the constructed target is sent, and it must be complete and
   valid even while the editor is not.
+  A [transient request composer](endpoint-presentation.md#protocol-transaction-stack)
+  is a request editor for this purpose: a link on one of its fields is
+  offered, a plain reply is a [return](#link-return) into the composer, and a
+  transitioning reply replaces the composer.
 
 A variant that is both displayed and edited has both placements; the operation
 presenting the occurrence decides which applies, and Studio validates each.
@@ -2214,7 +2260,7 @@ AddressFound reply returns its `city` into the editor, which stays open.
   [calculation CopyTo](#applying-calculation-results) is: the destination
   exists, and type, nullability, numeric semantics, money currency, and Fixed
   protection are compatible; it may write a calculation's destination (the
-  later assignment wins);
+  later assignment wins) or a [ConstrainedBy source](#calculated-allowed-sets);
   every direct payload field of such a Response has CopyTo or is Hidden
   (discriminators and Error responses are exempt);
 - no NextResponse Response variant of the target declares CopyTo together with
@@ -2368,9 +2414,14 @@ send without that dialog. One primitive or enum uses the existing one-field
 popup, and complex input uses the full editor. Preserve the entry point through
 selection. Never auto-submit a workflow editor or
 serialize an unfinished request. Rendering or returning to
-the same retained response must not repeat the selection. Without ConstrainedBy, NextRequest
-remains static. Missing, malformed, out-of-range, or undeclared entries reject
-the action update; clients never fall back to the unconstrained set.
+the same retained response must not repeat the selection. A subscription
+update re-filters the actions and never selects one, also when it leaves
+exactly one: automatic selection happens only for an accepted correlated
+Response, because auxiliary traffic never navigates. Without ConstrainedBy, NextRequest
+remains static. Missing, malformed, out-of-range, or undeclared entries refuse
+the whole reply or update before it takes effect: the prior surface, its
+reference context, its actions, and any draft stay. Clients never fall back to
+the unconstrained set.
 
 The set belongs to the installed response and is replaced only with a newly
 accepted response or subscription update. It is not evaluated against an editor

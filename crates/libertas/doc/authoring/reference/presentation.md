@@ -1329,6 +1329,7 @@ export interface Sample {
  * ----
  * Temperature reading
  * Records the temperature observed at one time.
+ * @LibertasResponse
  * @LibertasSubscriptionData
  * @LibertasChart(line)
  */
@@ -1363,6 +1364,7 @@ pub enum ChartProtocol {
     /// ----
     /// Temperature reading
     /// Records the temperature observed at one time.
+    #[libertas_response]
     #[libertas_subscription_data]
     #[libertas_chart(line)]
     History(Vec<Sample>),
