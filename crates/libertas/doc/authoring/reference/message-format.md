@@ -182,22 +182,11 @@ as the device ID rather than erase its meaning.
 Current argument categories include:
 
 - literal text, which is inserted without resource lookup;
-- resource text, which resolves an argument-free key in the same resource set;
-- FormattedText (tag 13), which carries a complete canonical FormattedText
-  Bytes tuple as one argument;
+- resource text, which resolves another key in the same resource set;
 - Libertas objects, resolved to an authorized display name;
 - booleans, signed/unsigned integers, floats, and doubles;
 - unit-qualified signed/unsigned integers, floats, and doubles; and
 - plural counts.
-
-`FormattedText` is distinct from `ResourceText`: its Avro Bytes payload contains
-the nested resource key **and its own typed arguments**. The client renders that
-tuple with the enclosing message's package catalog, locale, and permission-aware
-object resolver, then inserts the result as text. It never reparses the rendered
-text as a template. The encoded argument type wins over a conflicting template
-type, so a nested value is not treated as a number or selector. Malformed nested
-tuples fail the containing render. Clients accept at most 16 nested
-FormattedText levels and 4,096 encoded bytes per tuple.
 
 The Rust SDK exposes the variants directly through the
 `LibertasMessageArgument` enum. The core TypeScript SDK exposes a numeric
@@ -216,15 +205,6 @@ let arguments = [
         value: 22.5,
     },
 ];
-
-let detail = libertas_formatted_text(
-    "ITEM_COUNT",
-    &[LibertasMessageArgument::Plural(2)],
-);
-let summary = libertas_formatted_text(
-    "SUMMARY",
-    &[LibertasMessageArgument::formatted_text(&detail)],
-);
 ```
 
 The same array can render a notification, formatted runtime Bytes field, or
