@@ -453,6 +453,15 @@ export type RecordingActivity = Saved | Failed;
 /// latest measurement from being saved.
 #[derive(LibertasExport, LibertasAvroDecode, LibertasAvroEncode)]
 pub enum RecordingActivity {
+    /// Measurement saved
+    /// Confirms when the recorder saved the latest measurement.
+    #[libertas_response]
+    Saved {
+        /// Saved at
+        /// Identifies when the recorder saved the latest measurement.
+        saved_at: LibertasDateTime,
+    },
+
     /// Recording could not continue
     /// Explains why the recorder could not save the latest measurement so the
     /// user can correct the problem and retry.
@@ -614,8 +623,8 @@ may feed a calculation without declaring its `CalculationRequest`:
   `CopyTo` writes in that request. Its value then comes only from the editor's
   construction: EditRequest, construction CopyFrom, default initialization, or
   a `Fixed` declaration or session value.
-  `ReadOnly` on a List protects only its membership, so an undeclared List
-  source also needs its elements protected. A `CopyTo` destination, including
+  `ReadOnly` on a List protects its membership and order, not its member
+  values, so an undeclared List source also needs its elements protected. A `CopyTo` destination, including
   a [calculated allowed set](#calculated-allowed-sets) and the fields it
   constrains, is not invariant even when hidden or read-only;
 - a value in the interaction's [reference context](#interaction-reference-context),
@@ -631,8 +640,9 @@ it an invoking field whose occurrence must bind every input. Every other
 current-request source, including every user-editable field, must declare the
 calculation. Reference-object candidates follow the same
 [interaction context](#interaction-reference-context): a Request variant is
-never a reference object, and a Response or SubscriptionData variant is a
-candidate only when its own NextRequest or WorkflowRequest actually offers the
+never a reference object, except the complete request that an EditRequest
+delivers, which is the reference object of its own editor, and a Response or
+SubscriptionData variant is a candidate only when its own NextRequest or WorkflowRequest actually offers the
 current request; Studio does not treat an unrelated variant that merely
 resolves the same path as a source. A containing Table or List may participate as a whole;
 changes below it are changes to that input. Paths support named fields and
@@ -676,10 +686,11 @@ requirement.
 Studio validates typed paths in every reachable invoking request occurrence,
 including reusable record types and nested arrays. It resolves named types and
 each declared ancestor selector symbolically under the [Libertas Schema Path rules](schema.md#typed-ancestors-and-bound-occurrences), then validates suffixes, input coverage, type and
-nullability compatibility, Fixed protection, overlapping writers including the
-implicit writers of [calculated allowed sets](#calculated-allowed-sets),
-and direct/indirect cycles. Distinct instances writing their own array items are
-not overlapping writers; an enclosing whole-list write overlaps those items.
+nullability compatibility, Fixed protection, and direct/indirect cycles,
+counting the implicit writers of [calculated allowed sets](#calculated-allowed-sets).
+Overlapping writers are permitted (the later applied assignment wins); a
+calculation instance writing its own array item and an enclosing whole-list
+write may both apply.
 Runtime checks still enforce actual values, bounds, and stale-instance ownership.
 
 ### Array removal and calculation scope
@@ -765,13 +776,22 @@ pattern](#reduced-subscriptiondata-design-pattern) uses variant-level CopyTo
 lists in a stable subscription context.
 
 Studio checks mappings in each invoking editor, including reusable types,
-field types, nullability, numeric semantics and money currency. Distinct
-calculations cannot write overlapping destinations: writing a Table/List also
-writes its descendants. Mutually exclusive response variants of the same
-calculation may write the same destination. Assignments within one response
-must not overlap. Studio rejects direct and indirect calculation cycles,
-including cycles through a ConstrainedBy source, since writing a source counts
-as writing every field it constrains ([calculated allowed sets](#calculated-allowed-sets)).
+field types, nullability, numeric semantics and money currency. **A
+calculation may perform any assignment that cannot trigger itself.** Studio
+rejects only direct and indirect calculation cycles: a calculation that reads,
+directly or through other calculations, a field it writes. Writing a
+Table/List also writes its descendants, and writing a ConstrainedBy source
+counts as writing every field it constrains, because re-filtering can reset
+that field ([calculated allowed sets](#calculated-allowed-sets)). Overlapping
+destinations are otherwise permitted: distinct calculations, a link return
+and a calculation, or assignments within one response may write the same or
+nested destinations. Assignments within one response apply in declaration
+order; distinct transactions apply in the order their replies are applied
+under the [ordering guarantee](#request-and-response-ordering), so the later
+assignment wins. The platform guarantees that order and nothing more: the
+settled value of a destination that several calculations write follows the
+order of the edits that triggered them. Designing calculation requests whose
+overlapping results agree is the App developer's responsibility.
 ReadOnly prevents user edits, not calculation assignments. Fixed destinations and Fixed descendants
 cannot be overwritten (Union discriminators remain transport metadata). Applications own meaningful default values and whether
 an editable destination is appropriate for an automatically assigned result.
@@ -783,7 +803,8 @@ CopyTo never creates missing parents or extends arrays. No unrelated field,
 default initialization, or navigation is changed by a successful assignment.
 An Error response applies no assignments and uses normal error presentation.
 A [link return](#link-return) applies these rules to a plain reply to a link
-sent from an editor; its destinations must not overlap a calculation's.
+sent from an editor; it may write a calculation's destinations, and the later
+assignment wins.
 
 ### Changes, resets, and deferred calculation
 
@@ -796,7 +817,13 @@ a new input. Invalid intermediate input still invalidates pending work.
 Native inline editors may buffer text until Done. Buffered changes invalidate
 pending replies immediately and defer sending until the local edit finishes.
 Submit requires that edit to finish; an independently valid Prev request remains
-available to discard it.
+available to discard it. Submit waits until pending and deferred calculations
+settle, then validates and sends its snapshot; a calculation failure keeps the
+editor open. While Submit waits, nothing has been sent: the submit control
+shows that it is busy and a repeated Submit is ignored, the fields stay
+editable, and an edit starts a new calculation round that the same Submit
+keeps waiting for. Prev and exit stay available and abandon the round. A
+calculation failure ends the wait with its error shown and sends nothing.
 
 When inputs change, reset all affected output destinations inferred from every
 successful NextResponse's CopyTo mappings through ordinary default initialization:
@@ -805,30 +832,49 @@ Do not rerun CopyFrom for resets or introduce a separate validity rule for a
 valid default. Reset and result assignments are atomic editor changes; propagate
 them through the acyclic dependency graph before sending dependent requests.
 
-Clients permit continued editing, with at most one in-flight attempt per
-calculation instance. Editor changes invalidate outstanding calculation replies
+Clients permit continued editing. **An editor has at most one calculation
+request in flight**, whatever its calculation and whatever its instance: two
+calculation requests are never in flight together, even when they are of
+different types or belong to different List items. Every other scheduled
+calculation is deferred. Editor changes invalidate outstanding calculation replies
 and mark their work deferred, except that array removal preserves unaffected
 item-local work under the [scope rule](#array-removal-and-calculation-scope).
-Deferred calculations form one ordered queue for the editor, with at most one entry per instance. Whenever a change
-schedules an instance, remove its existing deferred entry, if any, and append
-it to the tail. Do not retain its old queue position or append a duplicate.
-For example, changing B in `[A, B, C]` produces `[A, C, B]`; changing A next
-produces `[C, B, A]`. Separate array-item instances remain separate entries.
+Deferred calculations form one ordered queue for the editor, with **at most
+one entry per calculation type**, a type being one calculation Request
+variant. The queue orders the types. An entry records the bound occurrences of
+its type that await evaluation, such as the List items whose inputs changed;
+array items of one type share that type's entry. Whenever a change schedules a
+calculation, add its occurrence to the entry of its type, creating the entry
+when absent, and move that entry to the tail. Do not retain its old queue
+position or append a duplicate. For example, with the types queued as
+`[A, B, C]`, a change that schedules B produces `[A, C, B]`; one that
+schedules A next produces `[C, B, A]`. When one change schedules several
+types together, their entries move to the tail in the order in which the
+changed field's `CalculationRequest` lists them: a field declaring `"A,B"`
+leaves A ahead of B. When one atomic editor change alters several fields,
+such as the assignments of one reply, the fields are taken in assignment
+order and each field's types in its listed order.
 
-An in-flight transaction keeps its original position and immutable invoking
-context. A new change queues a deferred execution; it cannot rewrite the
-transaction already sent. Only after that attempt completes and its obsolete
-reply is discarded may its deferred execution be sent. Dispatch deferred work
-from the queue head in order, never by schema declaration order or response
-completion speed. A head entry still waiting for its previous attempt cannot
-be bypassed. Calculation transactions also obey the
+The in-flight transaction keeps its immutable invoking context. A new change
+queues a deferred execution; it cannot rewrite the transaction already sent.
+Only after the in-flight transaction completes, with its result applied, its
+failure reported, or its obsolete reply discarded, is the queue head
+reevaluated and, when still valid, sent. Dispatch deferred work from the queue
+head in order, one at a time, never by schema declaration order or response
+completion speed, and never past a head that cannot be sent yet. Replies are
+therefore applied in the order of the queue, which is the order in which
+[overlapping assignments](#applying-calculation-results) take effect.
+Calculation transactions also obey the
 [request/response ordering guarantee](#request-and-response-ordering).
 
 A deferred entry represents work to reevaluate, not a previously encoded
-request. At dispatch, reconstruct from the current input contexts and check validity.
-If invalid or its invoking context no longer exists, remove the entry without
-sending; a relevant later input change can enqueue valid work again. Otherwise,
-send it and remove that deferred entry. Result and reset assignments which
+request. At dispatch, take the awaiting occurrences of the head entry in array
+order. Reconstruct each from the current input contexts and check validity.
+If it is invalid or its invoking context no longer exists, drop that occurrence
+without sending; a relevant later input change can schedule valid work again.
+Otherwise send it, one request at a time. The entry leaves the queue when its
+last occurrence has been sent or dropped; an entry whose every occurrence was
+dropped sends nothing. Result and reset assignments which
 trigger calculations use the same remove-and-append rule after dependency
 propagation. Scheduling never changes the bindings of an in-flight transaction.
 
@@ -1026,6 +1072,31 @@ keep their own owners and cannot perform workflow navigation or overwrite a
 replacement editor. Leaving the UI cannot retract a submission already received
 by the backend. Persistence, retry idempotency, and resume selection belong to
 the application; the client never serializes an incomplete draft to supply them.
+
+<a id="exit-while-pending"></a>
+
+**Exit while an operation is pending.** Protocol interaction is strictly
+ordered and proceeds request by request: every Request has its correlated
+reply, and only SubscriptionData arrives outside that order. A pending Request
+is therefore never abandoned on its own. A surface whose operation awaits its
+reply cannot be dismissed by itself: not a transient composer, and not an
+editor with a sent Submit, Prev, or link. Dismissing anything that awaits a
+protocol reply ends the Control session of that endpoint UI, which is the only
+way to keep the client and the service consistent. Ending the session abandons
+every interaction in it, with their pending operations, calculations, and
+explicit subscriptions; a reply that arrives afterwards is discarded, and
+nothing the backend already received is retracted. Reopening the endpoint
+starts again from its [entry](#default-request-entry-and-dynamic-actions), and
+[CacheIdentity](annotations.md#cacheidentity) governs any draft recovery.
+
+**Waiting is the initiator's decision.** The protocol defines no timeout. The
+initiator of a Request decides how long to wait for its reply: a program or an
+AI participant applies its own limit, and a person dismisses when they choose
+to. Giving up ends the session as above; it never produces a reply of its own
+and never moves the interaction to another state. A client that initiates
+auxiliary requests itself, such as field calculations or a document
+transformation, is their initiator and may bound them; an expired auxiliary
+request is a failed one and changes no data.
 
 ## Chaining, caching, and copied values
 
@@ -1785,9 +1856,15 @@ request data. On a response, it instead constrains [NextRequest actions](#respon
 
 The following rules describe the field-level form. Rust uses `#[libertas_constrained_by("$.allowed_choices")]`;
 TypeScript uses `@LibertasConstrainedBy("$.allowed_choices")`. The one quoted
-path uses the [root-relative Libertas Schema Path form](schema.md#context-and-syntax)
-and resolves against the **current request's selected payload**.
+path is either [root-relative](schema.md#context-and-syntax), resolving against
+the **current request's selected payload**, or parent-relative: one or more
+`^` followed by named child segments, stepping from the constrained field to
+its actual value-tree parents. A parent-relative path lets each occurrence
+carry its own allowed set, for example `^.allowed_treatments` naming a hidden
+sibling in the same List row, so rows of one type offer different choices.
 It is not an expression, an interaction reference context lookup, or a list of alternatives.
+Each occurrence of the constrained field is filtered only by the source its
+own path resolves to.
 
 The source is a non-nullable list of non-nullable integers. It must be Hidden,
 either directly or inside a hidden cookie. The service writes it and the user
@@ -1846,28 +1923,33 @@ so resumed values and allowed sets remain consistent.
 
 A successful [field calculation](#field-calculation-requests) Response field
 may `CopyTo` a ConstrainedBy source, or data containing it, under the ordinary
-CopyTo rules. This lets the service change which choices a page offers while
+CopyTo rules. A row's own source (a parent-relative ConstrainedBy path) is
+written by a calculation bound to that row, through its parent-relative
+CopyTo, so each row's allowed set follows that row's inputs. This lets the service change which choices a page offers while
 the page stays open, from what has been entered so far.
 
 Studio treats such a calculation as a writer of every field the source
-constrains, in addition to the source itself, for the overlapping-writer and
-cycle checks. Consequently two calculations cannot write the same source, a
-calculation cannot also write a field whose allowed set another calculation
-writes, and a calculation cannot read, directly or through other calculations,
-a field whose allowed set it writes. The last rule is what makes a reply unable
-to trigger itself: the acyclic dependency graph is proved with the constrained
-fields counted as outputs. A written source and its constrained fields are
+constrains, in addition to the source itself, for the cycle check.
+Consequently a calculation cannot read, directly or through other
+calculations, a field whose allowed set it writes: that is what makes a reply
+unable to trigger itself, since the acyclic dependency graph is proved with
+the constrained fields counted as outputs. Several calculations may write one
+source, or a field whose allowed set another writes; the later applied
+assignment wins. A written source and its constrained fields are
 therefore never [invariant inputs](#invariant-calculation-inputs), even when
 hidden or read-only: another calculation reading them must declare it.
 
 When a client applies a result that changes a source, it re-filters every
 chooser reading that source. A current selection inside the new set, and its
-payload, are untouched. A current selection outside the new set is reset
-through ordinary initialization exactly as a calculation destination is reset,
-discarding a removed Union branch's payload with it; that reset is an input
-change for calculations reading the field and propagates through the
-dependency graph like any other result. The reset and the assignment are one
-atomic editor change. A source reset while its calculation is pending, because
+payload, are untouched. A current selection outside the new set is reset to
+unanswered, discarding a removed Union branch's payload with it. The field's
+`Default` applies only when the new set contains it; a Default outside the set
+is not applied, and a Nullable field is reset to unanswered, never to null,
+because null would turn a removed answer into a complete one. The
+[singleton rule](#backend-constrained-choices) then applies to the unanswered
+field. That reset is an input change for calculations reading the field and
+propagates through the dependency graph like any other result. The reset, any
+singleton selection, and the assignment are one atomic editor change. A source reset while its calculation is pending, because
 an input changed, does not reset the selection: the chooser offers the reset
 set until the reply arrives, the selection is retained, and submission
 validates it against the current set as usual.
@@ -2121,7 +2203,8 @@ AddressFound reply returns its `city` into the editor, which stays open.
   variants is valid against the originating request as
   [calculation CopyTo](#applying-calculation-results) is: the destination
   exists, and type, nullability, numeric semantics, money currency, and Fixed
-  protection are compatible, with no destination overlapping a calculation's;
+  protection are compatible; it may write a calculation's destination (the
+  later assignment wins);
   every direct payload field of such a Response has CopyTo or is Hidden
   (discriminators and Error responses are exempt);
 - no NextResponse Response variant of the target declares CopyTo together with
@@ -2158,8 +2241,10 @@ the marker changes presentation only.
 ### Request editor variant identity
 
 A request editor composes exactly one protocol variant, fixed by its entry
-point: a chooser selection, a direct link, an explicit DefaultRequest, or a
-server-delivered EditRequest or WorkflowRequest. The editor's root row is that
+point: a chooser selection, a direct link, or a server-delivered EditRequest
+or WorkflowRequest. A default request is sent without an editor, so it is not
+an editor entry point; the editor that follows default entry is installed by
+its reply. The editor's root row is that
 variant, never a selector over the Endpoint protocol Union. Android, iOS, and
 Libertas Studio must not offer the protocol's other variants from the root
 row, on tap, long-press, or any other gesture, and must not render the
@@ -2168,8 +2253,10 @@ leaving the editor and choosing another action. Unions inside the request
 payload keep their ordinary variant selection. The **Actions** surface belongs
 to an accepted response only; a request editor has none, so nothing in it may
 open an action chooser or navigate to another request except a declared
-[link](#links). A link is neither the Actions surface nor a chooser; it is the
-only way an editor opens another request.
+[link](#links) or a declared
+[previous action](#submit-previous-actions-and-completion). A link is neither
+the Actions surface nor a chooser; links and previous actions are the only
+ways an editor opens another request.
 
 ### Control endpoint landing and native Back
 

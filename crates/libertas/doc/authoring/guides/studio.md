@@ -47,8 +47,8 @@ Once the MCP tools are loaded, an agent can hold a conversational edit loop on
 a screen's presentation without leaving the chat: edit `display.json`, call
 `compile_schema` to fix any diagnostics, then call `preview_display` with the
 screen's protocol variant or function name and a device form. Studio opens a
-Control panel preview of that screen on the chosen device if none is open for
-the project, or refocuses and switches the one already open; every later save
+Display Preview panel showing that screen on the chosen device if none is open
+for the project, or refocuses and switches the one already open; every later save
 to `display.json` (through `compile_schema` again) re-renders the same
 preview live, so the agent keeps iterating on layout and style without
 repeating the tool call for each save.

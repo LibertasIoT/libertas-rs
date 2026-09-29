@@ -987,6 +987,24 @@ length(null) -> null
 
 Additional string predicates MAY be defined by future revisions.
 
+## 13.1 String resource references
+
+```c
+resource([status])
+```
+
+takes a FormattedText value and returns its string resource **key** as a
+String, or null when the value is null. The key identifies the resource
+template, not its localized text, so comparing it gives the same result in
+every locale. Arguments do not change the key. Studio rejects `resource(...)`
+on a value that is not FormattedText, and a string literal compared with a
+`resource(...)` result that is not a key the package's `StringResources`
+declares.
+
+```c
+resource([status]) == "STATUS_NOT_STARTED" || resource([status]) == "STATUS_NONE"
+```
+
 ---
 
 # 14. Expression Grammar
@@ -1070,7 +1088,8 @@ array_operation
     | "is_unique_set" "(" expression ")" ;
 
 function
-    = "length" "(" expression ")" ;
+    = "length" "(" expression ")"
+    | "resource" "(" expression ")" ;
 
 literal
     = integer
@@ -1136,9 +1155,12 @@ Before accepting a schema, Libertas Studio MUST statically verify that:
    predicate narrows projection validation to that Union variant;
 10. `is_unique_set` and `count` receive a collection or array;
 11. every rule's string is a declared package `StringResources` key with a
-   non-empty default-locale message; and
+   non-empty default-locale message;
 12. `FinalOnly`, when present, is the single leading directive and its value is
-   exactly `true` or `false`.
+   exactly `true` or `false`; and
+13. `resource(...)` receives a FormattedText value, and a string literal
+   compared with its result is a key that the package's `StringResources`
+   declares (section 13.1).
 
 Square paths are validated against the attribute evaluation root. Reference
 paths are syntax-checked but their value type remains unknown and nullable,

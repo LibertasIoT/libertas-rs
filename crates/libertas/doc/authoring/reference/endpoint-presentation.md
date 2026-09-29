@@ -132,7 +132,9 @@ stacked above that screen, including a request selected from an endpoint action
 list. Cancelling before submission removes only the composer and preserves the
 originating screen, its data, and its reference context. It does not run
 landing navigation. While submission is pending, the composer remains the reply
-owner and cannot be dismissed through native Back. An Error keeps it available
+owner and cannot be dismissed through native Back;
+[exit while an operation is pending](protocols.md#exit-while-pending) states
+the one exit. An Error keeps it available
 for correction and retry; a non-transition acknowledgement removes only the
 composer; a transitioning reply installs or updates the response destination
 as described below. Subscription updates may continue to refresh their owning
@@ -178,23 +180,24 @@ builder. Missing `NextRequest` never implies every request in the protocol.
 
 The underlying ProtocolData screen remains intact while choosing or composing.
 Cancelling returns to that same screen. Opening Requests does not itself change
-its displayed data or subscription ownership. A `Nil` request or one whose
-complete effective tree is `Fixed`/`ReadOnly` retains automatic submission
-through the builder's normal path without waiting for a Next press.
+its displayed data or subscription ownership. A request without editable input fields follows the
+[single-action presentation rule](protocols.md#single-action-confirmation-and-input-presentation):
+chosen from Requests it asks for Send or Cancel, and opened by a link it is
+sent at once.
 If the underlying data screen is the single-endpoint root, a transitioning
 response for the default subscribed variant updates that root; it must not pop
 the root as though another default-data screen existed underneath it.
 
 The first transitioning transaction therefore follows this invariant sequence:
 default protocol data -> Requests -> optional next-request chooser -> composer ->
-send and wait -> response carrying an effective `NextRequest` -> one interactive
+send and wait -> response carrying a declared `NextRequest` -> one interactive
 protocol-data destination. A sent composer remains the correlated response
 owner while waiting. Receipt installs or updates the single interactive
 destination with that response and exactly its declared next-request choices,
 preserving the protocol interaction chain.
 
 Outside workflows, a normal correlated Response with neither `WorkflowRequest`
-nor effective `NextRequest` is instead a
+nor a declared `NextRequest` is instead a
 non-transition acknowledgement. It completes the in-flight attempt but does
 not install a response destination, replace the displayed protocol value,
 change the current choices, or interpret every
@@ -245,8 +248,9 @@ must not invoke PrevRequest or restore historical workflow drafts.
 
 The Quick Actions drawer contains only protocol requests. Native swipe or
 backdrop dismissal remains valid because the drawer contains no chart preview
-or chart viewport. Selection dismisses the drawer before it automatically sends
-a request without variables or opens the composer for a request with variables,
+or chart viewport. Selection dismisses the drawer before the selected request is
+presented under the
+[single-action presentation rule](protocols.md#single-action-confirmation-and-input-presentation),
 and cancellation/selection completion occurs exactly once.
 
 ## Cross-platform requirement
@@ -256,7 +260,7 @@ section order, single preview header, Configure visibility, deduplication,
 localized actions, preview immutability, chart/protocol stack ownership,
 Chart3D full-screen-only manipulation with no inline mode,
 single-interaction-data rule, first-row Requests action and single-choice
-builder routing, non-transition acknowledgement behavior, and
-variable-free auto-send behavior. Platform
+builder routing, non-transition acknowledgement behavior, and the
+[single-action presentation rule](protocols.md#single-action-confirmation-and-input-presentation). Platform
 navigation components and animations may remain native; they may not change
 these interaction semantics.

@@ -93,8 +93,9 @@ every submission. Modifiers:
   neither, the landing lists Requests, previewing executable chart requests
   ([default entry](../reference/protocols.md#default-request-entry-and-dynamic-actions)).
 - **Editor identity.** An editor composes exactly one variant, fixed by its
-  entry point; it has no Actions surface, and a `Link` is its only way to open
-  another Request ([variant identity](../reference/protocols.md#request-editor-variant-identity)).
+  entry point; it has no Actions surface, and a `Link` or a declared previous
+  action is its only way to open another Request. A default request is sent
+  without an editor ([variant identity](../reference/protocols.md#request-editor-variant-identity)).
   `PrevRequest` targets are listed in order and not filtered by
   `ConstrainedBy`: one goes directly, several open a chooser, none means no
   workflow Back.
@@ -135,19 +136,28 @@ Consequences:
   ([invariant inputs](../reference/protocols.md#invariant-calculation-inputs)).
   A change resets affected outputs
   through ordinary initialization. Deferred work is one ordered queue per
-  editor: a new change removes the instance's entry and appends it to the
-  tail; the in-flight invoking node stays immutable; deferred requests are
-  rebuilt and validated at dispatch
+  editor with one entry per calculation type, holding the occurrences (such
+  as List items) that await evaluation: a new change adds its occurrence and
+  moves the type's entry to the tail, and types scheduled together enter in
+  the order the changed field's `CalculationRequest` lists them; the in-flight invoking node stays immutable; an editor has at most
+  one calculation request in flight, of any calculation or instance, and the
+  rest wait in the queue; deferred requests are
+  rebuilt and validated at dispatch. Submit waits for pending and deferred
+  calculations to settle, then validates and sends; a calculation failure keeps
+  the editor open
   ([deferred calculation](../reference/protocols.md#changes-resets-and-deferred-calculation)).
   Array removal follows dependency scope, not positions: cancel removed-item
   work, keep unaffected surviving item-local work, reschedule work crossing
   the item boundary or consuming the whole array or projection, and never
   retarget a stale positional write ([array removal](../reference/protocols.md#array-removal-and-calculation-scope)).
 - **Calculated allowed sets.** A reply may CopyTo a field-level
-  `ConstrainedBy` source. Studio counts it as writing every constrained field,
-  so it cannot read them, even indirectly, and no other calculation may write
-  them. Re-filtering resets an outside selection through ordinary
-  initialization (triggering its readers), leaves an inside one untouched, and
+  `ConstrainedBy` source; a parent-relative source (`^.allowed_x` in a List
+  row) is written by the calculation bound to that row. Studio counts it as writing every constrained field,
+  so it cannot read them, even indirectly; other calculations may also write
+  them (the later applied assignment wins). Re-filtering resets an outside selection to
+  unanswered (its Default applies only if the new set contains it; a Nullable
+  field becomes unanswered, never null) and triggers its readers, then the
+  singleton rule applies; an inside selection is untouched, and
   a source reset while pending never resets the selection
   ([allowed sets](../reference/protocols.md#calculated-allowed-sets)).
 - **Server side.** Branch on action before decoding; signals carry no payload;
@@ -231,7 +241,10 @@ screen, which successive results replace or update, and above that at most one
 [transient composer](../reference/endpoint-presentation.md#protocol-transaction-stack).
 An editor has at most one pending Submit, Prev, or link; the pending composer
 owns its reply, and within an interaction replies apply in
-[send order](../reference/protocols.md#request-and-response-ordering).
+[send order](../reference/protocols.md#request-and-response-ordering). Interaction is strictly ordered, request by request, except
+SubscriptionData. A pending Request is never abandoned on its own: dismissing
+anything that awaits a reply ends the Control session and abandons its pending
+operations.
 
 - Cancel pops only the composer: nothing is sent and the screen and context
   stay.

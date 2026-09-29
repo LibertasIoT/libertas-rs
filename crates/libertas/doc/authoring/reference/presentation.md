@@ -80,13 +80,6 @@ execute copying or calculations.
 
 ## Display Template
 
-This contract precedes its implementation. Until Studio, the Hub, Android, and
-iOS ship the Display Template, published schemas keep carrying the
-presentation attributes and clients render from them as today. Because the
-modern Hub is unreleased, the transition happens in one step: the template
-arrives and the attributes leave the schema together, with no mixed period or
-compatibility path.
-
 Every App package has exactly one **Display Template**, version 0.1: the
 presentation layer that decides how the values its schema describes are drawn
 on a given device. The schema owns what the App accepts, sends, computes,
@@ -317,6 +310,17 @@ and the same `|`, `is`, and comparison operators apply. The expression must be
 Boolean and reads only the selected node and the reference context. Absent
 data follows the expression language's null rules, and a condition that does
 not yield true does not apply.
+
+**Conditions are locale independent.** Display text is localized, so a data
+condition or switch case never inspects text: it may not compare a String or
+FormattedText value with a string literal or another text value, nor apply a
+string operation to one. It branches on locale-independent data instead: an
+Enumeration or Union (`is`), a Boolean, a Number, a date, a null check, or a
+FormattedText's resource key from
+[`resource(...)`](validation-rules.md#131-string-resource-references), for
+example `resource([status]) == "STATUS_NOT_STARTED"`, which compares the key
+rather than its localized text. Studio rejects a condition that reads text any
+other way.
 `^<TopicRow>:condition([status] is NeedsAttention)` with `color` and `icon`
 declares a status badge; no schema attribute is needed.
 
@@ -372,23 +376,60 @@ client that meets it draws `rows` under the forward-tolerant rule.
 | `card` | Table or List member | A bordered block titled by the node's header text. |
 | `table` | List of Tables with scalar fields | One row per member; `columns` names the member fields shown, in order; an optional `sort` names one of them and orders the rows ascending by it for display only, never changing the List. Applies only while the [widening gate](#display-template-conditions) holds; otherwise `rows`. |
 | `tabs` | Union, or Table with `sections` | One tab per Union branch or section. |
-| `master-detail` | Response with one List | `detail` selects the List's members. The List shows in the leading pane; the tapped member's linked page shows in the trailing pane. The member type requires a [`Link`](protocols.md#links). Applies only while the widening gate holds; otherwise `rows`. |
+| `master-detail` | Response with one List | `detail` selects the List's members. The List is a direct field of the Response or is reached through struct fields only, never through another List or a Union, so a titled struct can head it (`^<Hub.topics.items>[]`); the Response has no other List on such a path. The Response, with the List, shows in the leading pane; the tapped member's linked page shows in the trailing pane. The member type requires a [`Link`](protocols.md#links). Applies only while the widening gate holds; otherwise `rows`. |
 | `accordion` | Table or List | Folding sections with the [folding](#folding-structs-and-unions) behavior and `initially_open`. |
 | `split` | Table | Two or three `regions` in a `direction`, `row` or `column`. See below. |
+
+<a id="master-detail-panes"></a>
+
+**Master-detail panes.** The leading pane shows the Response, the **leading
+page**; the trailing pane shows the page a member's [link](protocols.md#links)
+opened, whether a Response or a request editor. Both panes belong to the
+endpoint's one working surface, and interaction stays strictly ordered:
+
+- A selection in the leading pane constructs its link against the leading
+  page, also while the trailing pane shows another page.
+- While the trailing pane's editor awaits a reply, a selection is ignored.
+  While that editor is idle, a selection first exits its interaction as Cancel
+  does and then opens the selected member's link.
+- A reply of the leading page's own variant replaces the leading page and
+  empties the trailing pane.
+- **Refresh.** The client keeps the Request that produced the leading page.
+  After a Submit or a previous action in the trailing pane receives any reply
+  that is not an Error, the client sends that kept Request again, unchanged. A
+  link return and a calculation result do not refresh, because the trailing
+  editor stays open.
+- The refresh is an ordinary Request in strict order. While it is pending, the
+  leading pane shows loading and its rows cannot be selected.
+- A refresh reply of the leading page's variant replaces the leading page and
+  keeps the selection. Any other reply is installed as the working surface, as
+  it is on a phone. An Error reply leaves the previous leading page in place
+  and is reported by the standard error procedure.
+
+The kept Request carries the values it had when first sent, such as an
+earlier revision, so the service admits a request that only navigates by
+identity rather than by revision. A tablet therefore sends one Request more
+than a phone does. What is the same on every device is the rule: every
+Request is constructed from a current page by the same construction rules.
+Below the widening gate the layout is `rows`, the linked page replaces the
+working screen, and no refresh is sent.
 
 `sections` is an ordered list of `{ "fields": [...], "title": "KEY" }`
 objects. `fields` names direct children by native name; `title` optionally
 names a package [`StringResources`](#string-resources-and-formatted-output)
 key whose localized text titles the section, and without it the section is
 titled by its first field's display name. A child appears in at most one
-section, and unlisted children go to the last section.
+section, and unlisted children go to the last section. Each section shows its
+listed fields in the listed order, followed by any unlisted children in
+declaration order.
 
 `split` is the one composable layout. Each region has a positive `ratio`, the
 direct children it holds as `fields`, optional `style`, and its own nested
 layout: `rows` (the default), `card`, `form-grid` with its `columns`, or
 another `split` with its own `direction` and `regions`. Splits nest at most
 three levels deep. A child appears in at most one region, and unlisted children
-go to the last region. On `form: phone` a split renders as `rows` unless a rule
+go to the last region. A region shows its listed fields in the listed order,
+followed by any unlisted children in declaration order. On `form: phone` a split renders as `rows` unless a rule
 whose `when` holds on a phone asks for it. A split is how a photo on the left
 with name, date of birth, and employee ID as rows on the right is expressed;
 every other layout arranges all children one way.
@@ -405,6 +446,11 @@ every other layout arranges all children one way.
 | `spacing` | A five-step scale, `0` to `4` |
 | `span` | `1` to `4`: the columns a field takes inside a `form-grid` |
 | `icon` | One of `check`, `warning`, `info`, `lock`, `link`, drawn before the value; with `:condition(...)` it makes a status badge |
+
+Style tokens are visual only. They never disable, hide, or change the
+interaction of what they style: a `muted` row keeps its links and its editing,
+and hiding stays the schema's Hidden. An App that wants a row out of reach
+leaves it out of the data or its allowed choices instead.
 
 Android maps tokens to Material 3 roles and window size classes, iOS to SwiftUI
 roles and size classes, and Studio to its control-view variables. A `media`
@@ -1008,8 +1054,8 @@ and cannot be edited. Nullability follows the ordinary schema contract.
 units; the step must be positive. Dynamic bounds and ValidationRules also
 operate on minor units and preserve exact numeric values. Currency identity
 does not introduce conversion: applications own exchange rates and must keep
-unrelated currencies separate. Money cannot coexist with DateOnly,
-TimeInterval, EnumSource, Bitflags, or PhysicalUnit.
+unrelated currencies separate. Money follows the
+[exclusions of numeric semantic attributes](schema.md#numeric-semantic-exclusions).
 
 Charts retain each source integer for labels, tooltips, category identity, and
 accessibility. Coordinates and synthesized scale ticks use the chart's normal
@@ -1055,8 +1101,8 @@ numeric value and metadata remain intact.
 
 The identifier states the provided unit and never performs conversion.
 `percent` raw `50` means fifty percent; it does not rescale `0.5`. `Format` may
-coexist and formats only the numeric portion. PhysicalUnit cannot coexist with
-DateOnly, TimeInterval, or EnumSource.
+coexist and formats only the numeric portion. PhysicalUnit follows the
+[exclusions of numeric semantic attributes](schema.md#numeric-semantic-exclusions).
 
 AI tool-call descriptions automatically include the exact `PhysicalUnit`
 identifier and explain that no automatic conversion occurs. For `percent`,
@@ -1075,8 +1121,8 @@ combinations, and prohibition of undeclared bits, and include the declared
 flag values and available localized member descriptions. Author the meaning
 and consequences of each flag in its member comments.
 
-Bitflags cannot coexist with DateOnly, TimeInterval, EnumSource, Format, or
-PhysicalUnit.
+Bitflags follows the
+[exclusions of numeric semantic attributes](schema.md#numeric-semantic-exclusions).
 
 ## String resources and formatted output
 
@@ -1559,8 +1605,13 @@ compiles it into the [Display Template](#display-template) as the `fold` hint
 and removes it from the final schema; clients read folding only from the
 template, where a rule may also change it per device.
 
-An unmarked struct, union, or list may show a down arrow, but tapping it or opening its
-menu cannot collapse the fields. A marked value starts expanded, or collapsed
+An unmarked struct, union, or list shows no disclosure control and cannot be
+collapsed. A marked value shows one disclosure chevron at the leading edge of
+its title line, pointing toward the text when collapsed and down when expanded
+(mirrored for right-to-left text), and exposes its expanded state to
+assistive technology. The title line toggles the fold, except on a row that is
+also a [link](protocols.md#links), where only the chevron toggles and the rest
+of the row follows the link. A marked value starts expanded, or collapsed
 when `initially_open` is false, and permits manual collapse and expansion; a
 collapsed value shows only its row, its promoted or data title and value
 included. The initial state applies to rows that exist when a page is

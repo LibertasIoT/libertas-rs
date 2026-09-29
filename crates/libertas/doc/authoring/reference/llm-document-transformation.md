@@ -129,18 +129,50 @@ occurrences do not need an otherwise unused validation fact.
 `LLMDocField` has optional `allowEmpty`. Its default is `true` for a
 non-Nullable Number and `false` for String, Boolean, and Enumeration. A marker
 on a **direct child** of the annotated Table selects that result field. Within
-each selected Table, including a Union variant's Table payload and a List item
-Table, marking one or more direct children selects **only those children** for
-that Table's result object. If none of that Table's direct children is marked,
-all its unprotected children are selected. Mark each intermediate composite
-whose descendants are selected. A nested scalar marker also sets its
-`allowEmpty` rule. A selected Union still requires one complete `variant` and
-`value` wrapper, but its selected variant's `value` may contain only the marked
-payload fields. Marking one or more direct variants of a selected Union limits
-its result schema to those variants; with no marked variant, all unprotected
-variants remain available, subject to ordinary choice constraints. Marked
-variants must be capable of producing a result. A marker on a variant's payload
-field follows the same Table selection rule.
+each selected Table, including a List item Table, marking one or more direct
+children selects **only those children** for that Table's result object. If
+none of that Table's direct children is marked, all its unprotected children
+are selected. Mark each intermediate composite whose descendants are selected.
+A nested scalar marker also sets its `allowEmpty` rule.
+
+A selected Union imports its variant choice, and a variant's payload fields
+**only when they are marked**. The all-children default above does not apply to
+Union payloads: a variant's payload usually holds facts the chosen option leads
+to, not values printed on the document. Marking one or more direct variants of
+a selected Union limits its result schema to those variants; with no marked
+variant, all unprotected variants remain available, subject to ordinary choice
+constraints. Marked variants must be capable of producing a result.
+
+A variant's payload is either a Table or a single non-Table value. A Table
+payload has the same meaning however it is declared (a Rust struct variant
+`V { a, b }`, a Rust `W2(W2)`, or a TypeScript interface member): its fields
+import only when marked, as above. A single non-Table value, such as a Rust
+tuple variant `Allocated(i64)`, has no field to mark; that value is the
+variant's one payload field, named by the variant, and it is **always marked**.
+A Nil (unit) variant has no payload field.
+
+- When at least one variant has a marked payload field, the result is a
+  `variant`/`value` wrapper. `value` contains that variant's marked payload
+  fields, following the Table selection rule inside them, and is an empty
+  object for a variant with none marked.
+- When no variant has a marked payload field, the Union is **variant-only**
+  and is projected and converted exactly as an **Enumeration** of its
+  available variant names, so a printed code can be imported without the model
+  answering the facts that code leads to.
+
+When the chosen variant equals the current one, the client keeps the variant
+and every payload value the result does not supply, in its current state:
+an unanswered field stays unanswered and is validated as it was before the
+import, so it does not reject the proposal. A different variant is
+applied exactly as if the user had chosen it in the editor: its unmarked
+payload fields receive normal construction and initialization, and required
+ones without a value stay unanswered. The proposal is not rejected for them.
+The result is the same state a manual choice of that variant produces:
+incremental validation runs as it does after that choice, and every rule a
+manual choice would defer (mandatory values, final-only ValidationRules, and
+cross-field rules that read an unanswered field) is deferred to Submit's final
+validation, which requires them as usual. The editor shows the unanswered
+fields for the user to answer.
 At least one direct child of the annotated root Table must be marked. Normal editor construction supplies
 the bound struct occurrence before the action runs.
 
@@ -154,7 +186,8 @@ them: omit those properties from the generated output schema and preserve their
 normal values when updating the existing record. New List rows or Union payloads
 receive them through normal field initialization, such as Fixed, Default, or
 the existing construction rules. If a required value remains unavailable,
-normal validation rejects the proposal. The model never supplies it. ReadOnly
+normal validation rejects the proposal, except for the unmarked payload fields
+of a newly chosen Union variant, described above. The model never supplies it. ReadOnly
 results retain their normal visible presentation.
 For an existing Table or the same Union variant, omitted fields keep their
 current typed values, including visible fields that were outside the result
@@ -296,6 +329,17 @@ representation into the destination's actual Libertas type with its ordinary
 value codecs and validation rules; JSON primitive types do not replace the
 App's semantic types.
 
+**Every generated schema node carries a `description`**, except a `$ref`
+node. It is built from the node's Display Name and Description, the same text the
+user reads, so the model maps what is printed on the document to the right
+property. A `$ref` node carries no sibling keyword, because structured-output
+providers reject keywords beside `$ref` (OpenAI does); the referenced
+definition in `$defs` carries its type's `description` instead. A value whose choices
+are listed by `enum` (an Enumeration, a variant-only Union, or dynamic
+EnumSource) also describes every choice in that `description`: each canonical
+name followed by its Display Name and Description, for example
+`DirectRollover: G — direct rollover`.
+
 | Libertas value | Model JSON and client conversion |
 | --- | --- |
 | String | JSON string; preserve text, applying the declared blank rule. |
@@ -306,14 +350,15 @@ App's semantic types.
 | TimeOnly | `HH:mm:ss` string; convert to seconds from local midnight under the normal TimeOnly rules. |
 | Money | Decimal major-unit string in the declared currency; convert exactly to integer minor units using the declared scale. Reject excess fractional precision and overflow. |
 | TimeInterval | Decimal seconds string; convert to the declared numeric duration type and bounds. |
-| Enumeration | Canonical member-name string constrained by `enum`; map to its declared Fixed value or ordinal. |
+| Enumeration | Canonical member-name string constrained by `enum`, with every member's Display Name and Description in the `description`; map to its declared Fixed value or ordinal. |
 | Dynamic EnumSource | Canonical decimal index string constrained by `enum` to the currently permitted indices. Include the corresponding current choice values in schema descriptions. Resolve the returned index through that same choice snapshot and normal constraint rules. |
 | Bitflags | Decimal mask string with the declared catalog described in the schema; convert exactly and reject undeclared bits. |
 | User, Device, LanDevice, VirtualDevice, Endpoint | Decimal identity string; convert without precision loss and apply the ordinary identity/selector constraints. Include the current permitted candidates and their meanings when the editor provides a choice set. |
 | Bytes | Base64 string; decode to Bytes and enforce ordinary byte constraints, including LMB1 or formatted-value rules when annotated. |
 | Table | JSON object with every selected child required and no extra properties; recursively convert children while preserving omitted values in an existing Table or unchanged Union variant. |
 | List | JSON array; recursively convert every element and enforce its declared size and element constraints. |
-| Union | An `anyOf` of variant objects, each with required `variant` and `value` properties and no extras. `variant` is that branch's canonical name; `value` follows that payload's selected field schema. Convert through the ordinary Union discriminator and payload codec. |
+| Union with a marked payload field | An `anyOf` of variant objects, each with required `variant` and `value` properties and no extras. `variant` is that branch's canonical name; `value` holds that variant's marked payload fields (an empty object when it has none). Convert through the ordinary Union discriminator and payload codec. |
+| Union with no marked payload field (variant-only) | As an Enumeration of its available variant names. Keep the current variant and payload when it is unchanged; otherwise select it as the editor does, with normal payload initialization. |
 | Nil | JSON null. |
 | Nullable | Add null to that value's JSON schema; a returned null clears the typed value. Never add Nullable merely for recognition. |
 
@@ -332,6 +377,47 @@ reference values belong to the pending transaction snapshot. If they change
 before application, discard the result as stale. A choice cannot
 be silently reinterpreted against a newer list.
 
+### Array import
+
+A file often holds several forms of one type: separate forms for several
+accounts, or a consolidated statement. When the annotated struct occurrence
+lies anywhere inside an editable List item, directly or through nested Tables
+and Union payloads, its **AI Import** action imports an array. The struct type
+of the occurrence the action is on decides what is imported: only forms of that
+type.
+
+- The output schema is a JSON object with one required property, `forms`: an
+  array whose every element is that struct's selected result object, as for a
+  single import, with at least one element. The root stays an object because
+  structured-output providers (OpenAI) require one.
+  The client appends to the instruction that the model returns one element per
+  distinct form in the files, that the files may contain duplicate copies of a
+  form which count once, and ignores forms of other types and pages that are
+  not forms.
+- The first element replaces the occurrence the action is on, exactly as a
+  single import does.
+- Each further element is **appended** as a new item of the nearest enclosing
+  List. The new item is constructed by normal initialization; every Union on
+  the path from that item down to the struct selects the same variant as in the
+  current item, as a manual choice does, and the element is then applied to the
+  new occurrence as a single import. Other fields of the new item (for example
+  its owner) keep their normal initialization. Existing items are never
+  changed or removed.
+- The App's `instruction` names what a duplicate looks like for its form (for
+  example a tax form's Copy B, Copy C and Copy 2 printed on one page); the
+  client's appended text stays generic.
+- Duplicates are dropped: a file may hold several copies of one form, though
+  not always. After conversion the client
+  drops an element to be appended whose imported values exactly equal another
+  element of the same result, or those of an existing item at the same struct
+  position (the same file imported again). The review states how many
+  duplicates were skipped.
+- Each element is converted and validated like a single result, and the whole
+  proposal is one editor change: if any element fails, or the appended items
+  would exceed the List's declared size, nothing is applied.
+- A struct occurrence outside any List, or inside a List whose membership is
+  ReadOnly, keeps the single import.
+
 ## Client workflow
 
 The **AI Import** action (Chinese: **AI导入**) first offers **Take a picture**
@@ -348,9 +434,21 @@ source is never upscaled. PDF bytes remain unchanged. Clients check the combined
 
 The client uses a session-unique unsigned 64-bit transaction ID. A pending
 action belongs to its originating Control session, editor, struct occurrence,
-selected files, validation value, and result-field state. A relevant edit,
-file change, navigation, or disconnect makes its reply stale. Only the matching
-pending reply can change the editor. On success, the client checks the JSON
+selected files, validation value, and result-field state. A cancel, timeout,
+navigation, or disconnect, or a change to a relevant value while it is pending
+(for example an arriving calculation result), makes its reply stale. Only the matching
+pending reply can change the editor.
+
+AI Import is blocking. While its transformation is pending, the client shows a
+busy overlay over the whole editor with a **Cancel** action; the editor and its
+actions accept no input, so no edit can make the pending reply stale and no
+second transformation or Submit can start. The busy state ends, and the editor
+accepts input again, when the matching reply arrives (a result is applied as
+above; an error is reported), when the user cancels, when the timeout elapses,
+or when the Control session disconnects. Cancel, timeout, and disconnect
+discard the pending action, so a late reply is ignored; an error, a timeout, or
+a disconnect is reported to the user, who can retry. Navigating away from the
+editor also discards it. On success, the client checks the JSON
 shape, strictly converts each value, validates the complete candidate, and
 applies all selected fields in one normal editor change, including values
 supplied by a Schema Default. Ordinary drafts and calculations remain active.

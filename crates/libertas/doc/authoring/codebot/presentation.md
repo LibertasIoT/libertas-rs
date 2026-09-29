@@ -45,7 +45,12 @@ Write each rule as four relations:
   where a rule asks; `table` and `master-detail` also need the widening gate
   (`form` `tablet` or `desktop`, or `width: expanded` without `height:
   compact`) and otherwise render as `rows`. `master-detail` needs a `Link` on
-  the member type. `split` nests at most three levels and renders as `rows` on
+  the member type; its List may sit under struct fields (not a List or Union),
+  so a titled struct can head it. After a Submit or previous action in
+  the trailing pane gets a non-Error reply, the client re-sends the Request
+  that produced the leading page
+  ([panes](../reference/presentation.md#master-detail-panes)), so admit
+  navigation requests by identity, not by revision. `split` nests at most three levels and renders as `rows` on
   phones unless a phone rule asks for it. There is no `stepper`: Studio
   rejects it and clients draw `rows`. Sequential screens are a
   [workflow](../reference/protocols.md#workflow-interactions), where the
@@ -167,7 +172,7 @@ plus ordered typed Libertas Message Arguments; never store it in a String or
 Base64-wrap it in App code. Use `libertasFormattedText(...)` in TypeScript or
 `libertas_formatted_text(...)` in Rust. **Every FormattedText node must be
 statically ReadOnly**, including output and dormant types: use its field/type
-or an enclosing ReadOnly Table. A ReadOnly List protects membership only.
+or an enclosing ReadOnly Table. A ReadOnly List protects membership and order, not member values.
 Requests may carry copied values (including enclosing/root copies), supplied
 EditRequest values, or Default/Fixed values; no leaf CopyFrom is required when
 those supply it. Required undefined values block submission. Function/configuration

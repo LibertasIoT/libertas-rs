@@ -32,6 +32,7 @@ unless the author explicitly writes `FinalOnly=false;`. There is no separate
 | Active Union variant | `[value] is VariantName` |
 | Lists and collections | `all`, `any`, `none`, `collect`, `is_unique_set`, `count` |
 | String length | `length([name])` |
+| FormattedText resource key (locale independent) | `resource([status]) == "STATUS_NONE"` |
 
 Square paths start at the annotated value (or a function's synthetic argument
 Table). Curly paths read the interaction's

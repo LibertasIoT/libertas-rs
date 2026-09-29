@@ -145,7 +145,7 @@ handling.
 | Calculation CopyFrom/CopyTo | Root-relative copy syntax, parent-relative `^`/`^^`, relaxed `^<Type>`, or strict `^<Variant.field.item>` with a field/index suffix | Inputs use the current-editor-first lookup defined by the [interaction reference-context owner](protocols.md#interaction-reference-context); the editor and a reference object may designate the same value. CopyTo addresses the corresponding bound current-request destination. See [calculation requests](protocols.md#field-calculation-requests). A [link](protocols.md#links) declared in a request editor constructs its target and applies its [return](protocols.md#link-return) the same way, with the host field's occurrence bound self-inclusively and parent-relative `^` stepping from the host field. |
 | AppendTo | Exactly one `Variant.field` using native names | A root array of an admitting working SubscriptionData; see [array append](protocols.md#subscriptiondata-array-append). |
 | AppendIndex | Exactly one root-field `$.field` | A non-null integer control field in the incoming append report; never copied as ordinary data. |
-| ConstrainedBy | Exactly one root-relative copy path | Request-field form: current request's selected payload. Response form: that response's payload. It is neither an interaction reference-context read nor an alternatives list. |
+| ConstrainedBy | Request-field form: exactly one root-relative copy path, or one or more `^` followed by named child segments. Response form: exactly one root-relative copy path | Request-field form: `$` is the current request's selected payload; `^` steps from the constrained field to its actual value-tree parents, so each List row can carry its own allowed set. Response form: that response's payload. It is neither an interaction reference-context read nor an alternatives list. |
 | CopyTo-directed reduced SubscriptionData | One or more comma-delimited strict `^<StableVariant>` or `^<StableVariant.field...>` destinations | Each admitted stable working value, subject to the shared destination-uniqueness rule above. |
 | ValidationRules, RangeMin, RangeMax: current-data reference | `[name/child]`, `[items/0/name]`, or `[]`; an in-scope cursor can be the first segment | The attribute owner's evaluation root or the concrete node bound to that cursor. |
 | ValidationRules, RangeMin, RangeMax: external reference | `{$.name}` or `{$.first,$.fallback}`; dot-separated fields only | The same interaction reference context in its defined source order, including editable-request and inherited rules. |
@@ -691,7 +691,7 @@ by the current parsers and shared validator.
 | `ReadOnly` | Value is displayed but not user-editable. Initialization, CopyFrom, EditRequest, calculation CopyTo and draft restoration still write it; only `Fixed` protects a value. See the [ReadOnly rule](presentation.md#common-field-metadata). |
 | `Hidden` | Value is hidden from ordinary editors. On a chart carrier table, composition, or chart-bearing Union variant wrapper, it also marks direct non-chart fields as preserved transaction context that renderers exclude from chart projection. |
 | `TableHeader` | Parser result only; compiled into the Display Template. Presence enables [header promotion/type flattening](presentation.md#tableheader-promoted-fields-and-union-selectors). Its Boolean string value encodes use_parent_name: true (default and existing schemas) uses the parent display name; false uses the field name. On a struct declaration, false hides its name-only row. Union values remain selected-variant display names. |
-| `UIName` | Its value names a sibling field. The marked String or FormattedText field's value titles the struct's row and the named field's value is the row's value ([data-titled rows](presentation.md#uiname-data-titled-rows)); neither has a row of its own, and a List member so titled drops its position. Studio enforces the placement rules there. |
+| `UIName` | Its value names a sibling field. The marked String or FormattedText field's value titles the struct's row and the named field's value is the row's value ([data-titled rows](presentation.md#uiname-data-titled-rows)); neither has a row of its own, and a List member so titled keeps its List's title in front unless SuppressTitle removes it. Studio enforces the placement rules there. |
 | `SuppressTitle` | Parser result only; compiled into the Display Template. Marker on a List whose effective member type is a Table: the List contributes no title to its member rows, neither member name nor position ([untitled List members](presentation.md#suppresstitle-untitled-list-members)). |
 | `Link` | One non-empty Request variant native name of the same Endpoint protocol Union, never a list, on any field or on a Table, Union, or Enumeration type declaration; the field's target wins over its type's. Tapping the displayed node opens that Request ([links](protocols.md#links), [rendering](presentation.md#link-rendering)). |
 | `InlineChoices` | Parser result only; compiled into the Display Template. Exact marker value `true` on an Enumeration or Union field or type declaration, never a Bitflags catalog. Clients show the permitted choices inline as radio controls ([inline choices](presentation.md#inline-choices)). |
@@ -801,8 +801,9 @@ spellings are normative in the
 rules, provided-unit/no-conversion rule, localization behavior, chart surfaces,
 and compatibility requirements are normative in
 [Client-side charting §5.5.1](charts/2d.md#551-physical-units).
-It is valid only on `Number`, cannot coexist with `DateOnly`, `TimeInterval`, or
-`EnumSource`, and never changes raw constraints, storage, requests, grouping,
+It is valid only on `Number`, follows the
+[exclusions of numeric semantic attributes](#numeric-semantic-exclusions),
+and never changes raw constraints, storage, requests, grouping,
 or scale geometry. Invalid CLDR identifiers and invalid placement are schema
 errors. The schema accepts generated CLDR compound identifiers such as
 `millimeter-per-day` independently of any particular client's ICU catalog. A
@@ -866,8 +867,9 @@ updatedAt: LibertasDateTime;
 ```
 
 `Format` is valid only on the four effective hosts above and may be inherited
-through a named type. On an ordinary `Number` it cannot coexist with
-`TimeInterval` or `EnumSource`; on a `DateOnly` Number it uses date-pattern
+through a named type. On an ordinary `Number` it follows the
+[exclusions of numeric semantic attributes](#numeric-semantic-exclusions);
+on a `DateOnly` Number it uses date-pattern
 grammar. It may coexist with `PhysicalUnit`, in which case it formats only the
 numeric portion and the unit remains separate localized semantic metadata.
 Money uses the [exact currency editor](presentation.md#money). Other editors retain native number/date/time controls and may show a formatted
@@ -893,8 +895,8 @@ rejected.
 chooser. For example, August 15, 2026 is stored as `20260815`; the chooser may
 display `2026-08-15` and serializes the selection back to `20260815`.
 The marker accepts no arguments,
-requires an effective integer `NumberType`, and cannot be combined with
-`TimeInterval` or `EnumSource`.
+requires an effective integer `NumberType`, and follows the
+[exclusions of numeric semantic attributes](#numeric-semantic-exclusions).
 When `Format` is present, its date pattern replaces only the localized label;
 the chooser and encoded value remain governed by this `DateOnly` contract.
 
@@ -921,8 +923,10 @@ from the selected Hub during deployment planning, materializes its catalog and
 localized document for validation/UI, and records its authoritative version in
 the final `AppDependencies`. Documents localize Enumeration members in the
 normal way. Read-only surfaces join the selected localized names with `, `;
-editors use a multiple-choice chooser and encode the bitwise union of the
-choices. The zero label is shown only for an empty selection.
+editors use a multiple-choice chooser, one checkbox per nonzero member, and
+encode the bitwise union of the choices. The zero member is never a choice:
+leaving every box unchecked is the empty selection `0`, and the zero label is
+shown only as the read-only text of an empty selection.
 
 ```json
 {
@@ -942,8 +946,28 @@ choices. The zero label is shown only for an empty selection.
 storage, protocol compatibility, or any Hub parser/runtime behavior; the field
 is encoded exactly as its `NumberType`. Studio/shared schema validation owns
 the portable catalog rules, while Studio clients own UI presentation and
-runtime-mask validation. `Bitflags` cannot be combined with `DateOnly`,
-`TimeInterval`, `EnumSource`, `Format`, or `PhysicalUnit` on the same number.
+runtime-mask validation. `Bitflags` follows the
+[exclusions of numeric semantic attributes](#numeric-semantic-exclusions).
+
+<a id="numeric-semantic-exclusions"></a>
+
+**Exclusions of numeric semantic attributes.** Each of these attributes gives
+a Number one meaning, so two of them cannot stand on the same number unless
+the table permits the pair. The relation is symmetric. Studio rejects an
+excluded pair on the effective attributes of the field and its type.
+
+| Attribute | Cannot coexist with |
+| --- | --- |
+| `DateOnly` | `TimeInterval`, `EnumSource`, `PhysicalUnit`, `Money`, `Bitflags` |
+| `TimeInterval` | `DateOnly`, `PhysicalUnit`, `Money`, `Bitflags`, `Format` |
+| `EnumSource` | `DateOnly`, `PhysicalUnit`, `Money`, `Bitflags`, `Format` |
+| `PhysicalUnit` | `DateOnly`, `TimeInterval`, `EnumSource`, `Money`, `Bitflags` |
+| `Money` | `DateOnly`, `TimeInterval`, `EnumSource`, `PhysicalUnit`, `Bitflags` |
+| `Bitflags` | `DateOnly`, `TimeInterval`, `EnumSource`, `PhysicalUnit`, `Money`, `Format` |
+| `Format` on a Number | `TimeInterval`, `EnumSource`, `Bitflags` |
+
+`Format` may stand with `DateOnly`, `Money`, or `PhysicalUnit`: it then
+formats the date, the amount, or the numeric portion.
 
 `FormattedText` follows the [static read-only placement and request-value
 contract](presentation.md#static-read-only-placement-and-request-values),
@@ -1080,7 +1104,7 @@ a submitted mismatch by replacing the value. Client autofill, ReadOnly, Hidden,
 labels, and a claimed user ID in the payload are never evidence of identity.
 
 The same requirement applies to ordinary requests, subscription requests,
-workflow submissions, and AI tool calls. An App-to-App or forwarded invocation
+workflow submissions, calculation requests, and AI tool calls. An App-to-App or forwarded invocation
 without a trusted authenticated user binding MUST be rejected when it requires
 this constraint; the App owner or a user ID copied from another invocation is
 not a substitute. Copies and supplied EditRequest values retain their bytes
@@ -1772,8 +1796,9 @@ the compatible package.
 
 ## 9. Static and runtime validation
 
-Schema generation performs static validation before deployment. The shared layer
-currently enforces:
+Schema generation performs static validation before deployment. The section
+that owns an attribute or mechanism states its checks; the shared layer
+enforces those and, among others, the following:
 
 - `TypesOnly` multiplicity, marker value, and empty functions;
 - exact function-only `Singleton=true` placement and multiplicity;
