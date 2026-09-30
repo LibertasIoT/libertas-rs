@@ -227,6 +227,13 @@ cancel or continue. Missing configuration permission produces a localized
 failure identifying the tasks that need permission; removal cannot continue.
 The Hub's object-removal handling performs the actual configuration cleanup.
 
+Removing a task removes its persistent data. The confirmation lists every
+affected task together with the effect on it. An argument of another task that
+bound an Endpoint of the removed task is set to null. The Hub then validates
+that task's arguments: when they are still valid, the task is restarted
+automatically with the new arguments; otherwise it is disabled with the new
+arguments.
+
 The Hub repeats the same analysis immediately before executing removal. An
 earlier successful probe cannot bypass a later permission change. If the Hub
 cannot inspect the complete task configuration, it reports a failed check and

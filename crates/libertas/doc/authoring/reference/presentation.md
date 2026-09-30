@@ -94,11 +94,13 @@ owns its identity and delivery.
   A package with no presentation attributes and no `display.json` compiles to
   the empty template. The empty template is valid, has a digest and a
   documents-manifest entry, and renders exactly the platform default.
-- **Sole runtime owner of presentation.** Clients read TableHeader promotion
-  and flattening, folding, inline choices, SuppressTitle, UIIncludeDescription,
-  the `Format` display pattern, and chart appearance only from the template.
-  The source attributes remain the authoring convenience: Studio validates
-  them, compiles every occurrence into a template rule at the lowest
+- **Sole runtime owner of presentation.** Clients read promotion and
+  flattening, titles, folding, inline choices, SuppressTitle,
+  UIIncludeDescription, the `Format` display pattern, and chart appearance only
+  from the template. Promotion, flattening, labels, and titles are authored
+  only as template rules.
+  The other source attributes remain the authoring convenience: Studio
+  validates them, compiles every occurrence into a template rule at the lowest
   specificity, and removes them from the final schema. Each attribute's section
   below keeps its authoring text and meaning; the template is where that
   meaning reaches a client.
@@ -130,25 +132,28 @@ three tests in order:
    dates, formatted text, labels, help text, and which fields a chart encodes
    are schema; meaning is content, localized with the strings.
 3. **Would a different choice be right on another screen size?** Promotion,
-   folding, inline choices versus a chooser, an inline description, density,
-   arrangement, and chart appearance are template, with the source attribute as
-   the default rule.
+   flattening, folding, inline choices versus a chooser, an inline
+   description, density,
+   arrangement, and chart appearance are template, with a source attribute,
+   where one exists, as the default rule.
 
-| Schema only | Compiled into the template (the source attribute is the default rule) |
+| Schema only | Template (a source attribute, where one exists, is the default rule) |
 | --- | --- |
-| Hidden, ReadOnly, Fixed, Default, Nullable, Size, Number ranges, Unique, Unordered | TableHeader promotion and flattening, with `use_parent_name` |
+| Hidden, ReadOnly, Fixed, Default, Nullable, Size, Number ranges, Unique, Unordered | `promote` with `use_parent_name`, and `flatten` with `name_row` |
 | ValidationRules, RangeMin, RangeMax, EnumSource, ConstrainedBy | Foldable and `initially_open` |
 | CopyFrom, CopyTo, CalculationRequest, Link, LinkOnly, RequestConfirmation | InlineChoices |
 | NextRequest, NextResponse, PrevRequest, WorkflowRequest, DefaultRequest, ExcludeUI | SuppressTitle, UIIncludeDescription |
 | AccessPrivilege, CacheIdentity | `Format` display pattern and precision, never the value or currency |
-| Money, PhysicalUnit, DateOnly, FormattedText, UIName, descriptions | Chart scale type, guide position, and palette |
-| Chart channel bindings: which field is x, y, color, or tooltip | Template-only concepts: layout, density, emphasis, device conditions |
+| Money, PhysicalUnit, DateOnly, FormattedText, display names, descriptions | Chart scale type, guide position, and palette |
+| Chart channel bindings: which field is x, y, color, or tooltip | Template-only concepts: layout, density, emphasis, `label` and `title`, device conditions |
 
 Unordered and ExcludeUI look presentational, but the wire and the protocol
 depend on them, so they stay in the schema. `Format` looks semantic, but
 `Money` already carries the currency and the precision that matter to the
-value, so the display pattern moves. Studio enforces the table: a rule member
-that is not in the [catalog](#display-template-catalog), including every
+value, so the display pattern moves. [`label` and `title`](#labels-and-titles) look like
+schema labels, but the node's display name stays its meaning in the schema;
+they change only what a person sees, so they are template. Studio enforces the table: a rule
+member that is not in the [catalog](#display-template-catalog), including every
 schema-only attribute, is rejected.
 
 ### Display Template file
@@ -170,7 +175,7 @@ Studio, see [the Studio MCP live-preview guide](../guides/studio.md#live-preview
   "rules": [
     { "select": "^<Hub.topics>[]", "layout": "rows", "style": { "emphasis": "primary" } },
     { "select": "^<Hub>", "when": { "form": "tablet" }, "layout": "master-detail",
-      "detail": "^<Hub.topics>[]", "refresh": "OpenHub" },
+      "detail": ["^<Hub.told>", "^<Hub.topics>[]"], "refresh": "OpenHub" },
     { "select": "^<Review.return_lines>", "when": { "form": "desktop" }, "layout": "table",
       "columns": ["form_line", "amount"] },
     { "select": "^<IncomeDocumentItem>", "layout": "card", "when": { "form": "phone" } },
@@ -200,6 +205,9 @@ A rule is one JSON object with these members:
 | `when` | No | A [device condition](#display-template-conditions). Without it the rule applies on every device. |
 | `layout` | No | One [catalog layout](#display-template-catalog), with the layout-specific members its row names. |
 | `style` | No | An object of [style tokens](#style-tokens). |
+| `label` | No | Replaces the node's displayed name and keeps its value ([labels and titles](#labels-and-titles)): `{ "field": "path" }` takes the text from a String or FormattedText field below the node, and a string names a fixed `StringResources` key. |
+| `title` | No | Replaces the node's whole row, label and value, with its text, in the same two forms ([labels and titles](#labels-and-titles)). |
+| `flatten` | No | Draws a struct's, List's, or Union's children at that node's own indentation ([flattening](#flatten)): `true`; `false`, which undoes a flattening that a lower-ranked rule set; or `{ "name_row": false }` on a struct to remove its name-only row as well. |
 | `inline`, `fold`, `promote`, `suppress_title`, `include_description`, `format`, `scale`, `guide`, `palette` | No | [Behavior hints](#behavior-hints). |
 | `switch` | No | A [conditional switch](#display-template-switch) whose chosen case supplies the presentation members. A rule with `switch` has no other presentation member. |
 
@@ -225,10 +233,9 @@ Studio compiles one template document per package, in this order:
 ```
 
 That is the empty template. Each derived rule reproduces its source
-attribute's meaning exactly, including direct declaration lookup: a TableHeader
-on a field yields a field `promote` rule and one on a type yields a type
-`promote` rule, and neither is inherited through effective-attribute
-resolution. The compiled template is derived and never edited by hand. Its
+attribute's meaning exactly, including direct declaration lookup: a Foldable
+on a field yields a field `fold` rule and one on a type yields a type `fold`
+rule, and neither is inherited through effective-attribute resolution. The compiled template is derived and never edited by hand. Its
 identity is the SHA-256 digest of its canonical JSON, computed with the same
 canonicalization as the [schema revision digest](schema.md#113-revision-digest).
 `compile_schema` with `includeArtifacts` returns it beside each package's
@@ -243,13 +250,15 @@ highest-ranked applicable rule that sets that member wins, and a layout
 resolves together with its layout-specific members. Ranks, lowest first:
 
 1. the platform default;
-2. a rule derived from a source attribute (`defaults`);
-3. a relaxed-type rule: a selector whose first form is `^<Type>`, or any
+2. a rule of another package's compiled template, on a node that package
+   declares; among these rules, that template's own ranks and order decide;
+3. a rule derived from a source attribute (`defaults`);
+4. a relaxed-type rule: a selector whose first form is `^<Type>`, or any
    selector using `...`;
-4. the same with a `when` condition;
-5. a strict-path rule: `^<Variant>`, `^<Variant.field...>`, `^<function...>`,
+5. the same with a `when` condition;
+6. a strict-path rule: `^<Variant>`, `^<Variant.field...>`, `^<function...>`,
    or `$.field`, with or without `[]`;
-6. the same with a `when` condition.
+7. the same with a `when` condition.
 
 Among rules of equal rank, the later rule in compiled order wins. Data
 conditions, pseudo-states, and switches gate a rule; they never change its
@@ -260,10 +269,13 @@ never does.
 A screen uses the full template of the package that owns its displayed root:
 the Endpoint protocol Union's package for a protocol screen, and the function's
 package for a configuration editor or stored data. Nodes declared by another
-package additionally receive that package's `defaults`, so a type keeps its
-authored presentation wherever it is shown; the other package's `display.json`
-rules do not apply outside its own screens. Every package template a screen
-needs arrives with its schema.
+package additionally receive that package's compiled template, its
+`display.json` rules included, at rank 2, below every rule of the screen's own
+package. A dependency's rule applies where its selector, resolved against that
+package's schema, matches a node that package declares. A type therefore keeps
+its authored presentation wherever it is shown, the using package can still
+change it, and a TypesOnly package may ship a `display.json` for its types.
+Every package template a screen needs arrives with its schema.
 
 ### Display Template conditions
 
@@ -376,29 +388,47 @@ client that meets it draws `rows` under the forward-tolerant rule.
 | `card` | Table or List member | A bordered block titled by the node's header text. |
 | `table` | List of Tables with scalar fields | One row per member; `columns` names the member fields shown, in order; an optional `sort` names one of them and orders the rows ascending by it for display only, never changing the List. Applies only while the [widening gate](#display-template-conditions) holds; otherwise `rows`. |
 | `tabs` | Union, or Table with `sections` | One tab per Union branch or section. |
-| `master-detail` | Response with one List | `detail` selects the List's members, and the optional `refresh` names the [refresh request](#master-detail-panes). The List is a direct field of the Response or is reached through struct fields only, never through another List or a Union, so a titled struct can head it (`^<Hub.topics.items>[]`); the Response has no other List on such a path. The Response, with the List, shows in the leading pane; the tapped member's linked page shows in the trailing pane. The member type requires a [`Link`](protocols.md#links). Applies only while the widening gate holds; otherwise `rows`. |
+| `master-detail` | Response | `detail` is a non-empty array of selectors that declare the **detail nodes**: an entry ending in `[]` selects the members of a List, and any other entry selects one node. Each selected List and node lies in the Response and is reached through struct fields only, never through another List or a Union, so a titled struct can head a List (`^<Hub.topics.items>[]`). Every detail node carries a [`Link`](protocols.md#links). The optional `refresh` names the [refresh request](#master-detail-panes). The Response shows in the leading pane; the page that a detail node's link opens shows in the trailing pane. Applies only while the widening gate holds; otherwise `rows`. |
 | `accordion` | Table or List | Folding sections with the [folding](#folding-structs-and-unions) behavior and `initially_open`. |
 | `split` | Table | Two or three `regions` in a `direction`, `row` or `column`. See below. |
 
 <a id="master-detail-panes"></a>
 
 **Master-detail panes.** The leading pane shows the Response, the **leading
-page**; the trailing pane shows the page a member's [link](protocols.md#links)
-opened, whether a Response or a request editor. Both panes belong to the
+page**; the trailing pane shows the page that the [link](protocols.md#links)
+of a detail node opened, whether a Response or a request editor. The rule's
+`detail` array alone decides which nodes are detail nodes; no field name has a
+meaning of its own. A link on any other node of the leading page, and an
+action of the leading page, behave as they do below the widening gate: their
+result replaces the whole working surface, both panes. Both panes belong to the
 endpoint's one working surface, and interaction stays strictly ordered:
 
+- Navigation happens from the leading pane. The trailing pane shows no Back
+  control of its own and offers one **Close** control on every page it shows,
+  a displayed Response as well as an editor, in place of an editor's Cancel.
+  Close empties the trailing pane, sends nothing, and keeps the leading page.
+  The workflow's previous action, which sends a request, stays available.
+  Close is inactive while the refresh is pending and while the trailing page
+  awaits a reply; the [leaving rule](protocols.md#exit-while-pending) then
+  governs leaving.
+- The platform's Back acts on the working surface as a whole, by the
+  [landing rule](protocols.md#control-endpoint-landing-and-native-back) and,
+  while an operation is pending, by the
+  [leaving rule](protocols.md#exit-while-pending); it never navigates within
+  the trailing pane.
 - A selection in the leading pane constructs its link against the leading
   page, also while the trailing pane shows another page.
 - While the trailing pane's editor awaits a reply, a selection is ignored.
-  While that editor is idle, a selection first exits its interaction as Cancel
-  does and then opens the selected member's link.
+  While that editor is idle, a selection first closes the trailing pane as
+  Close does and then opens the selected detail node's link.
 - A reply of the leading page's own variant replaces the leading page and
   empties the trailing pane.
 - **Refresh.** The rule's `refresh` member names one Request variant of the
   same protocol, the **refresh request**. It is a pure navigation request: it
   changes nothing in the service and answers with the current leading page.
   After a Submit or a previous action in the trailing pane receives any reply
-  that is not an Error, the client constructs the refresh request from the
+  outside the failure class, which is neither a failure status nor an Error,
+  the client constructs the refresh request from the
   current leading page by the ordinary construction rules, with no bound
   member, and sends it. The client never sends again the Request that
   produced the leading page, which may have been a save. A
@@ -407,11 +437,58 @@ endpoint's one working surface, and interaction stays strictly ordered:
   refresh, and none is sent. Without `refresh` no refresh is sent: the leading
   page stays as shown, or a subscription's reports keep it current.
 - The refresh is an ordinary Request in strict order. While it is pending, the
-  leading pane shows loading and its rows cannot be selected.
-- A refresh reply of the leading page's variant replaces the leading page and
-  keeps the selection. Any other reply is installed as the working surface, as
-  it is on a phone. An Error reply leaves the previous leading page in place
-  and is reported by the standard error procedure.
+  working surface accepts no operation: the leading pane shows loading and its
+  rows cannot be selected, and the trailing pane's editor accepts no edit,
+  link, document import, Submit, or previous action until the refresh reply.
+- A refresh reply of the leading page's variant replaces the leading page. Any
+  other reply is installed as the working surface, as it is on a phone. An
+  Error reply leaves the previous leading page in place and is reported by the
+  standard error procedure.
+- **A new page from the trailing pane.** When any operation in the trailing
+  pane, a Submit, a previous action, a link, or an action of a displayed
+  Response there, receives a reply that installs a page, and the page is not
+  of the leading page's variant, the client holds that page without drawing
+  it, sends the refresh request, and places the page when the refresh reply has
+  been applied; without `refresh` it places the page against the leading page
+  as shown. If the refresh reply is installed as the working surface, the held
+  page is not shown. If the refresh fails, with a failure status or an Error,
+  the leading page stays as shown, the failure is reported by the standard
+  error procedure, and the held page is placed against that leading page.
+- **Matching a page to a detail node.** For each detail node of the current
+  leading page, the client constructs the request that the node's link would
+  send. That request **completely matches** a page when both hold:
+  - **Variant.** The Protocol Variant of the reply that installed the page is
+    one that the request's `NextResponse` names: the Response variant, or the
+    Request variant that an EditRequest delivered.
+  - **Fields.** Every field of the request, nested and Hidden fields included,
+    is present in the page at the same place below its variant, under the same
+    native name, with an equal value.
+
+  Every detail node is tried. When several match completely, the node whose
+  request has the most fields is chosen, and among equal counts the first in
+  document order. With a match, the page is shown in the trailing pane and that node is
+  selected. Without one, the page replaces the whole working surface, both
+  panes, and becomes the working surface as it would on a phone: the platform's
+  Back then follows the landing rule and does not restore the two panes.
+- **Selection is by identity.** After every update of the leading page, by a
+  refresh or by a subscription report, the selected detail node is the one
+  whose request completely matches the page in the trailing pane, by the same
+  rule, wherever it now lies in the List. When no node matches, the trailing
+  pane keeps its page and no node is marked.
+- **Crossing the widening gate.** When the device narrows below the gate while
+  the trailing pane shows a page, that page becomes the working surface stacked
+  above the leading page, as if it had been opened on a phone: it shows the
+  platform's Back again in place of Close, and Back returns to the leading
+  page. A refresh that is pending when the device narrows still completes, and
+  a page held for it is then placed as below the gate: it becomes the working
+  surface above the leading page. When the device widens past the gate, the
+  screen stays as it is until the next navigation; nothing is placed again and
+  nothing is sent.
+
+A page stays beside its detail node only when it carries the fields of that
+node's link under the same names, so an App names the fields of a link
+request and of the pages that follow it consistently. A page that carries none
+of them, such as a summary that ends a section, replaces both panes.
 
 The refresh request is constructed from the leading page as it is shown, so
 after a save it carries that page's earlier values, such as a revision; the
@@ -444,6 +521,97 @@ whose `when` holds on a phone asks for it. A split is how a photo on the left
 with name, date of birth, and employee ID as rows on the right is expressed;
 every other layout arranges all children one way.
 
+#### Labels and titles
+
+Two members change the text a person sees on the node their rule selects:
+
+- `label` replaces only the node's displayed name. The row keeps its value:
+  the node's own value, or the child a
+  [`promote`](#tableheader-promoted-fields-and-union-selectors) rule puts on
+  the row.
+- `title` replaces the whole row with its text. The row's label and value are
+  both removed, and nothing is promoted into it, because it has no value; a
+  child that a `promote` rule names keeps its own row, and Studio warns that
+  the `promote` has no effect.
+
+Both change only the text, never its typography. The node keeps the
+typography of its position: a page's title is drawn as a page title, a group
+header inside a page as a group header, and a List member's row as a member's
+row. A [`role`](#style-tokens) style token changes that look where an App
+wants another one, for example `role: label` for a quieter group header; no
+client reads `label` or `title` as a typography instruction.
+
+Both take the same two value forms:
+
+- `{ "field": "path" }` takes the text from the data. `path` is a dot path of
+  field native names below the selected node, through struct fields only,
+  never through a List or a Union, ending at a String or FormattedText field;
+  that field may be Hidden or ReadOnly. Its value, a FormattedText as its
+  localized text, is the text.
+- `"KEY"` gives fixed text: a package
+  [`StringResources`](#string-resources-and-formatted-output) key, as a
+  section's `title` is.
+
+A field path never passes through a Union, because the selected branch is
+known only at run time. On a Union node, and on a node reached only through a
+Union, such as a Union branch, a node below one, or a named type used only
+there, only the `"KEY"` form is valid; Studio rejects the field form there
+with a message that names the key form.
+
+A `label` or `title` rule may select:
+
+- a page, a Response variant (`^<Hub>`): the text is the page title and
+  replaces the page's top row as the member says;
+- a struct, by its type (`^<Type>`) or by a field of it: the text replaces the
+  struct's row as the member says;
+- a Union field, in the `"KEY"` form only: with `label` the selected
+  variant stays its value;
+- a List's members (`^<Resp.list>[]`): each member row takes its text from its
+  own field, which replaces both the member name and its position number.
+
+When the field is null, unanswered, or empty, the node draws as it would
+without the member, with its position for a List member, so a row is never
+blank. The display name stays the schema's meaning: AI tool descriptions and
+every declaration keep it, and `label` and `title` change only what a person
+sees. The source field is normally declared Hidden in the schema, so its
+value is not drawn twice; a Hidden field remains a valid source. Hidden stays
+a schema attribute that the template never sets: Studio neither hides a
+visible source field nor rejects it, but reports a warning at the `label` or
+`title` line of `display.json` that names the visible field and suggests
+Hidden. A visible source field keeps its own row.
+
+`label` and `title` exclude each other on one node, and neither combines with
+`suppress_title` on that node. A `label` with a `promote`d child is how a row
+is [data-titled](#data-titled-rows). Both resolve through the
+[cascade](#display-template-cascade) and `when` like every other member; a
+data condition, switch case, or pseudo-state changes style, layout, or fold
+state only and never sets either.
+
+On a struct, the two members combine with [`promote`](#field-promotion) on a
+child and with [`flatten`](#flatten) on the struct as follows:
+
+| On the struct | With | Result |
+| --- | --- | --- |
+| `label` | `promote` on a child, `use_parent_name` true | The row's label is the struct's displayed name, that is, the `label` text; the child is the value. |
+| `label` | `promote` on a child, `use_parent_name` false | The row's label is the child's own name. Studio warns that the struct's `label` shows nowhere. |
+| `title` | `promote` on a child | The child is not promoted and keeps its own row. Studio warns that the `promote` has no effect. |
+| `title` | `flatten` with `{ "name_row": false }` | Rejected: one removes the name row and the other replaces it. |
+
+With `label`, the link of a promoted value stays on the row; with `title`, a
+link on the struct stays on the title row
+([actions](#actions-on-a-promoted-or-suppressed-row)).
+
+```json
+{ "select": "^<TopicRow>", "label": { "field": "title" } }
+{ "select": "^<TopicRow>.status", "promote": true }
+{ "select": "^<Hub>", "title": { "field": "topics.name" } }
+```
+
+The first two rules draw each topic row as "W-2 wages   Entered": its `title`
+field as the label and its promoted `status` as the value. The third draws the
+hub page's top row as just "Income", the name of the section whose topics the
+page lists.
+
 #### Style tokens
 
 | Token | Values |
@@ -470,14 +638,15 @@ behavior are defined [below](#mime-aware-bytes-presentation).
 
 #### Behavior hints
 
-Each hint has exactly the meaning its source attribute has; the linked section
-keeps that meaning and the authoring syntax.
+Each hint has exactly the meaning its source attribute has, and `promote`,
+which has no source attribute, the meaning its section defines; the linked
+section keeps that meaning and any authoring syntax.
 
 | Hint | Value | Source attribute and meaning |
 | --- | --- | --- |
 | `inline` | `true` or `false` | [InlineChoices](#inline-choices) on an Enumeration or Union node. |
 | `fold` | `true`, `false`, or `{ "initially_open": Boolean }` | [Foldable](#folding-structs-and-unions) on a Table, Union, or List; `true` means `initially_open` true, `false` makes the node unfoldable. |
-| `promote` | `true`, `false`, or `{ "use_parent_name": Boolean }` | [TableHeader](#tableheader-promoted-fields-and-union-selectors). On a rule selecting a field it promotes that field; on a relaxed-type rule selecting a type with children it flattens it, and `use_parent_name` false also hides a Table's name-only row. `true` means `use_parent_name` true. |
+| `promote` | `true`, `false`, or `{ "use_parent_name": Boolean }` | [Promotion](#tableheader-promoted-fields-and-union-selectors), with no source attribute. Valid only on a rule selecting a field of a struct, never a function parameter: that field becomes its parent row's value. `true` means `use_parent_name` true; `false` turns promotion off. |
 | `suppress_title` | `true` or `false` | [SuppressTitle](#suppresstitle-untitled-list-members) on a List of Tables. |
 | `include_description` | `true` or `false` | [UIIncludeDescription](#common-field-metadata). |
 | `format` | One pattern string | [`Format`](#display-formats): only the portable pattern grammar that section defines, checked against the node's effective type; no other string is accepted. |
@@ -502,22 +671,47 @@ template unless:
   `style`;
 - every data condition and switch case parses under the ValidationRules
   grammar, is Boolean, and reads only the selected node and the reference
-  context, and every switch meets the rules [above](#display-template-switch);
+  context, every switch meets the rules [above](#display-template-switch),
+  and neither a data condition nor a switch case sets `label`, `title`,
+  `promote`, or `flatten`;
 - no rule member is outside the catalog, including every schema-only
   attribute;
-- every layout selects a node kind its row allows; `master-detail` members
-  carry a `Link`; a `refresh` names a Request of the same protocol whose
-  `NextResponse` admits the selected Response, whose constructed input has no
-  editable field and copies only from that Response, and which is neither a
+- every layout selects a node kind its row allows; every `master-detail`
+  `detail` entry is a `^<…>` path within the selected Response, never a
+  `$…` path or a descendant search, and resolves through struct fields only;
+  no entry repeats another; no detail node is Hidden or lies under a Hidden
+  node; and every detail node carries a `Link` whose request declares
+  `NextResponse`; a `refresh` names a Request of the same protocol whose
+  `NextResponse` admits the selected Response, whose every field is Hidden or
+  ReadOnly and is filled by Fixed, Default, or a `CopyFrom` alternative that
+  the selected Response supplies, and which is neither a
   `SubscriptionRequest` nor marked `RequestConfirmation`, and a rule with
   `refresh` selects a Response that does not carry `SubscriptionData`; `table` columns and `sort` name scalar fields of the member
-  type; `sections`, `regions`, and `fields` name direct children; a `title`
-  names a package `StringResources` key; and splits nest at most three levels;
+  type; `sections`, `regions`, and `fields` name direct children; a section's
+  `title` and a fixed `label` or `title` name a package `StringResources` key;
+  and splits nest at most three levels;
+- every `{ "field": "path" }` of a `label` or `title` resolves below the
+  selected node through struct fields only, never through a List or a Union,
+  and ends at a String or FormattedText field; the selected node is neither a
+  Union nor reached only through a Union, where only the `"KEY"` form is
+  valid; no node has both `label` and
+  `title`, and neither is combined with `suppress_title` on the same node;
+  Studio reports these at the member's line of `display.json`;
+- every `promote` rule selects a field of a struct, never a type, a List
+  member, a Union branch, a function parameter, or a Response; every
+  `flatten` rule selects a struct, a List, or a Union, by type or by field,
+  never a List member or a Union branch, and its value is `true`, `false`, or
+  `{ "name_row": false }`; `name_row` appears only on a struct; and no struct
+  has both `title` and `flatten` with `{ "name_row": false }`;
 - every hint satisfies its source attribute's placement rules and value
   grammar, and every `when` key and value is from the closed sets.
 
 Rules of equal rank that set the same member on the same node are allowed, the
-later one winning, and are reported as a warning. Studio additionally lints
+later one winning, and are reported as a warning. Studio also warns, at the
+member's line, when the source field of a `label` or `title` is not Hidden,
+naming that field; when a struct's `label` shows nowhere because its
+promoted child has `use_parent_name` false, and when a `promote` has no effect because its
+struct has a `title`. Studio additionally lints
 minimum touch targets; more than about eight rendered (non-Hidden) fields
 shown together on a screen reachable from a Request, Response, or
 SubscriptionData payload or a function's configuration; a required field
@@ -551,7 +745,6 @@ candidate. Declare an explicit default using the
 | Meaning | TypeScript | Rust |
 | --- | --- | --- |
 | Initial value | `@LibertasDefault(value)` | `#[libertas_default(value)]` |
-| Summary/header field | `@LibertasUIHeader(use_parent_name=true)` | `#[libertas_ui_header(use_parent_name = true)]` |
 | Inline long description | `@LibertasUIIncludeDescription` | `#[libertas_ui_include_description]` |
 | Not editable | `@LibertasReadOnly` | `#[libertas_read_only]` |
 | Hidden from ordinary editor | `@LibertasHidden` | `#[libertas_hidden]` |
@@ -562,16 +755,18 @@ candidate. Declare an explicit default using the
 | Live Number/DateTime maximum | `@LibertasRangeMax("expression")` | `#[libertas_range_max("expression")]` |
 | Data-backed choice index | `@LibertasEnumSource("$.items")` | `#[libertas_enum_source("$.items")]` |
 
-The summary/header and inline-description rows are compiled into the
-[Display Template](#display-template); the others are schema.
+The inline-description row is compiled into the
+[Display Template](#display-template); the others are schema. A summary value
+is a template [`promote`](#tableheader-promoted-fields-and-union-selectors)
+rule, and flattening a [`flatten`](#flatten) rule; neither has a source
+attribute.
 
 `Hidden` suppresses the complete value subtree, including list elements and
 controls, nested fields, summaries, and promoted values. Hidden data remains
-part of the typed value for validation and protocol encoding. Layout flattening
-does not expose hidden descendants. `TableHeader` is the placement-sensitive
-exception: look it up directly on the field declaration for promotion and
-directly on any type declaration with children for flattening. Do not inherit or merge
-these markers through ordinary attribute resolution; neither overrides `Hidden`.
+part of the typed value for validation and protocol encoding. `flatten` does
+not expose hidden descendants. `promote` and `flatten` apply to the node their
+rule selects, are not inherited through ordinary attribute resolution, and
+never override `Hidden`.
 
 `ReadOnly` restricts the user only: clients present the value and offer no
 ordinary editing control for it. It never restricts the platform or the
@@ -588,18 +783,18 @@ Remove, or reorder action may mutate that list. It does not recursively make
 member values read-only; members and their fields keep their own editability.
 To prohibit member edits, mark the applicable member type or fields as well.
 Context menus, swipe actions, pickers, and deferred actions must enforce the
-same list-owner rule at both presentation and execution. A promoted TableHeader
-row does not change which list owns a removal or reorder operation.
+same list-owner rule at both presentation and execution. A promoted row does
+not change which list owns a removal or reorder operation.
 
-For header promotion and nested Union layout, see
-[TableHeader: promoted fields and Union selectors](#tableheader-promoted-fields-and-union-selectors).
+For promotion, flattening, and nested Union layout, see
+[Promotion, flattening, and Union selectors](#tableheader-promoted-fields-and-union-selectors).
 
 `EnumSource` belongs on an unsigned integer. The integer stores the selected
 List item's zero-based index. It does not store the item itself.
 AI tool-call descriptions automatically explain that index representation and
 identify the source List path; they do not enumerate its current items.
 Android and iOS present a single-choice picker in source order. Each choice
-uses the item's scalar display value or its promoted `TableHeader`; a composite
+uses the item's scalar display value or its promoted value; a composite
 without a scalar header uses its display name. Numbered labels distinguish
 repeated names. Money and explicit scalar formats retain their normal display.
 
@@ -677,32 +872,47 @@ and [LMB1 contract](schema.md#mime-aware-bytes) own those behaviors. The
 deferred Display Template `media` token may later provide larger inline
 placement; the standard media control and explicit preview require no token.
 
-## TableHeader: promoted fields and Union selectors
+<a id="tableheader-promoted-fields-and-union-selectors"></a>
 
-`@LibertasUIHeader` in TypeScript and `#[libertas_ui_header]` in Rust have an
-optional Boolean argument, `use_parent_name`, which defaults to `true`.
-Placement controls two independent presentation choices.
-Use direct lookup on each declaration, not effective-attribute resolution:
-the field declaration controls promotion; any type declaration with children
-(Union, Struct/Table, Array/List) controls flattening. Resolving a type reference locates the declaration but does not
-transfer a field marker to it.
-Neither changes the encoded data hierarchy. Studio compiles each occurrence
-into the [Display Template](#display-template) as a `promote` rule, which is
-the runtime owner: clients read promotion and flattening only from the
-template, and a template rule may change either per device.
+## Promotion, flattening, and Union selectors
+
+Two Display Template members change how a node's children sit beside its row:
+`promote` puts one child field's value on its parent row, and
+[`flatten`](#flatten) draws a node's children at that node's own indentation.
+Neither changes the encoded data hierarchy. `when` may change either per
+device; no data condition, switch case, or pseudo-state sets either.
+
+`promote` is valid only on a rule that selects a field of a struct (a Table),
+for example `^<TopicRow>.status`, which selects that field wherever the
+`TopicRow` type is used, or a strict path to one field. Studio rejects
+`promote` on a rule that selects a type, a List member, a Union branch, a
+function parameter, which has no parent row, or a Response. Its value is `true`, `false`, or `{ "use_parent_name": Boolean }`; `true` means
+`use_parent_name` true, and `false` turns promotion off for the field, so a
+higher-ranked rule can undo a lower one. `promote` never flattens the field's
+children: select the node with `flatten` when wanted. There is no source
+attribute for promotion or flattening: the retired `TableHeader` attribute
+(`@LibertasUIHeader`, `#[libertas_ui_header]`) is rejected by Studio with a
+message that names the `promote` and `flatten` rules.
 
 ### Field promotion
 
-On a field directly owned by a **Table**, the first visible marked field in schema
-order becomes the Table row's value instead of occupying a separate child row.
-Additional marked fields remain ordinary children. A field marker has no effect
-when its owner is not a Table, including a Union's selected branch.
+On a field directly owned by a **Table**, the first visible promoted field in
+schema order becomes the Table row's value instead of occupying a separate
+child row. Additional promoted fields remain ordinary children. Promotion has
+no effect when the field's owner is not a Table, including a Union's selected
+branch.
 
 The promoted field supplies the row value. Its `use_parent_name` option chooses
 the row label, uniformly for scalar, Table, List, and Union fields:
 
-- `true` (the default): use the owning Table/struct's display name.
-- `false`: use the promoted field's display name.
+- `true` (the default): use the owning struct's displayed name, which is its
+  [`label`](#labels-and-titles) when a rule gives it one.
+- `false`: use the promoted field's own display name. A `label` on the owning
+  struct then shows nowhere, and Studio warns.
+
+When the owning struct has a [`title`](#labels-and-titles), the field is not
+promoted and keeps its own row, and Studio warns that the `promote` has no
+effect.
 
 For a promoted Union, the selected variant's display name supplies the row value;
 the option changes the label, not that selected value. Tapping that value opens
@@ -711,48 +921,32 @@ Selecting another variant replaces the applicable fields.
 The selector remains available even when the selected variant has no fields.
 A List member appends its one-based position to the chosen row label
 (for example, “Household #1” with the default or “Marital status #1” with
-`use_parent_name=false`), including for a Union.
-A scalar header keeps its normal formatting and editor. A composite header
-keeps its children, and a List header retains its entries and Add action.
+`use_parent_name` false), including for a Union.
+A scalar promoted value keeps its normal formatting and editor. A composite
+one keeps its children, and a List retains its entries and Add action.
 
 An unpromoted Union retains its field title after selection. For example,
 “Marital situation” remains the label and “Married” is the selectable value.
 A Union with a scalar payload also identifies the selected branch while keeping
 that payload editable. Branch selection remains available independently of
-`TableHeader`, including after choosing a fieldless variant.
+promotion, including after choosing a fieldless variant.
 
-### Name option, encoding, and compatibility
+### Name option
 
-The source declarations are:
-
-```typescript
-/** @LibertasUIHeader */                       // use_parent_name defaults to true
-/** @LibertasUIHeader(use_parent_name=true) */
-/** @LibertasUIHeader(use_parent_name=false) */
+```json
+{ "select": "^<Schedule>.starts_at", "promote": true }
+{ "select": "^<HouseHold>.marital_status", "promote": { "use_parent_name": false } }
 ```
 
-```rust
-#[libertas_ui_header]                          // use_parent_name defaults to true
-#[libertas_ui_header(use_parent_name = true)]
-#[libertas_ui_header(use_parent_name = false)]
-```
-
-In the parser result, the attribute's Boolean string value carries this option:
-`{"Name":"TableHeader","Value":"true"}` selects the parent name and
-`{"Name":"TableHeader","Value":"false"}` selects the field name when placed on a field,
-or hides a struct declaration's name row as described below. Attribute
-presence enables promotion or flattening; `false` does **not** disable TableHeader.
-Omitting the source argument emits `Value="true"`. Studio validates the
-attribute, compiles it into the template's `promote` hint with the same
-`use_parent_name`, and removes it from the final schema. Removing the source
-attribute removes its default rule.
+Both rules promote a field, the first labelled by its owner's name and the
+second by its own.
 
 ### Example: use the parent name to identify the record
 
-A struct has the display name **Next schedule**. Its **Starts at** field is a
-scalar TableHeader with `use_parent_name=true` (or the argument omitted), and
-**duration** is an ordinary sibling field. For a start time displayed as
-`09:00` and a duration of `30 minutes`, the rows are:
+A struct has the display name **Next schedule**. Its **Starts at** field is
+promoted with `use_parent_name` true (or `promote: true`), and **duration** is
+an ordinary sibling field. For a start time displayed as `09:00` and a duration
+of `30 minutes`, the rows are:
 
 ```text
 Next schedule: 09:00
@@ -768,8 +962,8 @@ as the schedule's summary value, so the parent name is useful here.
 ### Example: use the field name to identify the property
 
 A struct has the display name **HouseHold**. Its **Marital status** field is a
-Union marked TableHeader with `use_parent_name=false`. The selected variant has
-the display name **Married**, and **Number of dependents** is an ordinary sibling
+Union promoted with `use_parent_name` false. The selected variant has the
+display name **Married**, and **Number of dependents** is an ordinary sibling
 field. The rows are:
 
 ```text
@@ -787,55 +981,62 @@ In both examples, the option changes only the promoted row's label. The field
 still supplies its value, sibling fields retain their normal placement, and
 the Union selector still changes the selected variant.
 
-### Types with children
+<a id="flatten"></a>
 
-On **any type declaration with children** (Union, Struct/Table, Array/List),
-`TableHeader` puts the children at the same indentation as their owning row.
-For a Union these are the selected children, and its selector remains visible
-and editable. Without that type marker, children retain normal indentation.
-This marker does not promote a referencing field into its owning Table: mark
-that field separately when wanted. Both Boolean values retain the flattening effect. On a **struct/Table
-declaration**, `use_parent_name=false` also omits its name-only row; its children
-remain visible and editable at the flattened level. A promoted field still has
-a value row, using its own field name when the struct name is suppressed. A
-List member retains its position and membership controls without the struct
-name. The dropdown of a suppressed struct row passes to the first row the
-struct still produces, as [folding](#folding-structs-and-unions) describes.
-Hidden still suppresses the whole subtree.
+### Flattening
 
-### Actions on a promoted or suppressed row
+The rule member `flatten` applies to a struct, an array (List), or a Union. Its
+rule selects the node by type (`^<Address>`, applying wherever the type is
+used) or by field (`^<Household>.address`). It is a rule member like `layout`,
+not a `style` member, so no data condition, switch case, or pseudo-state can
+change it; `when` may. Its value is `true`, `false`, or
+`{ "name_row": false }`. `false` undoes a flattening that a lower-ranked rule
+set in the [cascade](#display-template-cascade), such as a dependency
+package's template for its own type: the node draws with normal indentation
+and its name row.
 
-Attributes that add an interaction to a value's row, currently `Link` and
-`LLMDocTrans` (AI Import), follow that value when `TableHeader` changes its
-presentation. A promoted field's action appears on the owning Table's visible
-row. If a Table has no row of its own, its action appears on the first visible
-row that represents that Table; when the Table is the selected payload of a
-promoted Union, this is the Union's owning row. A List member keeps its own
-row and its own actions. If several values represented by one row declare
-actions, the row offers each applicable action; a child `Link` takes precedence
-over an enclosing `Link` for the row tap target.
+- **Struct.** `true` draws the struct's fields at the struct row's indentation
+  and keeps the struct's name row. `{ "name_row": false }` also removes that
+  name-only row; the fields stay visible and editable at the flattened level.
+  A List member whose struct row is removed keeps its position and membership
+  controls, and the fold control of a removed row passes to the first row the
+  struct still produces, as [folding](#folding-structs-and-unions) describes.
+- **Array (List).** The List row keeps its title, count, and Add action; its
+  members sit at the List's indentation instead of one level in. Each member
+  keeps its own row, position, and actions.
+- **Union.** The selected branch's fields sit at the Union row's indentation;
+  the selector stays visible and editable.
 
-Only the **affordance** moves. Each action retains its declaring value, path,
-request context, eligibility, and pending state. `TableHeader` never copies an
-attribute to another schema or value node. `Hidden` suppresses the action with
-its value subtree; `ReadOnly`, `Fixed`, and other action-specific restrictions
-still apply. Data, validation, access, and lifecycle attributes do not move.
+Studio rejects `flatten` on any other node kind; on a List member (`…[]`)
+and on a Union branch, because neither has a row of its own to flatten, with
+a message that names the owning List or Union; `name_row` on a List or a
+Union; and `{ "name_row": false }` on a struct that has a
+[`title`](#labels-and-titles), because one removes the name row and the other
+replaces it. Without a `flatten` rule, children keep normal indentation.
+`flatten` never promotes a field, including a field that references the
+flattened type: select that field with `promote` when wanted. `Hidden` still
+suppresses the whole subtree.
 
-On Union and Array/List declarations the option does not hide their selector or
-collection row. The field's direct option controls ordinary promotion naming;
-a referenced type's option is not inherited as a field attribute.
-Field promotion alone does not flatten the selected children.
+```json
+{ "select": "^<Dependents>", "flatten": true }
+{ "select": "^<Zone>", "flatten": { "name_row": false } }
+```
 
-For example, these independent placements express both choices:
+For example, these independent rules combine promotion and flattening:
 
 ```text
 Household (Table)
-  dependents (display name: Dependents; field: TableHeader; type: Dependents)
+  dependents (display name: Dependents; type: Dependents)
 
-Dependents (Union type: TableHeader)
+Dependents (Union)
   No
   Yes (Table)
     count (Number)
+```
+
+```json
+{ "select": "^<Household>.dependents", "promote": true }
+{ "select": "^<Dependents>", "flatten": true }
 ```
 
 With `Yes` selected, the schematic rows are:
@@ -845,19 +1046,42 @@ Household: Yes             [tap value to change choice]
 Count: ...
 ```
 
-Removing the marker from the Union type indents `Count` under `Household`.
-Removing the field marker restores a separate Union row under `Household`.
-The choices can be repeated at each nesting level. An unrelated sibling is not
-flattened because another field is a promoted or flattened Union.
-Existing expansion, visibility, and read-only rules still apply; `TableHeader`
-does not make a read-only selector editable.
+Removing the `flatten` rule indents `Count` under `Household`. Removing the
+`promote` rule restores a separate Union row under `Household`. The choices
+can be repeated at each nesting level. An unrelated sibling is not flattened
+because another field is a promoted or flattened Union. Existing expansion,
+visibility, and read-only rules still apply; neither member makes a read-only
+selector editable.
+
+### Actions on a promoted or suppressed row
+
+Attributes that add an interaction to a value's row, currently `Link` and
+`LLMDocTrans` (AI Import), follow that value when `promote` or `flatten`
+changes its presentation. A promoted field's action appears on the owning
+Table's visible row. If a Table has no row of its own, because `flatten` with
+`{ "name_row": false }` removed it, its action appears on the first visible
+row that represents that Table; when the Table is the selected payload of a
+promoted Union, this is the Union's owning row. A List member keeps its own
+row and its own actions, also inside a flattened List. If several values
+represented by one row declare actions, the row offers each applicable action;
+a child `Link` takes precedence over an enclosing `Link` for the row tap
+target. With a [`label`](#labels-and-titles) on the struct, a promoted value's
+link stays on the row; with a `title`, a link on the struct stays on the title
+row.
+
+Only the **affordance** moves. Each action retains its declaring value, path,
+request context, eligibility, and pending state. Neither `promote` nor
+`flatten` copies an attribute to another schema or value node. `Hidden`
+suppresses the action with its value subtree; `ReadOnly`, `Fixed`, and other
+action-specific restrictions still apply. Data, validation, access, and
+lifecycle attributes do not move.
 
 ### Presentation only
 
-Header promotion does not change the schema or encoded data hierarchy.
+Promotion and flattening do not change the schema or encoded data hierarchy.
 `CopyFrom`, `CopyTo`, `EnumSource`, validation paths, and backend field access
 still use the original structural paths, including every nested Union/table
-level. It does not supply a default, make required fields optional, or disable
+level. They do not supply a default, make required fields optional, or disable
 fields based on another answer.
 
 Protocol actions remain owned by the enclosing protocol variant, even when its
@@ -865,58 +1089,44 @@ header is another Union. See [protocol transaction stack](endpoint-presentation.
 Separate same-indent Union rows retain their own edit/removal ownership;
 sharing an indentation level does not make them the same data object.
 
-## UIName: data-titled rows
+<a id="uiname-data-titled-rows"></a>
 
-`@LibertasUIName(value_field)` in TypeScript and `#[libertas_ui_name(value_field)]`
-in Rust mark one String or FormattedText field of a struct as its **name
-field** and name a sibling as its **value field**. Wherever the struct is
-presented as a row, the name field's value is the row's title and the value
-field's value is the row's value. The schema carries
-`{"Name":"UIName","Value":"<value field native name>"}` on the name field.
-Use direct lookup on the declaration, as for `TableHeader`; resolving a type
-reference does not transfer the marker.
+## Data-titled rows
 
-`TableHeader` gives a row a documentation title and one promoted value;
-`UIName` gives it a data title and one named value. A struct declares one or
-the other.
+A row is **data-titled** when its label comes from the data it shows, such as
+a calculated line labelled by its description with its amount as the value.
+Two independent rules express it:
 
-### Placement
+- a Display Template [`label`](#labels-and-titles) rule on the row's struct, usually
+  `"select": "^<Type>"` or, for a List's members, `"^<Response.list>[]"`, names
+  the field whose value labels the row;
+- a [`promote`](#field-promotion) rule on a child of the struct promotes that
+  child's value into the row.
 
-Studio rejects the marker unless all of these hold:
+```json
+{ "select": "^<LineItem>", "label": { "field": "description" } }
+{ "select": "^<LineItem>.amount", "promote": true }
+```
 
-- It is on a field declared directly in an effective Table, of effective type
-  String or FormattedText, nullable or not. Not on a type, a Union, a List, a
-  function parameter, or a protocol root.
-- Its value is the native name of another field declared directly in the same
-  effective Table, inherited fields included: not a path, not the name field
-  itself, not Hidden, and not a union tag field or discriminator.
-- At most one name field per effective Table, counting inherited fields.
-- The Table has no promoted `TableHeader` field. Both would claim the row's
-  value.
-- The name field is ReadOnly or Hidden. Its value is server-supplied; nothing
-  edits a title.
+With `description` Hidden, each `LineItem` renders as one row, "W-2 wages
+$60,000.00", and its other visible children render beneath it. The names are
+schematic.
 
-### Presentation
+Each rule also works alone: a label without a promoted child labels a row
+whose children render beneath it, and a promoted child without a label keeps
+the struct's display name. With the default `use_parent_name`, the row's
+label is the struct's displayed name, which is the `label` text; with
+`use_parent_name` false it is the child's own name, the `label` shows nowhere,
+and Studio warns. Folding, flattening,
+links, and a List member's membership controls stay on the row as they do on
+any other row. A row that should show only text, with no value, such as a
+heading taken from the data, uses [`title`](#labels-and-titles) instead; a
+`title` takes no promoted child, so the child keeps its own row.
 
-The row is the same node that owns the fold arrow, the menu and, for a List
-member, the position and membership controls. Only what it shows changes:
-
-- The title is the name field's value.
-- The value slot follows the promotion rules for the value field's kind: a
-  scalar keeps its formatting and editor, a Union shows its selected variant
-  and opens the selector, a composite keeps its children.
-- Neither the name field nor the value field has a row of its own. The value
-  field's display name and description title its editor, its help and its
-  accessibility description; the name field's do the same for the title.
-- The other visible children render beneath the row as usual. Type-level
-  flattening and [folding](#folding-structs-and-unions) apply independently.
-- A List member keeps the List's title, "member name #n", in front of the
-  name: the row reads List title, then name value, then value. Only
-  [`SuppressTitle`](#suppresstitle-untitled-list-members) removes the List's
-  part; nothing is inferred from the member.
-- A null or empty name falls back to the ordinary title, with its position for
-  a List member, so a row is never blank. A client that does not understand
-  the marker shows the ordinary presentation.
+Neither rule has a source attribute. The retired `UIName` attribute
+(`@LibertasUIName`, `#[libertas_ui_name]`) is rejected by Studio with a
+message that names this replacement: its title is a `label` rule and its value
+a `promote` rule on the named child.
 
 ### SuppressTitle: untitled List members
 
@@ -929,9 +1139,9 @@ marker on any other host, including a List of primitives or Unions, whose
 member rows have no title but the List's.
 
 The marked List contributes no title to its member rows: no member name and
-no position. Each member row shows only what its struct produces, its
-`UIName` value as the title when it has one, and its value slot; a struct
-without a name field shows an untitled row with its promoted value. The
+no position. Each member row shows only what its struct produces: the text a
+[`label` or `title`](#labels-and-titles) rule gives it, when one does, and its value slot;
+a member without either shows an untitled row with its promoted value. The
 membership controls, the menu and the fold arrow stay on the row. The marker
 changes no data, and a client that does not understand the hint ignores it.
 
@@ -1144,6 +1354,21 @@ One package-owned catalog supplies notification templates, permission reasons,
 data-name templates, `FormattedText`, and formatted chart labels for all
 functions and types in the App. Task package context identifies the catalog;
 encoded tuples carry no function/type owner or resource FQN.
+
+### Expanding long displayed text
+
+Clients that shorten long displayed text behind **Show more** measure the full
+text using its actual font, styling and available width. If it fits within the
+combined height of the shortened preview, disclosure row and their spacing,
+display the full text and omit the disclosure. Do not reduce the text size to
+make it fit.
+
+Otherwise, **Show more** reveals the complete text and **Show less** restores
+the preview. Reevaluate the fit when the value, locale, width or text size
+changes; a disclosure is unnecessary whenever the complete text fits. This
+behavior concerns displayed text, independently of structural folding in the
+Display Template. Clients that already display the complete wrapped text need
+no disclosure.
 
 ### AI tool-call output
 
@@ -1554,8 +1779,7 @@ into the parser result; Studio compiles it into the
 the final schema.
 
 Place it on an Enumeration or Union field, or on an Enumeration or Union type
-declaration. As for [TableHeader](#tableheader-promoted-fields-and-union-selectors),
-each declaration is read directly, not through effective-attribute resolution:
+declaration. Each declaration is read directly, not through effective-attribute resolution:
 a marker on either the field or its type enables inline choices, and a field
 cannot switch off its type's marker. Studio rejects the marker on any other
 effective type and on a Bitflags catalog, including a field typed by one.
@@ -1570,7 +1794,7 @@ effective type and on a Bitflags catalog, including a field typed by one.
 - The singleton allowed set and answered-Union rules of
   [backend-constrained choices](protocols.md#backend-constrained-choices) are
   unchanged.
-- Visibility, read-only, TableHeader promotion, and folding rules still apply;
+- Visibility, read-only, promotion, and folding rules still apply;
   the marker does not make a read-only value editable.
 
 There is no size threshold: a row grows with its choices, so mark only fields
@@ -1602,7 +1826,7 @@ shows its value as the link text. While a target with no editable field is
 pending, the row shows the existing pending indicator and the link is disabled
 until the reply lands; repeated taps never send twice. A link adds no chevron
 or other glyph and never edits its field. Hidden rows have no link, since
-Studio rejects that placement. TableHeader promotion, flattening, folding, and
+Studio rejects that placement. Promotion, flattening, folding, and
 read-only rules are unchanged by a link.
 
 ## Folding structs and unions
@@ -1629,7 +1853,7 @@ assistive technology. The title line toggles the fold, except on a row that is
 also a [link](protocols.md#links), where only the chevron toggles and the rest
 of the row follows the link. A marked value starts expanded, or collapsed
 when `initially_open` is false, and permits manual collapse and expansion; a
-collapsed value shows only its row, its promoted or data title and value
+collapsed value shows only its row, its title and promoted value
 included. The initial state applies to rows that exist when a page is
 displayed. A value the user creates while the page is open, such as a new
 List member or a materialized nullable, always opens, whatever its marker
@@ -1637,9 +1861,9 @@ says, so its fields are visible to fill in. Each nested value owns its folding p
 a marker does not grant permission to its descendants. Lists follow the same explicit-permission rule. Changing a union variant reveals its new fields. Union selectors
 remain editable independently of folding.
 
-For a TableHeader-promoted union, the shared owning row may fold when either
+For a promoted union, the shared owning row may fold when either
 the owning Table or the promoted union has Foldable on its type or field.
-TableHeader promotion and union-child flattening remain independent of folding.
+Promotion and [`flatten`](#flatten) remain independent of folding.
 
 The collapsed task editor value is a short presentation summary, never a
 recursive JSON-like rendering of its children. A Table with a promoted value
@@ -1650,15 +1874,13 @@ whose members are all hidden shows no count. An ordinary Table with no promoted
 value shows no value text beside its title and fold control. Null remains
 distinct from an empty List or a Table without a summary.
 
-When a struct's own row is suppressed by `TableHeader` with `use_parent_name=false`
-on its type declaration, the struct still assigns a dropdown owner, in this
-order: the row of a child carrying the `TableHeader` field marker, which is
+When [`flatten`](#flatten) with `{ "name_row": false }` removes a struct's
+own row, the struct still assigns a dropdown owner, in this order: the row of its promoted child, which is
 the struct's surviving value row, else the row of its first visible child.
 That row carries the fold arrow and, when the struct is Foldable, collapses
 the struct's remaining rows beneath it; its own value stays editable as usual.
 Hidden fields produce no row and are skipped; a struct that produces no rows
-folds nothing. A struct with a [data-titled row](#uiname-data-titled-rows)
-is not suppressed: that row is its own and owns its dropdown. A List member
+folds nothing. A List member
 whose struct row is suppressed keeps its position and membership controls on
 the row that owns its dropdown.
 

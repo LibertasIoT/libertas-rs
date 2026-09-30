@@ -56,14 +56,38 @@ pub enum LibertasMessageArgument<'a> {
     Unsigned(u64),
     Float(f32),
     Double(f64),
-    UnitSigned { unit_type: &'a str, value: i64 },
-    UnitUnsigned { unit_type: &'a str, value: u64 },
-    UnitFloat { unit_type: &'a str, value: f32 },
-    UnitDouble { unit_type: &'a str, value: f64 },
+    UnitSigned {
+        unit_type: &'a str,
+        value: i64,
+    },
+    UnitUnsigned {
+        unit_type: &'a str,
+        value: u64,
+    },
+    UnitFloat {
+        unit_type: &'a str,
+        value: f32,
+    },
+    UnitDouble {
+        unit_type: &'a str,
+        value: f64,
+    },
     ResourceText(&'a str),
     Plural(i64),
     /// A complete canonical FormattedText tuple, rendered in this message's locale.
     FormattedText(LibertasFormattedTextArgument<'a>),
+    /// Exact fixed-point currency amount. `minor_units` is scaled by 10^`scale`.
+    Currency {
+        currency_code: &'a str,
+        scale: i64,
+        minor_units: i64,
+    },
+    /// Gregorian calendar date in `yyyyMMdd` form, without a timezone.
+    DateOnly(i64),
+    /// Unix epoch seconds, displayed in the renderer's local timezone.
+    DateTime(u64),
+    /// Clock seconds from local midnight; 86400 denotes the end of the day.
+    TimeOnly(u32),
 }
 
 impl<'a> LibertasMessageArgument<'a> {
@@ -117,13 +141,36 @@ pub enum LibertasMessageArgumentDecode {
     Unsigned(u64),
     Float(f32),
     Double(f64),
-    UnitSigned { unit_type: String, value: i64 },
-    UnitUnsigned { unit_type: String, value: u64 },
-    UnitFloat { unit_type: String, value: f32 },
-    UnitDouble { unit_type: String, value: f64 },
+    UnitSigned {
+        unit_type: String,
+        value: i64,
+    },
+    UnitUnsigned {
+        unit_type: String,
+        value: u64,
+    },
+    UnitFloat {
+        unit_type: String,
+        value: f32,
+    },
+    UnitDouble {
+        unit_type: String,
+        value: f64,
+    },
     ResourceText(String),
     Plural(i64),
     FormattedText(Vec<u8>),
+    Currency {
+        currency_code: String,
+        scale: i64,
+        minor_units: i64,
+    },
+    /// Gregorian calendar date in `yyyyMMdd` form, without a timezone.
+    DateOnly(i64),
+    /// Unix epoch seconds, displayed in the renderer's local timezone.
+    DateTime(u64),
+    /// Clock seconds from local midnight; 86400 denotes the end of the day.
+    TimeOnly(u32),
 }
 
 impl LibertasMessageArgumentDecode {
@@ -158,6 +205,18 @@ impl LibertasMessageArgumentDecode {
             Self::ResourceText(key) => A::ResourceText(key),
             Self::Plural(value) => A::Plural(*value),
             Self::FormattedText(value) => A::formatted_text(value),
+            Self::DateOnly(value) => A::DateOnly(*value),
+            Self::DateTime(value) => A::DateTime(*value),
+            Self::TimeOnly(value) => A::TimeOnly(*value),
+            Self::Currency {
+                currency_code,
+                scale,
+                minor_units,
+            } => A::Currency {
+                currency_code,
+                scale: *scale,
+                minor_units: *minor_units,
+            },
         }
     }
 }
@@ -239,6 +298,21 @@ impl PartialEq<LibertasMessageArgument<'_>> for LibertasMessageArgumentDecode {
                 LibertasMessageArgumentDecode::FormattedText(value),
                 LibertasMessageArgument::FormattedText(other),
             ) => value.as_slice() == other.0,
+            (
+                LibertasMessageArgumentDecode::Currency {
+                    currency_code: code1,
+                    scale: scale1,
+                    minor_units: value1,
+                },
+                LibertasMessageArgument::Currency {
+                    currency_code: code2,
+                    scale: scale2,
+                    minor_units: value2,
+                },
+            ) => code1 == code2 && scale1 == scale2 && value1 == value2,
+            (Self::DateOnly(value), LibertasMessageArgument::DateOnly(other)) => value == other,
+            (Self::DateTime(value), LibertasMessageArgument::DateTime(other)) => value == other,
+            (Self::TimeOnly(value), LibertasMessageArgument::TimeOnly(other)) => value == other,
             _ => false,
         }
     }
@@ -365,16 +439,67 @@ mod tests {
             LibertasMessageArgumentDecode::Unsigned(7),
             LibertasMessageArgumentDecode::Float(1.25),
             LibertasMessageArgumentDecode::Double(2.5),
-            LibertasMessageArgumentDecode::UnitSigned { unit_type: String::from("kg"), value: -3 },
-            LibertasMessageArgumentDecode::UnitUnsigned { unit_type: String::from("kg"), value: 3 },
-            LibertasMessageArgumentDecode::UnitFloat { unit_type: String::from("kg"), value: 1.5 },
-            LibertasMessageArgumentDecode::UnitDouble { unit_type: String::from("kg"), value: 2.5 },
+            LibertasMessageArgumentDecode::UnitSigned {
+                unit_type: String::from("kg"),
+                value: -3,
+            },
+            LibertasMessageArgumentDecode::UnitUnsigned {
+                unit_type: String::from("kg"),
+                value: 3,
+            },
+            LibertasMessageArgumentDecode::UnitFloat {
+                unit_type: String::from("kg"),
+                value: 1.5,
+            },
+            LibertasMessageArgumentDecode::UnitDouble {
+                unit_type: String::from("kg"),
+                value: 2.5,
+            },
             LibertasMessageArgumentDecode::ResourceText(String::from("READY")),
             LibertasMessageArgumentDecode::Plural(4),
+            LibertasMessageArgumentDecode::DateOnly(20240229),
+            LibertasMessageArgumentDecode::DateTime(1_704_067_200),
+            LibertasMessageArgumentDecode::TimeOnly(86400),
             LibertasMessageArgumentDecode::FormattedText(libertas_formatted_text("INNER", &[])),
+            LibertasMessageArgumentDecode::Currency {
+                currency_code: String::from("USD"),
+                scale: 2,
+                minor_units: -5,
+            },
         ];
         for argument in &arguments {
             assert_eq!(argument, &argument.as_message_argument());
+        }
+    }
+
+    #[test]
+    fn temporal_arguments_append_wire_tags_and_retain_values() {
+        let values: [(i64, LibertasMessageArgument<'_>, i64); 3] = [
+            (15, LibertasMessageArgument::DateOnly(20240229), 20240229),
+            (
+                16,
+                LibertasMessageArgument::DateTime(253402214399),
+                253402214399,
+            ),
+            (17, LibertasMessageArgument::TimeOnly(86400), 86400),
+        ];
+        for (tag, argument, value) in values {
+            let encoded = libertas_formatted_text("WHEN", &[argument]);
+            let mut expected = Vec::new();
+            "WHEN".avro_encode(&mut expected);
+            1i64.avro_encode(&mut expected);
+            tag.avro_encode(&mut expected);
+            value.avro_encode(&mut expected);
+            0i64.avro_encode(&mut expected);
+            assert_eq!(encoded, expected);
+            let mut offset = 0;
+            let decoded = crate::DataName::avro_decode(&encoded, &mut offset).unwrap();
+            assert_eq!(offset, encoded.len());
+            assert_eq!(decoded.arguments[0], argument);
+            assert_eq!(
+                decoded.arguments[0],
+                decoded.arguments[0].as_message_argument()
+            );
         }
     }
 
@@ -386,19 +511,38 @@ mod tests {
             b"\x0cDEVICE\x02\x02\x54\x00",
         );
         let inner = libertas_formatted_text("INNER", &[LibertasMessageArgument::Plural(2)]);
-        let outer = libertas_formatted_text(
-            "OUTER",
-            &[LibertasMessageArgument::formatted_text(&inner)],
-        );
-        assert_eq!(
-            outer,
-            b"\x0aOUTER\x02\x1a\x14\x0aINNER\x02\x18\x04\x00\x00",
-        );
+        let outer =
+            libertas_formatted_text("OUTER", &[LibertasMessageArgument::formatted_text(&inner)]);
+        assert_eq!(outer, b"\x0aOUTER\x02\x1a\x14\x0aINNER\x02\x18\x04\x00\x00",);
         let mut offset = 0;
         let decoded = crate::DataName::avro_decode(&outer, &mut offset)
             .unwrap_or_else(|error| panic!("{error}: {outer:?}"));
         assert_eq!(offset, outer.len());
         assert_eq!(decoded.resource_name, "OUTER");
-        assert_eq!(decoded.arguments, Vec::from([LibertasMessageArgumentDecode::FormattedText(inner)]));
+        assert_eq!(
+            decoded.arguments,
+            Vec::from([LibertasMessageArgumentDecode::FormattedText(inner)])
+        );
+
+        let exact = libertas_formatted_text(
+            "AMOUNT",
+            &[LibertasMessageArgument::Currency {
+                currency_code: "USD",
+                scale: 2,
+                minor_units: -5,
+            }],
+        );
+        assert_eq!(exact, b"\x0cAMOUNT\x02\x1c\x06USD\x04\x09\x00");
+        let mut offset = 0;
+        let decoded = crate::DataName::avro_decode(&exact, &mut offset).unwrap();
+        assert_eq!(offset, exact.len());
+        assert_eq!(
+            decoded.arguments,
+            Vec::from([LibertasMessageArgumentDecode::Currency {
+                currency_code: String::from("USD"),
+                scale: 2,
+                minor_units: -5,
+            }])
+        );
     }
 }

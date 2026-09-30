@@ -23,11 +23,17 @@ Every package has one mandatory [Display Template](../reference/presentation.md#
 the sole runtime owner of how values are arranged and styled; it is not schema
 and never changes the App version. With no `display.json` and no presentation
 attributes the package compiles to the valid empty template, which renders the
-platform default. Presentation source attributes (`UIHeader`, `Foldable`,
+platform default. Presentation source attributes (`Foldable`,
 `InlineChoices`, `SuppressTitle`, `UIIncludeDescription`, `Format`, chart scale
 `kind` and guide `position`) remain the way to author defaults: Studio compiles
 them into the template at the lowest specificity and drops them from the
-schema. Device-specific arrangement goes in `display.json` at the project root,
+schema. Promotion (`promote`), flattening (`flatten`), `label`, and `title`
+exist only as rules;
+there is no `UIHeader`/`TableHeader` or `UIName` attribute. A dependency's
+compiled template, its `display.json` included, applies to the types that
+package declares wherever they appear, below every rule of the using package,
+so a TypesOnly package may ship a `display.json` for its types.
+Device-specific arrangement goes in `display.json` at the project root,
 beside `Cargo.toml` or `package.json`; never edit the compiled template. After
 editing `display.json`, call the Studio MCP `compile_schema` then
 `preview_display` tool so the user sees the change live on a device.
@@ -44,10 +50,11 @@ Write each rule as four relations:
   `accordion`, or `split`. Every layout except `rows` applies only
   where a rule asks; `table` and `master-detail` also need the widening gate
   (`form` `tablet` or `desktop`, or `width: expanded` without `height:
-  compact`) and otherwise render as `rows`. `master-detail` needs a `Link` on
-  the member type; its List may sit under struct fields (not a List or Union),
-  so a titled struct can head it. After a Submit or previous action in
-  the trailing pane gets a non-Error reply, the client sends the Request the
+  compact`) and otherwise render as `rows`. `master-detail` takes `detail`, an array of
+  selectors (`…[]` for a List's members, otherwise one node) reached through
+  struct fields only; every detail node needs a `Link` and opens in the
+  trailing pane, and any other link or action replaces both panes. After a Submit or previous action in
+  the trailing pane gets a reply that is neither a failure nor an Error, the client sends the Request the
   rule names in `refresh`, built from the leading page, unless that reply
   replaced the leading page; `refresh` must be a pure navigation Request with
   no editable input, never a save
@@ -63,6 +70,48 @@ Write each rule as four relations:
   `promote`, `suppress_title`, `include_description`, `format`, `scale`,
   `guide`, `palette`). No CSS, pixels, literal colors, or fonts. `media` is
   deferred until bytes fields have a MIME-type attribute.
+- **What names it:** on a page (Response variant), struct, Union field, or
+  List's members (`…[]`), [`label`](../reference/presentation.md#labels-and-titles)
+  replaces only the displayed name (on a List's members, the name and position
+  number) and keeps the row's value (its own or a promoted child's); `title` replaces the whole row, label and value, with its
+  text, and nothing is promoted into it. Each takes `{ "field": "path" }`, a
+  String or FormattedText field below the node through struct fields only,
+  never a List or Union, Hidden or ReadOnly allowed, or a string naming a fixed
+  `StringResources` key. On a Union field or a node reached only through a
+  Union (a branch, a node below one, or a type used only there) only the key
+  form is valid, because the branch is known only at run time. A null, unanswered, or empty value draws the node as
+  without the member; the display name stays the schema's meaning for AI
+  tools. `label` and `title` exclude each other, neither sits beside
+  `suppress_title` on one node, and no data condition or switch case sets
+  them. A data-titled row is a `label` rule on its struct plus a `promote`
+  rule on the child that is its value. Declare every `label` or `title`
+  source field Hidden in the schema so it is not drawn twice; the template
+  never sets Hidden, and Studio warns at the member's `display.json` line,
+  naming a visible source field, without rejecting it. With `use_parent_name` false the row shows the child's own name
+  and Studio warns that the `label` shows nowhere. A `title` on the struct
+  takes no promoted child: the child keeps its own row and Studio warns; a
+  `title` beside `flatten` `{ "name_row": false }` is rejected. With `label` a
+  promoted value's link stays on the row; with `title` a struct's link stays
+  on the title row ([combinations](../reference/presentation.md#labels-and-titles)).
+- **What it promotes:** [`promote`](../reference/presentation.md#tableheader-promoted-fields-and-union-selectors)
+  is valid only on a rule selecting a field of a struct (`^<TopicRow>.status`):
+  that field's value goes on the owning row, labelled by the owner's displayed
+  name (its `label`, when set), or by the field's own name with
+  `{ "use_parent_name": false }`; `false` turns it off. Studio rejects it on a
+  type, a List member, a Union branch, a function parameter, or a Response.
+- **What it flattens:** [`flatten`](../reference/presentation.md#flatten), a
+  rule member like `layout`, selects a struct, List, or Union by type
+  (`^<Address>`, every use) or by field, as `true`, as `false` to undo a
+  lower-ranked flattening such as a dependency's, or, on a struct only,
+  `{ "name_row": false }`; Studio rejects it on a List member (`…[]`) or a
+  Union branch, which has no row of its own. A struct's fields move to its row's indentation and
+  `name_row` false also removes its name-only row (the fold control passes to
+  its first remaining row; a List member keeps position and membership
+  controls). A List keeps its row, count, and Add, and its members, each with
+  its own row and actions, move to its indentation. A Union's selected branch
+  fields move to its row's indentation; the selector stays editable. Hidden
+  still hides the subtree, and no data condition or switch case sets
+  `promote` or `flatten`.
 - **What changes it per device:** `when` with `width`, `height`,
   `orientation`, `pointer`, `theme`, and `form`, evaluated against the nearest
   pane; a list value means any, several keys must all hold. Widen layouts by
@@ -124,8 +173,9 @@ text with the whole row as tap target and an editable one with a trailing link
 button ([link rendering](../reference/presentation.md#link-rendering)), `ReadOnly` and `Hidden` for
 presentation, `Unordered` and `Unique` for List semantics, `Size` for bounds,
 and `EnumSource` only on an unsigned integer storing a same-tree List index.
-Template defaults: `UIHeader` for [field promotion and flattening types with children](../reference/presentation.md#tableheader-promoted-fields-and-union-selectors),
-`UIIncludeDescription` when a UI node must show both its short display name and
+Template: a `promote` rule for [field promotion](../reference/presentation.md#tableheader-promoted-fields-and-union-selectors)
+and a `flatten` rule for [flattening a struct, List, or Union](../reference/presentation.md#flatten);
+template defaults: `UIIncludeDescription` when a UI node must show both its short display name and
 long description inline, and `InlineChoices` on an Enumeration or Union field
 or type (not Bitflags) whose few choices should render as
 [inline radio controls](../reference/presentation.md#inline-choices). Check the

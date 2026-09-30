@@ -1324,7 +1324,11 @@ invalid value MUST NOT remain in task data. Declarations whose effective
 `FinalOnly` value is `true` are not evaluated and cannot reject an incremental change. Incremental validation
 does not run mandatory/nullability or other static final checks.
 
-This rollback applies to the edits a user makes, on every client. A
+This rollback applies to the edits a user makes, on every client. An edit is
+rolled back when it introduces a violation: when the first failing rule and
+its owning node are the same before and after the edit, for example because a
+calculation result left that rule violated, the edit is accepted, and final
+validation still blocks submission. A
 programmatic assignment is not a proposed change and is never rolled back by an
 incremental rule: a calculation result, a link return, a constrained-choice
 reset, and a singleton selection stay in the editor, and final validation

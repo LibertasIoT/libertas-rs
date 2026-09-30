@@ -477,14 +477,23 @@ variants from Hub LLM tool definitions. A variant can opt back in with
 attribute on one Request variant affects only that variant. See the
 [shared attribute contract](../annotations.md#endpoint-and-protocol-annotations).
 
-### Table-header promotion
+<a id="table-header-promotion"></a>
 
-`#[libertas_ui_header(use_parent_name = true)]` has an optional Boolean that defaults to true (parent display name); false selects the promoted field display name. Attribute presence enables promotion or flattening by direct declaration lookup. The attribute is compiled into the [Display Template](../presentation.md#display-template) as its `promote` hint. See [header promotion and nested Union selectors](../presentation.md#tableheader-promoted-fields-and-union-selectors) for its tree-data presentation. On a struct declaration, false also hides its name-only row while keeping children visible.
+### Promotion, flattening, labels, and titles
 
-`#[libertas_ui_name(value_field)]` on a ReadOnly or Hidden `String` or formatted-text field makes that field's value the struct row's title and the named sibling's value the row's value; neither field has a row of its own. `#[libertas_suppress_title]` on a `Vec` of structs, or on its type alias, stops the list from titling its member rows and is compiled into the [Display Template](../presentation.md#display-template). See [data-titled rows](../presentation.md#uiname-data-titled-rows) and [untitled list members](../presentation.md#suppresstitle-untitled-list-members); Studio enforces the placement rules.
+Promotion, flattening, row labels, and row titles have no Rust attribute:
+write them as [`promote`](../presentation.md#tableheader-promoted-fields-and-union-selectors),
+[`flatten`](../presentation.md#flatten),
+[`label`, and `title`](../presentation.md#labels-and-titles) rules in the project's
+`display.json`, beside `Cargo.toml`. A `promote` rule, valid only on a struct
+field, puts that field's value on the struct's row. A `flatten` rule on a
+struct, `Vec`, or enum, by type or by field, draws its children at its own
+indentation, and on a struct `{ "name_row": false }` also removes the struct's
+name-only row. A `label` rule with a promoted field gives a
+[data-titled row](../presentation.md#data-titled-rows). The retired
+`#[libertas_ui_header]` and `#[libertas_ui_name]` are rejected.
 
-- When applied to a primitive field within a Table, the field visually replaces the table node. Its own title is replaced by the table’s title, and its value is displayed as the table node’s value.
-- When applied to a Table node, the table’s outer enclosure is removed and all of its fields are promoted to appear alongside the table’s former siblings.
+`#[libertas_suppress_title]` on a `Vec` of structs, or on its type alias, stops the list from titling its member rows and is compiled into the [Display Template](../presentation.md#display-template). See [untitled list members](../presentation.md#suppresstitle-untitled-list-members); Studio enforces the placement rules.
 
 ### Inline descriptions
 

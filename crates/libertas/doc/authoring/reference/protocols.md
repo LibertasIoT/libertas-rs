@@ -563,7 +563,9 @@ SubscriptionRequest variants:
 | `Write` | `2` | A user with endpoint write access may invoke it. |
 | `Read,Write` | `3` | Either access level may invoke it. |
 
-Omission also means `Read,Write`. Libertas cannot infer semantic mutation. The
+Omission also means `Read,Write`. A user with administrator privileges grants
+a user endpoint read or write access, and the Hub keeps that grant in its
+access control list. Libertas cannot infer semantic mutation. The
 developer must mark a mutating operation `Write`; otherwise a read-only user is
 allowed to issue it. Clients may hide a disallowed action, but the Hub remains
 authoritative.
@@ -573,8 +575,22 @@ resources during task configuration.
 
 ## Request and response ordering
 
-Within one Control session, the Hub serializes the messages: request/response
-transactions follow the exact order in which their requests were sent. Handle requests and emit and apply
+<a id="human-task-interaction"></a>
+
+**Scope: human-task interaction.** The ordering, pending-operation, waiting,
+and leaving rules of this reference are the embodiment for a person
+interacting with a task: a generalized interaction with predefined rules that
+every generated client implements uniformly, so that one implementation serves
+every App without application-specific code. Software that interacts with a
+task, such as another App, a program, or a device integration, is not bound
+by them: it may agree with the service on its own rules, for example several
+requests in flight or its own time limits, within the endpoint's declared
+protocol, its roles, and its access checks.
+
+A Control session is the client's session with the Hub. It carries task
+protocol messages and other Hub messages, and the Hub serializes all of its
+messages. Within one Control session, the request/response transactions of
+task protocols follow the exact order in which their requests were sent. Handle requests and emit and apply
 their correlated replies in that order; a later transaction must not overtake
 an earlier one. This includes calculation replies, Error responses, and
 EditRequest replies. Correlation and stale-operation checks still apply: an
@@ -599,7 +615,9 @@ Each target is another ordinary Request with a Table payload in the same
 Endpoint protocol Union. Its NextResponse names its correlated Response variants.
 A calculation reply is plain or an Error: Studio rejects a calculation whose
 NextResponse names a variant that declares NextRequest or WorkflowRequest, or
-a Request variant, which only an EditRequest delivers.
+a Request variant, which only an EditRequest delivers. An Error variant is
+admitted whatever it declares, because an Error assigns nothing and navigates
+nowhere.
 Every direct input field has CopyFrom under the
 [shared source contexts](schema.md#context-and-syntax): calculation inputs may
 read the current editor first, then reference objects in the
@@ -990,10 +1008,15 @@ a successful transition reply must be one of its named variants. Error responses
 and standardized failure statuses use the shared error/retry path and do not
 need to appear in this navigation list. These declarations constrain the
 possible replies; the client never selects the service's reply for it.
-A correlated reply whose variant the request's NextResponse does not admit, or
-whose variant carries only SubscriptionData, is handled as a failed decode: the
-client follows the error procedure, the originating surface stays, and its
-reference context is unchanged.
+A reply that the client refuses before it takes effect is handled as a
+failure: the client reports the refusal by the error procedure, and the
+originating surface, its reference context, its actions, and its draft stay.
+The client refuses a correlated reply that cannot be decoded, whose variant the
+request's NextResponse does not admit, or whose variant carries only
+SubscriptionData; an EditRequest value that is not a valid value of its Request
+variant; a delivered editor beyond the user's access, as above; a
+[link return](#link-return) that cannot be applied; and a reply whose
+[allowed-action list](#response-action-constraints) is malformed.
 
 ### Submit, previous actions, and completion
 
@@ -1046,42 +1069,39 @@ neither data nor workflow state.
 
 ### Saved-page consistency after historical edits
 
-A workflow is a strictly ordered state machine. Later pages are assumed to
-depend on earlier accepted answers, so the App must keep the saved sequence
-consistent.
+Later pages can depend on earlier accepted answers, so a workflow service keeps
+its stored pages consistent with one another when an earlier page changes.
 
-Compare the submitted page answers with the saved answers before invalidating
-history. Ignore transport cookies, navigation metadata, and presentation-only
-values in this comparison. An unchanged Next is review/navigation: preserve all
-saved pages and completion state. Opening, canceling, or rejecting an edit also
-preserves saved history.
+Compare the submitted page answers with the saved answers before changing any
+stored page. Ignore transport cookies, navigation metadata, and
+presentation-only values in this comparison. An unchanged Next is
+review/navigation: preserve all saved pages and completion state. Opening,
+canceling, or rejecting an edit also preserves saved history.
 
-When the backend accepts a changed historical page, it **must update or
-invalidate every saved page after that page** in the same workflow. This is a
-mandatory application rule, not an optional client navigation policy.
-
-The simplest implementation atomically replaces the edited page and erases all
-later saved pages, retaining earlier pages. Do not erase before validation or
-leave a partially updated history visible.
-
-For each later page, the backend must either recompute and revalidate its data
-against the revised earlier answers and save the consistent result, or erase
-that page's saved data from the database. It must not leave an old page available
-for resume, editing, calculation, or completion merely because that page was
-valid before the historical change. Derived results, cookies, allowed-choice
-sets, and saved progress must agree with the revised history as well.
+When the backend accepts a changed page, it **must**, for each stored page that
+the changed answers affect, do one of the following: recompute and revalidate
+that page's data against the revised answers and save the consistent result;
+erase that page's data; or keep the page's answers and mark the page
+unanswered, so that it is asked again, with those answers, before the workflow
+can complete. This is a mandatory application rule, not an optional client
+navigation policy. Do not erase before validation or leave a partially updated
+state visible. No page remains answered for resume, calculation, or completion
+merely because it was valid before the change; derived results, cookies,
+allowed-choice sets, and saved progress must agree with the revised answers as
+well.
 
 Complete this reconciliation before continuing or resuming the workflow. Resume
-and EditRequest may use only the remaining consistent saved pages; retries,
-concurrent editors, and late submissions must not restore invalidated later
-pages from the old history. The backend owns persistence and consistency; the
-client and Studio cannot infer application dependencies or repair saved pages.
+and EditRequest use only the consistent stored state; retries, concurrent
+editors, and late submissions must not restore data from before the change.
+The backend owns persistence and consistency; the client and Studio cannot
+infer application dependencies or repair saved pages.
 
-Opening a historical editor does not itself invalidate anything. An abandoned
-or rejected draft changes no saved history; the rule applies when the backend
+Opening a historical editor does not itself change anything. An abandoned or
+rejected draft changes no saved history; the rule applies when the backend
 accepts and saves the change. For example, changing a saved filing status from
-joint to single requires updating or erasing all subsequent saved interview
-pages, including their spouse-dependent data and choices, before resuming.
+joint to single erases the spouse data that no page of a single filer owns, and
+asks again each affected page whose stored answers no longer validate, before
+the interview can complete.
 
 ### Validation context and progress
 
@@ -1116,7 +1136,8 @@ the application; the client never serializes an incomplete draft to supply them.
 
 <a id="exit-while-pending"></a>
 
-**Leaving while an operation is pending.** Protocol interaction is strictly
+**Leaving while an operation is pending.** For
+[human-task interaction](#human-task-interaction), protocol interaction is strictly
 ordered and proceeds request by request: every Request has its correlated
 reply, and only SubscriptionData arrives outside that order. A pending Request
 is therefore never abandoned on its own. A surface whose operation awaits its
@@ -1134,7 +1155,9 @@ unless its transport breaks or times out. Every connection is a new
 connection: when the session is lost, the data of every endpoint in it is
 cleared, including surfaces, reference contexts, snapshots, and pending
 operations and calculations, and after reconnecting an endpoint starts again
-from its entry request as when first entered. Leaving abandons the endpoint's
+from its entry request as when first entered. The client stays in the task:
+with several endpoints it shows the endpoint list, and with one endpoint that
+endpoint's entry, each loaded again after reconnecting. Leaving abandons the endpoint's
 surfaces with their pending operations and calculations and queues the
 release of its explicit subscriptions; a reply that arrives afterwards is
 discarded, and nothing the backend already received is retracted. Entering
@@ -2048,7 +2071,8 @@ protocol also has a default subscription. Without the explicit marker, the
 existing default subscription remains the initial data source. With neither,
 the landing presents the available requests in declaration order, except
 [link-only requests](#link-only), using chart
-previews instead of rows for chart requests with executable inputs. An
+previews instead of rows for chart requests with executable inputs. That
+landing is a displayed value without data whose actions are those requests. An
 input-free payload alone never makes a Request the default. Invoke an explicit default
 request as a client-owned correlated
 Request, never as a pooled subscription. While pending, show loading; an error
@@ -2087,6 +2111,11 @@ that request.
 
 Use the existing request-composition rules after initialization, including hidden
 subtrees and constrained choices; count input fields, not rendered layout rows.
+An input field is one the person can edit: a Hidden, ReadOnly, or Fixed field
+is not input, also when a ReadOnly field is visible. A visible ReadOnly or
+Fixed value is still shown, because it is visible for the person to see: a
+request with one editable primitive or enum field beside such a value uses the
+full request editor, not the one-field popup.
 Cancelling or dismissing a popup or an editor sends nothing and preserves the
 current protocol data and reference context. One choice sends at most one
 request, with ordinary validation and request correlation: recomposition,
@@ -2133,7 +2162,10 @@ Only the person's choice sends a request without editable input.
 [Automatic singleton selection](#response-action-constraints) is not such a
 choice: it opens a popup or an editor, and a request without editable input
 that it would select stays offered as the one action until the person chooses
-it. A reply can therefore never cause a request by itself.
+it. A reply therefore never selects or sends an action by itself. The only
+requests that follow a reply without the person's choice are auxiliary
+[field calculations](#field-calculation-requests) and the
+[refresh](presentation.md#master-detail-panes) of a master-detail leading page.
 
 Static and constrained NextRequest sets follow the same rule.
 Existing explicit DefaultRequest entry, default subscriptions, and
@@ -2152,8 +2184,7 @@ The value is exactly one non-empty Request variant native name of the same
 Endpoint protocol Union, never a comma list. Place it on any field, whether a
 protocol payload field or a field of a reusable named type, or on a Table,
 Union, or Enumeration type declaration. As for
-[TableHeader](presentation.md#tableheader-promoted-fields-and-union-selectors)
-and [inline choices](presentation.md#inline-choices), each declaration is read
+[inline choices](presentation.md#inline-choices), each declaration is read
 directly, not through effective-attribute resolution: a link on either the
 field or its type enables it, a field cannot switch off its type's link, and
 when both name a target the field's target applies to that occurrence.
@@ -2223,6 +2254,8 @@ field's bound occurrence, retained for the transaction; an unavailable
 destination rejects the whole update; and assigned values are input changes
 that trigger dependent calculations. The editor stays, awaits its own
 submission, and its reference context is not replaced; nothing navigates. A
+return that cannot be applied is a [refused reply](#entering-and-continuing-a-workflow): the
+composer stays, and the editor and its draft are unchanged. A
 reply carrying NextRequest or WorkflowRequest transitions and never applies
 CopyTo; Studio rejects a link target whose NextResponse names a Response
 variant declaring both.
@@ -2393,9 +2426,16 @@ It can display an explicitly requested subscription's data, a response, or a
 stable EditRequest/WorkflowRequest editor. Successive working results replace
 or update that working destination rather than accumulating historical screens.
 The landing remains underneath with its own data and subscription ownership;
-working data must not overwrite its context. An explicitly selected subscription
-request may create a working subscription screen, even though the base already
-contains a default subscription landing.
+working data must not overwrite its context. A reply to an operation sent from
+the landing that installs a displayed value or an editor is installed as the
+working screen above the landing, whether the landing is a displayed value or a
+request editor; an editor that is the landing is not replaced and stays beneath.
+An explicitly selected subscription request creates a working subscription
+screen, even though the base already contains a default subscription landing:
+the Response that completes it is installed as the working screen and is the
+first state of its SubscriptionData snapshot, whether or not it declares
+NextRequest, and is not an acknowledgement. A failure or Error is handled as for
+any other action.
 
 For native Back in a **stable Control endpoint destination**:
 
@@ -2477,7 +2517,10 @@ the unconstrained set.
 
 The set belongs to the installed response and is replaced only with a newly
 accepted response or subscription update. It is not evaluated against an editor
-or another interaction. Every action entry point, including declared
+or another interaction. An update that removes a request from the set neither
+leaves nor replaces the surface: a popup, editor, or confirmation dialog already
+opened for that request may still send it, and the service checks it as it
+checks every request. Every action entry point, including declared
 [links](#links) on its rows and menus, uses the same filtered set. Backend authorization and state checks still
 apply when a selected request arrives.
 

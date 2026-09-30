@@ -182,11 +182,80 @@ as the device ID rather than erase its meaning.
 Current argument categories include:
 
 - literal text, which is inserted without resource lookup;
-- resource text, which resolves another key in the same resource set;
+- resource text, which resolves an argument-free key in the same resource set;
+- FormattedText (tag 13), which carries a complete canonical FormattedText
+  Bytes tuple as one argument;
+- exact currency (tag 14), which carries an ISO 4217 code, decimal scale, and
+  signed integer minor-unit amount;
+- DateOnly (tag 15), DateTime (tag 16), and TimeOnly (tag 17), carrying
+  calendar dates, instants, and wall-clock times respectively;
 - Libertas objects, resolved to an authorized display name;
 - booleans, signed/unsigned integers, floats, and doubles;
 - unit-qualified signed/unsigned integers, floats, and doubles; and
 - plural counts.
+
+`FormattedText` is distinct from `ResourceText`: its Avro Bytes payload contains
+the nested resource key **and its own typed arguments**. The client renders that
+tuple with the enclosing message's package catalog, locale, and permission-aware
+object resolver, then inserts the result as text. It never reparses the rendered
+text as a template. The encoded argument type wins over a conflicting template
+type, so a nested value is not treated as a number or selector. Malformed nested
+tuples fail the containing render. Clients accept at most 16 nested
+FormattedText levels and 4,096 encoded bytes per tuple.
+
+Exact currency uses Avro String `currency_code`, Avro Long `scale`, and Avro
+Long `minor_units`, in that order after tag 14. The code is three uppercase
+ASCII letters, and the scale is 0 through 6, matching schema `Money`. The
+represented amount is
+`minor_units × 10^-scale`; for example, `USD`, scale `2`, and `-5` means
+negative five cents. The renderer uses the viewer's locale for grouping and
+sign placement while showing the explicit ISO currency code and exactly the
+encoded number of fractional digits. It must not infer a currency from the
+locale or round through a floating-point value. The encoded currency semantics
+take precedence over a conflicting template type. Currency is not a plural or
+select operand; use a separate count argument when selection is needed.
+
+### Temporal arguments
+
+Temporal arguments retain the corresponding schema value's meaning:
+
+| Argument | Tag | Avro payload | Meaning and accepted values |
+| --- | --- | --- | --- |
+| `DateOnly` | 15 | Long | Valid Gregorian calendar date in `yyyyMMdd` form, years 1000 through 9999 |
+| `DateTime` | 16 | Long | Unsigned Unix epoch seconds, from 0 through 253402214399 |
+| `TimeOnly` | 17 | Long | Seconds within the civil day, from 0 through 86400 inclusive |
+
+`DateTime` uses the SDK's existing unsigned-integer encoding in the Long
+payload; its accepted range fits a positive signed Long. The payload is seconds,
+not the millisecond convention used by some native formatting libraries.
+
+Render `DateOnly` as a localized Gregorian date without a timezone conversion.
+Render `TimeOnly` as a localized clock value without a timezone conversion or a
+timezone name. Its upper-bound value 86400 means end of day: display localized
+`24:00` for `short`, and `24:00:00` for the other styles; do not wrap it to midnight.
+Render `DateTime` in the consumer's rendering timezone, using Gregorian calendar
+fields. A client normally uses the viewer's local timezone; a renderer without
+an explicit timezone uses its runtime's local timezone.
+
+The defaults are a medium date for DateOnly, a medium time for TimeOnly, and
+medium date plus medium time for DateTime. Compatible LMF1 placeholders may
+choose `short`, `medium`, `long`, or `full`: `date` for DateOnly, `time` for
+TimeOnly, and either component for DateTime. For example,
+`{0,date,long}` formats an encoded DateOnly or DateTime date; `{1,time,short}`
+formats an encoded TimeOnly or DateTime time. An unrecognized temporal style
+uses medium presentation. Custom LDML patterns are not part of this argument
+style surface.
+
+The encoded semantic type takes precedence over conflicting template types.
+A DateOnly requested as `number` still renders as a date, and a TimeOnly
+requested as `date` still renders as a clock time. Such a conflict ignores the
+incompatible type and its style. Temporal arguments cannot serve as numeric
+plural, choice, or select operands. Reject invalid dates or out-of-range temporal
+payloads even when the template does not display the argument.
+
+PhysicalUnit arguments represent measured quantities, including durations in
+CLDR units. They do not establish a calendar date, an epoch origin, or a civil
+clock time; use these temporal argument types for those values.
 
 The Rust SDK exposes the variants directly through the
 `LibertasMessageArgument` enum. The core TypeScript SDK exposes a numeric
@@ -205,6 +274,33 @@ let arguments = [
         value: 22.5,
     },
 ];
+
+let detail = libertas_formatted_text(
+    "ITEM_COUNT",
+    &[LibertasMessageArgument::Plural(2)],
+);
+let summary = libertas_formatted_text(
+    "SUMMARY",
+    &[LibertasMessageArgument::formatted_text(&detail)],
+);
+let amount = libertas_formatted_text(
+    "PAYMENT_AMOUNT",
+    &[LibertasMessageArgument::Currency {
+        currency_code: "USD",
+        scale: 2,
+        minor_units: -5,
+    }],
+);
+```
+
+The equivalent TypeScript argument uses the canonical Bytes result directly:
+
+```typescript
+const detail = libertasFormattedText("ITEM_COUNT", [{ type: 12, value: 2n }]);
+const summary = libertasFormattedText("SUMMARY", [{ type: 13, value: detail }]);
+const amount = libertasFormattedText("PAYMENT_AMOUNT", [
+    { type: 14, currency_code: "USD", scale: 2n, value: -5n },
+]);
 ```
 
 The same array can render a notification, formatted runtime Bytes field, or

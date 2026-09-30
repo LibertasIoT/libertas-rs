@@ -79,9 +79,7 @@ complete usage rules.
 | `@LibertasSize(min=..., max=...)` | `#[libertas_size(min=..., max=...)]` | String, Bytes, or List field/type | Emits inclusive nonnegative `SizeMin`/`SizeMax`: List element count, String UTF-16 code-unit length, or Bytes byte count. Empty values have size zero; nullable null is handled separately. Tables are not valid hosts. | [Common field metadata](presentation.md#common-field-metadata) |
 | `@LibertasUnique` or `@LibertasUnique(level)` | `#[libertas_unique]` or `#[libertas_unique(level)]` | Scalar field inside one or more ancestor Lists | Emits `Unique`; omitted level means `99`, and a positive level selects the ancestor List scope. | [Common field metadata](presentation.md#common-field-metadata) |
 | `@LibertasUnordered` | `#[libertas_unordered]` | List field/type | Emits `Unordered=true`; List order has no semantic meaning. | [Common field metadata](presentation.md#common-field-metadata) |
-| `@LibertasUIHeader(use_parent_name=true)` | `#[libertas_ui_header(use_parent_name = true)]` | Field or type with children | Compiled into the [Display Template](presentation.md#display-template) as `promote`. Optional Boolean defaults to true: promotion uses the parent display name; false keeps the field display name. Presence enables promotion/flattening by direct declaration lookup; false does not disable it. Existing TableHeader=true schemas retain the default. A struct declaration with false hides its name-only row. | [Header promotion](presentation.md#tableheader-promoted-fields-and-union-selectors) |
-| `@LibertasUIName(value_field)` | `#[libertas_ui_name(value_field)]` | ReadOnly or Hidden String/FormattedText field of a struct | The field's value titles the struct's row and the named sibling's value is the row's value; a List member keeps its List's title in front unless SuppressTitle removes it. One per struct; cannot coexist with a promoted TableHeader field. | [Data-titled rows](presentation.md#uiname-data-titled-rows) |
-| `@LibertasSuppressTitle` | `#[libertas_suppress_title]` | List field or type whose member is a Table | Compiled into the [Display Template](presentation.md#display-template) as `suppress_title`. The List contributes no title to its member rows; each row shows its struct's own title (UIName) and value. | [Untitled List members](presentation.md#suppresstitle-untitled-list-members) |
+| `@LibertasSuppressTitle` | `#[libertas_suppress_title]` | List field or type whose member is a Table | Compiled into the [Display Template](presentation.md#display-template) as `suppress_title`. The List contributes no title to its member rows; each row shows the text a Display Template [`label` or `title`](presentation.md#labels-and-titles) rule gives it and its value. | [Untitled List members](presentation.md#suppresstitle-untitled-list-members) |
 | `@LibertasFoldable(initially_open=true)` | `#[libertas_foldable(initially_open = true)]` | Table, Union, or List type or field | Compiled into the [Display Template](presentation.md#display-template) as `fold`. Allows manual folding; unmarked containers remain expanded. The optional Boolean defaults to true; false starts the value collapsed without disabling folding. | [Folding](presentation.md#folding-structs-and-unions) |
 | `@LibertasInlineChoices` | `#[libertas_inline_choices]` | Enumeration or Union field or type declaration; not a Bitflags catalog | Compiled into the [Display Template](presentation.md#display-template) as `inline`. Clients show the permitted choices inline as radio controls after ConstrainedBy filtering, with a Union's selected payload beneath the row. A marker on either the field or its type enables it. | [Inline choices](presentation.md#inline-choices) |
 | `@LibertasUIIncludeDescription` | `#[libertas_ui_include_description]` | Schema data field/type | Compiled into the [Display Template](presentation.md#display-template) as `include_description`. Clients show the localized long description inline together with the short display name for that UI node. It does not change data or wire encoding. | [Common field metadata](presentation.md#common-field-metadata) |
@@ -229,6 +227,18 @@ Codebots must not emit any spelling in this section.
   automatically through `ForeignType`.
 - `@LibertasExternalNativeType` was removed. Native external ownership is
   inferred from resolved language imports and exact-name App exports.
+- `@LibertasUIHeader` and `#[libertas_ui_header]` (schema attribute
+  `TableHeader`) were retired, and Studio rejects them with a message that
+  names the replacement: a Display Template
+  [`promote`](presentation.md#tableheader-promoted-fields-and-union-selectors)
+  rule selecting the field to promote, with the same `use_parent_name`
+  option, or a [`flatten`](presentation.md#flatten) rule selecting the struct,
+  List, or Union to flatten.
+- `@LibertasUIName` and `#[libertas_ui_name]` were retired, and Studio rejects
+  them with a message that names the replacement. A data-titled row is a
+  Display Template [`label`](presentation.md#labels-and-titles) rule on the row's struct
+  with its value from a `promote` rule on a child
+  ([data-titled rows](presentation.md#data-titled-rows)).
 
 ### Unsupported authoring forms
 

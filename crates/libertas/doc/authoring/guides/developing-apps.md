@@ -120,7 +120,6 @@ use libertas_macros::*;
 /// Garden settings
 /// The example area name and daily limit used to demonstrate a configuration form.
 #[derive(Clone, Debug, LibertasExport, LibertasAvroDecode)]
-#[libertas_ui_header(use_parent_name = false)]
 pub struct Configuration {
     /// Zone name
     /// Give this example watering area a name between 1 and 64 characters.
@@ -156,6 +155,19 @@ pub fn showcase(
 }
 ```
 
+`display.json`, beside `Cargo.toml`, flattens the configuration so its two
+fields sit directly under the task instead of beneath a **Garden settings**
+row:
+
+```json
+{
+  "DisplayVersion": 1,
+  "rules": [
+    { "select": "^<Configuration>", "flatten": { "name_row": false } }
+  ]
+}
+```
+
 </details>
 
 Choose useful names, defaults, units, bounds, and explanations in the first
@@ -180,9 +192,11 @@ explain the available representations.
 read the code explain each setting and recognize which required answers are
 still missing?
 
-<h3 id="shape-the-screen-with-uiheader" style="font-size:1.5rem;line-height:1.2;margin:1.5em 0 0.65em;">Shape the screen with UIHeader</h3>
+<h3 id="shape-the-screen-with-uiheader" style="font-size:1.5rem;line-height:1.2;margin:1.5em 0 0.65em;">Shape the screen with promote and flatten</h3>
 
-Now keep the values fixed and change only the layout annotation. In every pair,
+Now keep the values fixed and change only one `promote` or `flatten` rule in
+`display.json`. `promote` selects a field of a struct; `flatten` selects a
+struct, List, or Union. In every pair,
 the garden area is **Backyard** and its daily limit is **20 min**. The two crops
 come from the same client screen, retain the same horizontal origin, and use
 the same display scale. Compare the row count, labels, and indentation.
@@ -192,7 +206,7 @@ the same display scale. Compare the row count, labels, and indentation.
 The comparison App offers several layouts through one configuration Union.
 In Rust, each data-carrying enum variant defines one choice and its associated
 fields. Selecting a choice opens that variant's fields. This selector is ordinary
-Union presentation; it does not need `UIHeader`.
+Union presentation; it needs no rule.
 
 <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; margin: 20px 0;">
 <div style="flex: 1 1 300px; min-width: 0;">
@@ -210,7 +224,7 @@ Union presentation; it does not need `UIHeader`.
     },
     // Other comparison variants follow.
 }</code></pre>
-<p>The variant's first comment line appears in the choice list. Its fields are the two examples shown after selection. The capture shows the first four choices; more are available by scrolling.</p>
+<p>The variant's first comment line appears in the choice list. Its fields are the two examples shown after selection; their labels, <strong>Without UIHeader</strong> and <strong>With UIHeader</strong>, are this comparison App's own names. The capture shows the first four choices; more are available by scrolling.</p>
 </div>
 <figure style="flex: 1 1 300px; min-width: 0; margin: 0;"><figcaption><strong>Union choice selector</strong></figcaption>
 <img src="../assets/screenshots/uiheader-choice-selector.png" style="display: block; width: 100%; height: auto; border: 1px solid GrayText; border-radius: 8px; box-sizing: border-box; margin: 12px 0; max-width: 360px;" alt="Layout comparison Union selector showing scalar parent-name, scalar field-name, struct flattening, and struct heading-hiding choices.">
@@ -219,100 +233,95 @@ Union presentation; it does not need `UIHeader`.
 
 <h4 id="1-put-a-fields-value-on-its-parent-row" style="font-size:1.2rem;line-height:1.2;margin:1.5em 0 0.65em;">1. Put a field's value on its parent row</h4>
 
-Place `UIHeader` on the **field**. The value **Backyard** moves to the owning
-row, so the separate **Zone name** row disappears. The owning row keeps its
-label—**With UIHeader** in this comparison. The unannotated **Daily limit**
+Select the **field** with a `promote` rule. The value **Backyard** moves to
+the owning row, so the separate **Zone name** row disappears. The owning row
+keeps its label—**With UIHeader** in this comparison. The unselected **Daily limit**
 remains below it.
 
 <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; margin: 20px 0;">
-<figure style="flex: 1 1 300px; min-width: 0; margin: 0;"><figcaption><strong>Without UIHeader</strong></figcaption>
+<figure style="flex: 1 1 300px; min-width: 0; margin: 0;"><figcaption><strong>Without the rule</strong></figcaption>
 <pre style="white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: Canvas; color: CanvasText; border: 1px solid GrayText; border-radius: 8px; font-size: 0.85em; line-height: 1.5; min-height: 3.0em;"><code style="color: inherit; background: transparent;">pub zone_name: String;</code></pre>
-<img src="../assets/screenshots/uiheader-scalar-parent-without.png" style="display: block; width: 100%; height: auto; border: 1px solid GrayText; border-radius: 8px; box-sizing: border-box; margin: 12px 0;" alt="Without UIHeader: a heading followed by Zone name Backyard and Daily limit 20 min.">
+<img src="../assets/screenshots/uiheader-scalar-parent-without.png" style="display: block; width: 100%; height: auto; border: 1px solid GrayText; border-radius: 8px; box-sizing: border-box; margin: 12px 0;" alt="Without the rule: a heading followed by Zone name Backyard and Daily limit 20 min.">
 </figure>
-<figure style="flex: 1 1 300px; min-width: 0; margin: 0;"><figcaption><strong>With UIHeader</strong></figcaption>
-<pre style="white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: Canvas; color: CanvasText; border: 1px solid GrayText; border-radius: 8px; font-size: 0.85em; line-height: 1.5; min-height: 3.0em;"><code style="color: inherit; background: transparent;">#[libertas_ui_header]
-pub zone_name: String;</code></pre>
-<img src="../assets/screenshots/uiheader-scalar-parent-with.png" style="display: block; width: 100%; height: auto; border: 1px solid GrayText; border-radius: 8px; box-sizing: border-box; margin: 12px 0;" alt="With UIHeader: Backyard appears on the parent row and Daily limit remains beneath it.">
+<figure style="flex: 1 1 300px; min-width: 0; margin: 0;"><figcaption><strong>With the rule</strong></figcaption>
+<pre style="white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: Canvas; color: CanvasText; border: 1px solid GrayText; border-radius: 8px; font-size: 0.85em; line-height: 1.5; min-height: 3.0em;"><code style="color: inherit; background: transparent;">{ "select": "^&lt;ParentSummary&gt;.zone_name",
+  "promote": true }</code></pre>
+<img src="../assets/screenshots/uiheader-scalar-parent-with.png" style="display: block; width: 100%; height: auto; border: 1px solid GrayText; border-radius: 8px; box-sizing: border-box; margin: 12px 0;" alt="With the rule: Backyard appears on the parent row and Daily limit remains beneath it.">
 </figure>
 </div>
 
 <h4 id="2-keep-the-promoted-fields-name-instead" style="font-size:1.2rem;line-height:1.2;margin:1.5em 0 0.65em;">2. Keep the promoted field's name instead</h4>
 
-The field placement still promotes **Backyard**. With `use_parent_name = false`,
+The field rule still promotes **Backyard**. With `"use_parent_name": false`,
 the promoted row is labeled **Zone name** instead of **With UIHeader**.
-The Boolean chooses the label; `false` does not turn promotion off.
+The option chooses the label; it does not turn promotion off.
 
 <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; margin: 20px 0;">
-<figure style="flex: 1 1 300px; min-width: 0; margin: 0;"><figcaption><strong>Without UIHeader</strong></figcaption>
+<figure style="flex: 1 1 300px; min-width: 0; margin: 0;"><figcaption><strong>Without the rule</strong></figcaption>
 <pre style="white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: Canvas; color: CanvasText; border: 1px solid GrayText; border-radius: 8px; font-size: 0.85em; line-height: 1.5; min-height: 6.0em;"><code style="color: inherit; background: transparent;">pub zone_name: String;</code></pre>
 <img src="../assets/screenshots/uiheader-scalar-field-without.png" style="display: block; width: 100%; height: auto; border: 1px solid GrayText; border-radius: 8px; box-sizing: border-box; margin: 12px 0;" alt="Unmarked struct with a separate Zone name row and Daily limit row.">
 </figure>
-<figure style="flex: 1 1 300px; min-width: 0; margin: 0;"><figcaption><strong>With UIHeader</strong></figcaption>
-<pre style="white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: Canvas; color: CanvasText; border: 1px solid GrayText; border-radius: 8px; font-size: 0.85em; line-height: 1.5; min-height: 6.0em;"><code style="color: inherit; background: transparent;">#[libertas_ui_header(
-    use_parent_name = false
-)]
-pub zone_name: String;</code></pre>
+<figure style="flex: 1 1 300px; min-width: 0; margin: 0;"><figcaption><strong>With the rule</strong></figcaption>
+<pre style="white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: Canvas; color: CanvasText; border: 1px solid GrayText; border-radius: 8px; font-size: 0.85em; line-height: 1.5; min-height: 6.0em;"><code style="color: inherit; background: transparent;">{ "select": "^&lt;FieldSummary&gt;.zone_name",
+  "promote": {
+    "use_parent_name": false } }</code></pre>
 <img src="../assets/screenshots/uiheader-scalar-field-with.png" style="display: block; width: 100%; height: auto; border: 1px solid GrayText; border-radius: 8px; box-sizing: border-box; margin: 12px 0;" alt="The promoted row is labeled Zone name and contains Backyard, with Daily limit below.">
 </figure>
 </div>
 
 <h4 id="3-flatten-a-structs-children" style="font-size:1.2rem;line-height:1.2;margin:1.5em 0 0.65em;">3. Flatten a struct's children</h4>
 
-Place `UIHeader` on the **struct declaration**. The **With UIHeader** heading
+Select the **struct type** with a `flatten` rule. The **With UIHeader** heading
 remains, and both child fields move left. No field value is promoted into that
-heading. This is a different effect from placing the marker on a field.
+heading. This is a different effect from selecting a field.
 
 <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; margin: 20px 0;">
-<figure style="flex: 1 1 300px; min-width: 0; margin: 0;"><figcaption><strong>Without UIHeader</strong></figcaption>
+<figure style="flex: 1 1 300px; min-width: 0; margin: 0;"><figcaption><strong>Without the rule</strong></figcaption>
 <pre style="white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: Canvas; color: CanvasText; border: 1px solid GrayText; border-radius: 8px; font-size: 0.85em; line-height: 1.5; min-height: 7.5em;"><code style="color: inherit; background: transparent;">pub struct PlainZone {
     pub zone_name: String,
     pub daily_limit_minutes: u32,
 }</code></pre>
 <img src="../assets/screenshots/uiheader-struct-flat-without.png" style="display: block; width: 100%; height: auto; border: 1px solid GrayText; border-radius: 8px; box-sizing: border-box; margin: 12px 0;" alt="The struct heading remains above two indented child rows.">
 </figure>
-<figure style="flex: 1 1 300px; min-width: 0; margin: 0;"><figcaption><strong>With UIHeader</strong></figcaption>
-<pre style="white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: Canvas; color: CanvasText; border: 1px solid GrayText; border-radius: 8px; font-size: 0.85em; line-height: 1.5; min-height: 7.5em;"><code style="color: inherit; background: transparent;">#[libertas_ui_header]
-pub struct FlatZone {
-    pub zone_name: String,
-    pub daily_limit_minutes: u32,
-}</code></pre>
+<figure style="flex: 1 1 300px; min-width: 0; margin: 0;"><figcaption><strong>With the rule</strong></figcaption>
+<pre style="white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: Canvas; color: CanvasText; border: 1px solid GrayText; border-radius: 8px; font-size: 0.85em; line-height: 1.5; min-height: 7.5em;"><code style="color: inherit; background: transparent;">{ "select": "^&lt;FlatZone&gt;",
+  "flatten": true }</code></pre>
 <img src="../assets/screenshots/uiheader-struct-flat-with.png" style="display: block; width: 100%; height: auto; border: 1px solid GrayText; border-radius: 8px; box-sizing: border-box; margin: 12px 0;" alt="The struct heading remains while Zone name and Daily limit appear at a shallower indentation.">
 </figure>
 </div>
 
 <h4 id="4-flatten-and-hide-the-structs-name-row" style="font-size:1.2rem;line-height:1.2;margin:1.5em 0 0.65em;">4. Flatten and hide the struct's name row</h4>
 
-Keep the marker on the **struct**, and set `use_parent_name = false`.
+Keep the `flatten` rule on the **struct type**, and set `"name_row": false`.
 Both fields remain visible and editable, but the **With UIHeader** name-only
 row disappears. The right-hand caption belongs to this guide; it is not an
 extra row added to the captured client UI.
 
 <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; margin: 20px 0;">
-<figure style="flex: 1 1 300px; min-width: 0; margin: 0;"><figcaption><strong>Without UIHeader</strong></figcaption>
+<figure style="flex: 1 1 300px; min-width: 0; margin: 0;"><figcaption><strong>Without the rule</strong></figcaption>
 <pre style="white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: Canvas; color: CanvasText; border: 1px solid GrayText; border-radius: 8px; font-size: 0.85em; line-height: 1.5; min-height: 10.5em;"><code style="color: inherit; background: transparent;">pub struct PlainZone {
     pub zone_name: String,
     pub daily_limit_minutes: u32,
 }</code></pre>
 <img src="../assets/screenshots/uiheader-struct-hidden-without.png" style="display: block; width: 100%; height: auto; border: 1px solid GrayText; border-radius: 8px; box-sizing: border-box; margin: 12px 0;" alt="A name-only struct heading above Zone name and Daily limit.">
 </figure>
-<figure style="flex: 1 1 300px; min-width: 0; margin: 0;"><figcaption><strong>With UIHeader</strong></figcaption>
-<pre style="white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: Canvas; color: CanvasText; border: 1px solid GrayText; border-radius: 8px; font-size: 0.85em; line-height: 1.5; min-height: 10.5em;"><code style="color: inherit; background: transparent;">#[libertas_ui_header(
-    use_parent_name = false
-)]
-pub struct UnnamedZone {
-    pub zone_name: String,
-    pub daily_limit_minutes: u32,
-}</code></pre>
+<figure style="flex: 1 1 300px; min-width: 0; margin: 0;"><figcaption><strong>With the rule</strong></figcaption>
+<pre style="white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: Canvas; color: CanvasText; border: 1px solid GrayText; border-radius: 8px; font-size: 0.85em; line-height: 1.5; min-height: 10.5em;"><code style="color: inherit; background: transparent;">{ "select": "^&lt;UnnamedZone&gt;",
+  "flatten": {
+    "name_row": false } }</code></pre>
 <img src="../assets/screenshots/uiheader-struct-hidden-with.png" style="display: block; width: 100%; height: auto; border: 1px solid GrayText; border-radius: 8px; box-sizing: border-box; margin: 12px 0;" alt="Only the flattened Zone name and Daily limit rows remain; there is no struct heading.">
 </figure>
 </div>
 
-These focused snippets omit unchanged documentation, derives, defaults, and
-constraints. Those declarations are identical in each pair. `UIHeader` changes
-presentation; the fields and their encoded data hierarchy stay intact.
-Omitting the argument means `use_parent_name = true`. Removing the annotation
-removes its layout effect. See the [full UIHeader contract](../reference/presentation.md#tableheader-promoted-fields-and-union-selectors)
-for combinations with Union and collection types.
+The declarations are identical in each pair; only the `display.json` rule
+differs. `promote` and `flatten` change presentation; the fields and their
+encoded data hierarchy stay intact. For `promote`, `true` means
+`"use_parent_name": true`. Removing a rule removes its layout effect. See the
+[full promotion contract](../reference/presentation.md#tableheader-promoted-fields-and-union-selectors)
+and [flattening](../reference/presentation.md#flatten) for Union and List
+flattening and their combinations, and
+[labels and titles](../reference/presentation.md#labels-and-titles) for replacing a row's
+displayed name from its data.
 
 <a id="4-give-the-running-task-a-conversation"></a>
 

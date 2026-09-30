@@ -125,6 +125,9 @@ Consequences:
   with no visible content presents only its actions, keeping hidden cookies.
 - No editor is auto-submitted: EditRequest and WorkflowRequest editors wait
   for explicit submission, even when Nil or complete.
+- A service that accepts a changed earlier page, before replying, recomputes
+  and saves, erases, or keeps and marks unanswered each stored page the change
+  affects ([saved-page rule](../reference/protocols.md#saved-page-consistency-after-historical-edits)).
 - Never combine CopyTo with `NextRequest` or `WorkflowRequest` on a link
   target's reply. Every direct field of a returning or calculation reply has
   CopyTo or is Hidden. CopyTo never creates parents or extends arrays; an
@@ -253,7 +256,8 @@ screen, which successive results replace or update, and above that at most one
 [transient composer](../reference/endpoint-presentation.md#protocol-transaction-stack).
 An editor has at most one pending Submit, Prev, or link; the pending composer
 owns its reply, and within a Control session replies apply in
-[send order](../reference/protocols.md#request-and-response-ordering). Interaction is strictly ordered, request by request, except
+[send order](../reference/protocols.md#request-and-response-ordering). For a person's client ([human-task interaction](../reference/protocols.md#human-task-interaction);
+software may agree its own rules with the service), interaction is strictly ordered, request by request, except
 SubscriptionData. A pending Request is never abandoned on its own: dismissing
 anything that awaits a reply leaves the endpoint. A person may leave an
 endpoint at any time; late replies are discarded, and entering again repeats

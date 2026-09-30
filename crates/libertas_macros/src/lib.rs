@@ -218,8 +218,6 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     || attr.path().is_ident("libertas_llm_doc_trans")
                     || attr.path().is_ident("libertas_llm_doc_field")
                     || attr.path().is_ident("libertas_cache_identity")
-                    || attr.path().is_ident("libertas_ui_header")
-                    || attr.path().is_ident("libertas_ui_name")
                     || attr.path().is_ident("libertas_suppress_title")
                     || attr.path().is_ident("libertas_ui_include_description")
                     || attr.path().is_ident("libertas_read_only")
@@ -317,22 +315,6 @@ pub fn libertas_foreign_type(_attr: TokenStream, item: TokenStream) -> TokenStre
 /// Parser-only chart mark/composition metadata. The schema parser validates it.
 #[proc_macro_attribute]
 pub fn libertas_chart(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    item
-}
-
-/// Header layout metadata on standalone type aliases. Schema extraction owns
-/// the arguments; Studio owns semantic validation, as for derive helpers.
-#[proc_macro_attribute]
-pub fn libertas_ui_header(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    item
-}
-
-/// Data-titled row metadata on standalone type aliases: the field's value
-/// titles its struct's row and the argument names the sibling that supplies
-/// the row's value. Schema extraction owns the argument; Studio owns the
-/// placement rules.
-#[proc_macro_attribute]
-pub fn libertas_ui_name(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
@@ -534,6 +516,44 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// #[libertas_export]
 /// fn invalid(#[libertas_array(sizeMax = 4)] values: Vec<u32>) {}
 /// ```
+///
+/// Retired presentation attributes are rejected on fields, standalone aliases,
+/// and function parameters. Author `promote`, `flatten`, `label`, and `title`
+/// rules in the App's `display.json` instead.
+///
+/// ```compile_fail
+/// use libertas_macros::LibertasExport;
+/// #[derive(LibertasExport)]
+/// struct Invalid { #[libertas_ui_header] value: String }
+/// ```
+///
+/// ```compile_fail
+/// use libertas_macros::LibertasExport;
+/// #[derive(LibertasExport)]
+/// struct Invalid { #[libertas_ui_name(amount)] label: String, amount: i64 }
+/// ```
+///
+/// ```compile_fail
+/// #[libertas_macros::libertas_ui_header]
+/// type Invalid = Vec<u32>;
+/// ```
+///
+/// ```compile_fail
+/// #[libertas_macros::libertas_ui_name(amount)]
+/// type Invalid = Vec<u32>;
+/// ```
+///
+/// ```compile_fail
+/// use libertas_macros::libertas_export;
+/// #[libertas_export]
+/// fn invalid(#[libertas_ui_header] value: String) {}
+/// ```
+///
+/// ```compile_fail
+/// use libertas_macros::libertas_export;
+/// #[libertas_export]
+/// fn invalid(#[libertas_ui_name(amount)] label: String, amount: i64) {}
+/// ```
 #[proc_macro_derive(LibertasExport, attributes(
     libertas_calculation_request,
     libertas_workflow_request,
@@ -554,8 +574,8 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_money,
     libertas_formatted_text,
     libertas_mime_types,
-    libertas_endpoint_schema, 
-    libertas_endpoint_server, 
+    libertas_endpoint_schema,
+    libertas_endpoint_server,
     libertas_endpoint_base_objects,
     libertas_permissions,
     libertas_access_host,
@@ -564,9 +584,9 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     // Restricts which end-user endpoint access levels may invoke this request;
     // the schema parser canonicalizes "Read"/"Write" names to a bitmap.
     libertas_access_privilege,
-    libertas_response, 
+    libertas_response,
     libertas_error,
-    libertas_subscription_request, 
+    libertas_subscription_request,
     libertas_subscription_data,
     libertas_default,
     // On an Endpoint client this carries an editable peer-process constraint;
@@ -574,8 +594,6 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_fixed,
     libertas_device_type,
     libertas_virtual_device_type,
-    libertas_ui_header,
-    libertas_ui_name,
     libertas_suppress_title,
     libertas_foldable,
     // Renders an Enumeration's or Union's permitted choices inline.

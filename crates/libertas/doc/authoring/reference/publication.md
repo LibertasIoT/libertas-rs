@@ -150,9 +150,16 @@ The JSON contract is:
 }
 ```
 
-`artifact` is `null` for TypesOnly. `documents.sha256` is the exact digest of
-the content-addressed documents manifest referenced by that target revision, and
-`documents.count` is its locale count. Because that manifest names the
+`artifact` is `null` for TypesOnly. `schema.sha256` and `schema.size` describe
+the decoded canonical schema. `documents.sha256` identifies the canonical raw
+format-2 documents inventory, and `documents.count` is its locale count. For a
+format-3 gzip inventory, this identity is computed by replacing each compressed
+asset descriptor with its decoded `contentSha256` and `contentSize` and its raw
+`document.<locale>.<contentSha256>.json` or `display.<contentSha256>.json` name,
+keeping sorted locales and the default locale, and serializing the resulting
+format-2 JSON with sorted object keys and no whitespace. The downloaded
+format-3 manifest has its own asset digest. Compression never changes the
+Hub's schema or document content identity. Because that manifest names the
 [Display Template](#display-template-identity), its digest covers the template
 too; the target manifest keeps this shape and the template is not a locale. The target manifest's APT dependency
 names are deduplicated and sorted. They are per-target OS installation data and never
@@ -236,6 +243,14 @@ history, a missing GitHub release still stops publication. Unrecognized or
 malformed markers, failed current-format integrity checks, and GitHub access
 errors also stop publication.
 
+A release with a valid format-2 marker and the older raw `schema.json` layout
+is also classified as obsolete without downloading its old metadata bodies.
+If the compiled publication still has the same immutable creation identity,
+Studio appends gzip assets to that same tag and preserves the marker and old
+assets. A changed creation identity requires a greater public version. The
+schema gzip asset is uploaded after the other required assets, so
+an interrupted conversion remains recognizable and can be retried normally.
+
 Reconciliation has these outcomes:
 
 - identical immutable schema/runtime content reuses the publication, exact
@@ -313,7 +328,7 @@ The GitHub Release title is `{developer}-{package} · {publicationVersion}` so
 the public App version is visible in GitHub's release list. Studio also updates
 the title when synchronizing an existing release; its immutable tag stays the same.
 
-Each GitHub Release contains `libertas.release.json`, immutable `schema.json`,
+Each current GitHub Release contains `libertas.release.json`, immutable `schema.json.gz`,
 every immutable content-addressed target-manifest revision and executable
 artifact, the current content-addressed documents manifest, and its
 content-addressed locale assets. Published runtime bindings, schema, dependency
@@ -324,35 +339,44 @@ to a newly published revision.
 The documents manifest contains metadata only, never embedded locale document
 or template bodies. Its asset name includes its own lowercase SHA-256 as
 `documents.<sha256>.json`; locale assets follow
-`document.<locale>.<sha256>.json` and the compiled Display Template follows
-`display.<sha256>.json`:
+`document.<locale>.<sha256>.json.gz` and the compiled Display Template follows
+`display.<sha256>.json.gz`. Schema, locale documents, and the template are
+precompressed with gzip level 9. The marker and target/document manifests stay
+JSON. Every compressed descriptor's `sha256` and `size` describe the downloaded
+bytes; `contentSha256` and `contentSize` describe the exact decoded UTF-8 JSON.
+The release marker's `schemaSha256` continues to identify the decoded schema:
+
 
 ```json
 {
   "defaultLocale": "en-US",
   "display": {
-    "name": "display.<sha256>.json",
+    "name": "display.<sha256>.json.gz",
     "sha256": "<64 lowercase hex digits>",
-    "size": 48
+    "size": 64,
+    "contentSha256": "<64 lowercase hex digits>",
+    "contentSize": 48
   },
   "documents": [
     {
       "locale": "en-US",
-      "name": "document.en-US.<sha256>.json",
+      "name": "document.en-US.<sha256>.json.gz",
       "sha256": "<64 lowercase hex digits>",
-      "size": 1234
+      "size": 456,
+      "contentSha256": "<64 lowercase hex digits>",
+      "contentSize": 1234
     }
   ],
-  "formatVersion": 2
+  "formatVersion": 3
 }
 ```
 
-Format 2 requires the `display` member, including for the empty template.
+Format 3 requires the `display` member, including for the empty template.
 Entries are sorted by locale and own the exact GitHub asset name, byte size,
 and digest needed for a consumer to choose before downloading. Plaza atomically
 advances a publication's document-manifest locator after all newly referenced
-assets exist. Each new target-manifest revision records that manifest's digest
-and locale count. Old content-addressed documents and target manifests remain
+assets exist. Each target-manifest revision records the logical raw inventory
+digest described above and its locale count. Old content-addressed documents and target manifests remain
 and are never replaced in place, so a failed upload or retry cannot create a
 missing-asset window.
 
@@ -377,6 +401,24 @@ use this format-2 contract.
 
 
 ## Publication completion and recovery
+
+The Plaza service's database upgrade discards obsolete catalog packages,
+publications, target bindings, functions, and search entries from older asset
+formats while preserving accounts, repository authorizations, and unrelated
+settings. New publication and catalog downloads use the gzip format only;
+older document manifests are rejected. This upgrade does not delete GitHub
+release assets. Studio can append current gzip assets to an existing release
+with the same immutable creation identity without inventing a new App version.
+The Hub preserves installed App data and automatically prepares missing gzip
+artifacts from its retained raw metadata before serving clients.
+
+Consumers verify compressed size and digest before decoding, enforce bounds
+on both compressed and decoded content, then verify decoded content identity
+and JSON before installation or presentation. A malformed gzip body fails;
+there is no raw fallback. App schema, locale document, and template bodies are
+limited to 16 MiB each in Plaza downloads. Their metadata manifest is limited
+to 256 KiB. Installation uses the existing exact dependency graph and ordinary
+Hub deployment path after decoding.
 
 Plaza exposes a complete target set only after referenced public assets verify.
 It has no user-visible staged or partially admitted target publication. GitHub

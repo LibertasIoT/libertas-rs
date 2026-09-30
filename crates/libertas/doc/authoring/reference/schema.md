@@ -701,8 +701,6 @@ by the current parsers and shared validator.
 | `Unordered` | Declares list ordering semantically irrelevant to management/UI behavior. |
 | `ReadOnly` | Value is displayed but not user-editable. Initialization, CopyFrom, EditRequest, calculation CopyTo and draft restoration still write it; only `Fixed` protects a value. See the [ReadOnly rule](presentation.md#common-field-metadata). |
 | `Hidden` | Value is hidden from ordinary editors. On a chart carrier table, composition, or chart-bearing Union variant wrapper, it also marks direct non-chart fields as preserved transaction context that renderers exclude from chart projection. |
-| `TableHeader` | Parser result only; compiled into the Display Template. Presence enables [header promotion/type flattening](presentation.md#tableheader-promoted-fields-and-union-selectors). Its Boolean string value encodes use_parent_name: true (default and existing schemas) uses the parent display name; false uses the field name. On a struct declaration, false hides its name-only row. Union values remain selected-variant display names. |
-| `UIName` | Its value names a sibling field. The marked String or FormattedText field's value titles the struct's row and the named field's value is the row's value ([data-titled rows](presentation.md#uiname-data-titled-rows)); neither has a row of its own, and a List member so titled keeps its List's title in front unless SuppressTitle removes it. Studio enforces the placement rules there. |
 | `SuppressTitle` | Parser result only; compiled into the Display Template. Marker on a List whose effective member type is a Table: the List contributes no title to its member rows, neither member name nor position ([untitled List members](presentation.md#suppresstitle-untitled-list-members)). |
 | `Link` | One non-empty Request variant native name of the same Endpoint protocol Union, never a list, on any field or on a Table, Union, or Enumeration type declaration; the field's target wins over its type's. Tapping the displayed node opens that Request ([links](protocols.md#links), [rendering](presentation.md#link-rendering)). |
 | `InlineChoices` | Parser result only; compiled into the Display Template. Exact marker value `true` on an Enumeration or Union field or type declaration, never a Bitflags catalog. Clients show the permitted choices inline as radio controls ([inline choices](presentation.md#inline-choices)). |
@@ -739,6 +737,12 @@ them on the parser result, compiles every occurrence into the package's
 specificity, and then removes them from the final schema, with the transient
 source metadata and before sorting and revision hashing. The final schema never
 carries them, so changing one alone never changes schema identity.
+
+`TableHeader` and `UIName` are retired. Studio rejects either in a parser
+result with a message that names its replacement: promotion is the
+template's [`promote`](presentation.md#tableheader-promoted-fields-and-union-selectors)
+rule and flattening its [`flatten`](presentation.md#flatten) rule, and a [data-titled row](presentation.md#data-titled-rows) is a template
+[`label`](presentation.md#labels-and-titles) rule with a promoted child as its value.
 
 The exact versioned Base64 attribute layouts used by `DeviceType` and
 `VirtualDevice` are specified in

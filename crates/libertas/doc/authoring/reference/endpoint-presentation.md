@@ -162,8 +162,11 @@ See [landing ownership and Back](protocols.md#control-endpoint-landing-and-nativ
 
 On Android and iOS, ProtocolData displays the response or subscription data
 owned by that screen. Its first content row represents the current Union
-discriminator using its localized name. A `TableHeader` child appears on a
-separate row at the same indentation, preserving the Union's identity.
+discriminator using its localized name, or the text of a Display Template
+[`label` or `title`](presentation.md#labels-and-titles) rule on the variant. A
+[promoted](presentation.md#tableheader-promoted-fields-and-union-selectors)
+child appears on a separate row at the same indentation, preserving the
+Union's identity.
 An icon-only **Requests** button occupies the trailing end of that same row,
 with a localized tooltip/accessibility label and a native-sized tap target.
 Use the bulleted-list-in-a-rectangle glyph: Material `ListAlt` on Android and
@@ -172,7 +175,7 @@ top bar.
 
 Requests come from the displayed variant's effective `NextRequest`, preserving
 declared order and existing visibility/access filtering. Promoting a
-`TableHeader` child changes presentation only; request resolution still belongs
+child changes presentation only; request resolution still belongs
 to the enclosing protocol variant. With no eligible request, hide the button.
 With exactly one, push its request builder directly without a chooser. With
 multiple, show the next-request chooser, then open the selected request's
