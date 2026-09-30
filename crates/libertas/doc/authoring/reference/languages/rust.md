@@ -493,7 +493,7 @@ name-only row. A `label` rule with a promoted field gives a
 [data-titled row](../presentation.md#data-titled-rows). The retired
 `#[libertas_ui_header]` and `#[libertas_ui_name]` are rejected.
 
-`#[libertas_suppress_title]` on a `Vec` of structs, or on its type alias, stops the list from titling its member rows and is compiled into the [Display Template](../presentation.md#display-template). See [untitled list members](../presentation.md#suppresstitle-untitled-list-members); Studio enforces the placement rules.
+`#[libertas_suppress_label]` suppresses a scalar, struct, or Union row’s visual label while retaining its value and controls. On a `Vec` of structs or its type alias it suppresses only List-contributed member names and positions, retaining the List heading. Studio compiles it into the [Display Template](../presentation.md#display-template) and enforces [placement and page-title rules](../presentation.md#suppresslabel-label-free-value-rows). The former `#[libertas_suppress_title]` spelling is rejected.
 
 ### Inline descriptions
 

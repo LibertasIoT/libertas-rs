@@ -95,7 +95,7 @@ owns its identity and delivery.
   the empty template. The empty template is valid, has a digest and a
   documents-manifest entry, and renders exactly the platform default.
 - **Sole runtime owner of presentation.** Clients read promotion and
-  flattening, titles, folding, inline choices, SuppressTitle,
+  flattening, titles, folding, inline choices, SuppressLabel,
   UIIncludeDescription, the `Format` display pattern, and chart appearance only
   from the template. Promotion, flattening, labels, and titles are authored
   only as template rules.
@@ -142,7 +142,7 @@ three tests in order:
 | Hidden, ReadOnly, Fixed, Default, Nullable, Size, Number ranges, Unique, Unordered | `promote` with `use_parent_name`, and `flatten` with `name_row` |
 | ValidationRules, RangeMin, RangeMax, EnumSource, ConstrainedBy | Foldable and `initially_open` |
 | CopyFrom, CopyTo, CalculationRequest, Link, LinkOnly, RequestConfirmation | InlineChoices |
-| NextRequest, NextResponse, PrevRequest, WorkflowRequest, DefaultRequest, ExcludeUI | SuppressTitle, UIIncludeDescription |
+| NextRequest, NextResponse, PrevRequest, WorkflowRequest, DefaultRequest, ExcludeUI | SuppressLabel, UIIncludeDescription |
 | AccessPrivilege, CacheIdentity | `Format` display pattern and precision, never the value or currency |
 | Money, PhysicalUnit, DateOnly, FormattedText, display names, descriptions | Chart scale type, guide position, and palette |
 | Chart channel bindings: which field is x, y, color, or tooltip | Template-only concepts: layout, density, emphasis, `label` and `title`, device conditions |
@@ -208,7 +208,7 @@ A rule is one JSON object with these members:
 | `label` | No | Replaces the node's displayed name and keeps its value ([labels and titles](#labels-and-titles)): `{ "field": "path" }` takes the text from a String or FormattedText field below the node, and a string names a fixed `StringResources` key. |
 | `title` | No | Replaces the node's whole row, label and value, with its text, in the same two forms ([labels and titles](#labels-and-titles)). |
 | `flatten` | No | Draws a struct's, List's, or Union's children at that node's own indentation ([flattening](#flatten)): `true`; `false`, which undoes a flattening that a lower-ranked rule set; or `{ "name_row": false }` on a struct to remove its name-only row as well. |
-| `inline`, `fold`, `promote`, `suppress_title`, `include_description`, `format`, `scale`, `guide`, `palette` | No | [Behavior hints](#behavior-hints). |
+| `inline`, `fold`, `promote`, `suppress_label`, `include_description`, `format`, `scale`, `guide`, `palette` | No | [Behavior hints](#behavior-hints). |
 | `switch` | No | A [conditional switch](#display-template-switch) whose chosen case supplies the presentation members. A rule with `switch` has no other presentation member. |
 
 A rule has exactly one `select` and at least one presentation member, directly
@@ -560,7 +560,7 @@ with a message that names the key form.
 
 A `label` or `title` rule may select:
 
-- a page, a Response variant (`^<Hub>`): the text is the page title and
+- a page, a displayed Request or Response variant (`^<Hub>`): the text is the page title and
   replaces the page's top row as the member says;
 - a struct, by its type (`^<Type>`) or by a field of it: the text replaces the
   struct's row as the member says;
@@ -581,7 +581,7 @@ visible source field nor rejects it, but reports a warning at the `label` or
 Hidden. A visible source field keeps its own row.
 
 `label` and `title` exclude each other on one node, and neither combines with
-`suppress_title` on that node. A `label` with a `promote`d child is how a row
+`suppress_label` on that node. A `label` with a `promote`d child is how a row
 is [data-titled](#data-titled-rows). Both resolve through the
 [cascade](#display-template-cascade) and `when` like every other member; a
 data condition, switch case, or pseudo-state changes style, layout, or fold
@@ -647,7 +647,7 @@ section keeps that meaning and any authoring syntax.
 | `inline` | `true` or `false` | [InlineChoices](#inline-choices) on an Enumeration or Union node. |
 | `fold` | `true`, `false`, or `{ "initially_open": Boolean }` | [Foldable](#folding-structs-and-unions) on a Table, Union, or List; `true` means `initially_open` true, `false` makes the node unfoldable. |
 | `promote` | `true`, `false`, or `{ "use_parent_name": Boolean }` | [Promotion](#tableheader-promoted-fields-and-union-selectors), with no source attribute. Valid only on a rule selecting a field of a struct, never a function parameter: that field becomes its parent row's value. `true` means `use_parent_name` true; `false` turns promotion off. |
-| `suppress_title` | `true` or `false` | [SuppressTitle](#suppresstitle-untitled-list-members) on a List of Tables. |
+| `suppress_label` | `true` or `false` | [SuppressLabel](#suppresslabel-label-free-value-rows): omit the selected value row’s label; on a List of structs omit the List-contributed member names and positions. |
 | `include_description` | `true` or `false` | [UIIncludeDescription](#common-field-metadata). |
 | `format` | One pattern string | [`Format`](#display-formats): only the portable pattern grammar that section defines, checked against the node's effective type; no other string is accepted. |
 | `scale` | One scale type token | The chart scale type of a scale-bearing chart field, under the [chart specification's](charts/2d.md#6-chartscale) type matrix. |
@@ -695,7 +695,7 @@ template unless:
   and ends at a String or FormattedText field; the selected node is neither a
   Union nor reached only through a Union, where only the `"KEY"` form is
   valid; no node has both `label` and
-  `title`, and neither is combined with `suppress_title` on the same node;
+  `title`, and neither is combined with `suppress_label` on the same node;
   Studio reports these at the member's line of `display.json`;
 - every `promote` rule selects a field of a struct, never a type, a List
   member, a Union branch, a function parameter, or a Response; every
@@ -1128,22 +1128,85 @@ Neither rule has a source attribute. The retired `UIName` attribute
 message that names this replacement: its title is a `label` rule and its value
 a `promote` rule on the named child.
 
-### SuppressTitle: untitled List members
+### SuppressLabel: label-free value rows
 
-`@LibertasSuppressTitle` in TypeScript and `#[libertas_suppress_title]` in Rust
-mark a List field or List type whose effective member type is a Table. The
-parser result carries `{"Name":"SuppressTitle","Value":"true"}`; Studio
-compiles it into the [Display Template](#display-template) as the
-`suppress_title` hint and removes it from the final schema. Studio rejects the
-marker on any other host, including a List of primitives or Unions, whose
-member rows have no title but the List's.
+`@LibertasSuppressLabel` in TypeScript and `#[libertas_suppress_label]` in
+Rust suppress the visual label contributed by the selected node. The parser
+result carries `{"Name":"SuppressLabel","Value":"true"}`; Studio compiles
+it into the [Display Template](#display-template) as the Boolean
+`suppress_label` hint and removes it from the final schema. A template rule
+can set `false` to restore the ordinary label under the
+[cascade](#display-template-cascade). The rule does not propagate to children.
 
-The marked List contributes no title to its member rows: no member name and
-no position. Each member row shows only what its struct produces: the text a
-[`label` or `title`](#labels-and-titles) rule gives it, when one does, and its value slot;
-a member without either shows an untitled row with its promoted value. The
-membership controls, the menu and the fold arrow stay on the row. The marker
-changes no data, and a client that does not understand the hint ignores it.
+| Selected node | With `suppress_label: true` |
+| --- | --- |
+| Scalar value, including an Enumeration | Omit its row label; keep its value and editor. |
+| Struct | Omit its own row label; keep its promoted value, visible children, and actions. A struct without a promoted value keeps its children and any row controls. |
+| Union | Omit the Union's own label; keep the localized selected variant value, selector, visible payload, and actions. An unselected editable Union keeps its selection affordance. |
+| List whose effective member type is a struct (Table) | Omit the member name and position contributed by the List to each member row; keep each member's own template label or title, promoted value, visible children, and controls. Keep the List's heading, count, and membership actions. |
+
+Other List member types and non-value declarations are invalid hosts. Studio
+rejects them; source syntax does not extend the placement rules. List
+suppression retains the previous List-of-struct behavior, rather than
+suppressing the List's own heading.
+
+The hint suppresses a visual label, never a value or subtree. It does not
+change folding, editing, links, menus, membership permissions, help, or the
+semantic name used for accessibility and editor dialogs. A control without a
+visible label still has its localized accessible name. On a promoted row,
+only its displayed label is omitted; the promoted value and its declaring
+link remain available under the [action rule](#actions-on-a-promoted-or-suppressed-row).
+`Hidden` continues to suppress the entire presentation subtree and wins
+before every template rule.
+
+An explicit `label` or `title` and `suppress_label` are mutually exclusive on
+one selected node, including `false`; List suppression can still coexist
+with a `label` or `title` on its distinct member nodes. The old source names
+`@LibertasSuppressTitle` and `#[libertas_suppress_title]`, parser attribute
+`SuppressTitle`, and template member `suppress_title` are retired authoring
+forms. Modern compilation rejects them and names their corresponding
+replacement; they are not aliases.
+
+A reader of an already validated, retained compiled Display Template accepts
+its historical `suppress_title` Boolean solely for the former List-of-struct
+member-name and position behavior. At document ingress, translate that member
+to `suppress_label` only when the rule has no `suppress_label`; an explicit
+modern member, including `false`, wins. Normalize a runtime copy without
+rewriting the retained document bytes or their digest. This isolated artifact
+reader does not accept the old spelling in new source or `display.json`, and
+renderers consume only the modern hint.
+
+#### Protocol page heading and top bar
+
+The first content row naming the active protocol page is its screen heading
+on every client, including editable Requests, workflow editors and Responses.
+Use the platform's heading typography: larger, semibold text in the normal
+foreground color, wrapping for long localized titles, and extra space before
+the fields below. Omit the ordinary field-row divider and expose the title as
+an accessibility heading. Keep its existing controls and the typography of
+nested fields. This treatment is platform-owned and requires no App attribute.
+
+When the displayed root protocol Union has `suppress_label: true`, the page
+heading and its native top bar use the localized selected variant name,
+without the protocol label. Resolve an explicit `title` or `label` rule on
+the displayed Request or Response variant first, using the same rendering
+and empty-value fallback as [labels and titles](#labels-and-titles). Otherwise
+use that variant's localized display name. With no selected variant, retain
+the ordinary localized protocol title rather than a blank heading.
+
+The title belongs to the active displayed value. Apply this rule to editable
+Request pages, including workflow editors, as well as Response pages; do not
+take an editor's title from its originating Response. An explicit variant
+rule also titles that active page when root suppression is absent.
+For example, a protocol labelled “Tax return” with selected variant “About
+you” shows “About you” as its heading and top-bar title under:
+
+```json
+{ "select": "^<TaxProtocol>", "suppress_label": true }
+```
+
+The selector in an App must use its actual protocol type name. No duplicated
+resource key or field is needed solely to remove “Tax return”.
 
 ### Presentation only
 

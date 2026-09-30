@@ -218,7 +218,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     || attr.path().is_ident("libertas_llm_doc_trans")
                     || attr.path().is_ident("libertas_llm_doc_field")
                     || attr.path().is_ident("libertas_cache_identity")
-                    || attr.path().is_ident("libertas_suppress_title")
+                    || attr.path().is_ident("libertas_suppress_label")
                     || attr.path().is_ident("libertas_ui_include_description")
                     || attr.path().is_ident("libertas_read_only")
                     || attr.path().is_ident("libertas_hidden")
@@ -318,10 +318,10 @@ pub fn libertas_chart(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
-/// Marks a List of structs whose member rows take no title from the List.
+/// Suppresses a value row label; on a List of structs, suppresses member names and positions.
 /// Presentation metadata only; Studio owns the placement rule.
 #[proc_macro_attribute]
-pub fn libertas_suppress_title(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn libertas_suppress_label(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
@@ -594,7 +594,7 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_fixed,
     libertas_device_type,
     libertas_virtual_device_type,
-    libertas_suppress_title,
+    libertas_suppress_label,
     libertas_foldable,
     // Renders an Enumeration's or Union's permitted choices inline.
     libertas_inline_choices,

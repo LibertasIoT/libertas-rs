@@ -24,7 +24,7 @@ the sole runtime owner of how values are arranged and styled; it is not schema
 and never changes the App version. With no `display.json` and no presentation
 attributes the package compiles to the valid empty template, which renders the
 platform default. Presentation source attributes (`Foldable`,
-`InlineChoices`, `SuppressTitle`, `UIIncludeDescription`, `Format`, chart scale
+`InlineChoices`, `SuppressLabel`, `UIIncludeDescription`, `Format`, chart scale
 `kind` and guide `position`) remain the way to author defaults: Studio compiles
 them into the template at the lowest specificity and drops them from the
 schema. Promotion (`promote`), flattening (`flatten`), `label`, and `title`
@@ -67,10 +67,12 @@ Write each rule as four relations:
   Previous/Next inside a workflow confuses users.
 - **What styles it:** `style` tokens (`density`, `emphasis`, `align`, `role`,
   `color`, `spacing`, `span`, `icon`) and behavior hints (`inline`, `fold`,
-  `promote`, `suppress_title`, `include_description`, `format`, `scale`,
+  `promote`, `suppress_label`, `include_description`, `format`, `scale`,
   `guide`, `palette`). No CSS, pixels, literal colors, or fonts. `media` is
   deferred until bytes fields have a MIME-type attribute.
-- **What names it:** on a page (Response variant), struct, Union field, or
+- **What removes its label:** [`suppress_label`](../reference/presentation.md#suppresslabel-label-free-value-rows) keeps a scalar, struct, or Union value and its controls while omitting its row label. On a List of structs it removes only the List-contributed member name and position, preserving its heading and member labels. At a suppressed root protocol Union, use the selected variant’s localized name in the heading and top bar; an explicit title/label of that active Request or Response wins. Keep accessible names. Retired `suppress_title` and its source spellings are rejected.
+- **What heads the page:** the first content-row title uses platform-owned screen-heading styling and accessibility on Requests and Responses; no App attribute is needed. See [protocol page headings](../reference/presentation.md#protocol-page-heading-and-top-bar).
+- **What names it:** on a page (displayed Request or Response variant), struct, Union field, or
   List's members (`…[]`), [`label`](../reference/presentation.md#labels-and-titles)
   replaces only the displayed name (on a List's members, the name and position
   number) and keeps the row's value (its own or a promoted child's); `title` replaces the whole row, label and value, with its
@@ -82,7 +84,7 @@ Write each rule as four relations:
   form is valid, because the branch is known only at run time. A null, unanswered, or empty value draws the node as
   without the member; the display name stays the schema's meaning for AI
   tools. `label` and `title` exclude each other, neither sits beside
-  `suppress_title` on one node, and no data condition or switch case sets
+  `suppress_label` on one node, and no data condition or switch case sets
   them. A data-titled row is a `label` rule on its struct plus a `promote`
   rule on the child that is its value. Declare every `label` or `title`
   source field Hidden in the schema so it is not drawn twice; the template
@@ -237,6 +239,12 @@ to DataName database/record names; see the
 Preserve all LMF1 positions, types, styles, selectors, plural structure,
 braces, and apostrophe escapes in translation. See
 [Libertas Message Format](../reference/message-format.md).
+Typed currency arguments default to the ISO code; compatible `number` styles
+choose `currency`/`¤` for the symbol, `¤¤` for the code, or `¤¤¤` for a localized
+name while preserving the encoded currency and scale. Compatible `date`/`time`
+styles choose `short`, `medium`, `long`, or `full`; calendar dates and civil
+times never acquire timezone shifts. See the
+[currency and temporal contract](../reference/message-format.md#libertas-message-arguments).
 
 ## Charts
 

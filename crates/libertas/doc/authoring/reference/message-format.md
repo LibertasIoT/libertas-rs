@@ -209,9 +209,36 @@ ASCII letters, and the scale is 0 through 6, matching schema `Money`. The
 represented amount is
 `minor_units × 10^-scale`; for example, `USD`, scale `2`, and `-5` means
 negative five cents. The renderer uses the viewer's locale for grouping and
-sign placement while showing the explicit ISO currency code and exactly the
-encoded number of fractional digits. It must not infer a currency from the
-locale or round through a floating-point value. The encoded currency semantics
+sign placement, defaulting to the explicit ISO currency code and exactly the
+encoded number of fractional digits. A compatible `number` placeholder may
+choose the currency's symbol, ISO code, or localized name:
+
+| Template | English result for USD, scale 2, minor units 676100 |
+| --- | --- |
+| `{0}` or `{0,number}` | `USD 6,761.00` |
+| `{0,number,currency}` | `$6,761.00` |
+| `{0,number,¤#,##0.00}` | `$6,761.00` |
+| `{0,number,¤¤#,##0.00}` | `USD 6,761.00` |
+| `{0,number,#,##0.00 ¤¤¤}` | `6,761.00 US dollars` |
+
+Currency patterns use the portable decimal-pattern subset with `¤` for a
+localized symbol, `¤¤` for the ISO code, and `¤¤¤` for the localized currency
+name. The name follows the locale's plural rules with the encoded scale's
+visible fractional digits. Quoted currency signs remain literals. Patterns
+control grouping, placement, affixes and an optional negative subpattern;
+for example, `¤#,##0.00;(¤#,##0.00)` displays negative USD amounts in
+parentheses. The encoded scale always overrides the pattern's fractional
+digits: `¤#,##0` still shows `$6,761.00` for this argument. Locale data supplies
+currency spacing, including a nonbreaking separator between an adjacent
+alphabetic code and digits. Symbols may include a regional qualifier, such as
+`US$`, depending on the viewer's locale.
+
+Currency patterns cannot use percent, per-mille, scientific notation, or
+currency-sign sequences wider than three. Numeric styles without an unquoted
+currency sign, including `integer`, `percent` and `0.00`, retain the default
+ISO-code currency presentation. A conflicting template type ignores its style.
+Neither a style nor the locale may replace the encoded currency or scale.
+The renderer must not round through a floating-point value. The encoded currency semantics
 take precedence over a conflicting template type. Currency is not a plural or
 select operand; use a separate count argument when selection is needed.
 
@@ -245,6 +272,13 @@ TimeOnly, and either component for DateTime. For example,
 formats an encoded TimeOnly or DateTime time. An unrecognized temporal style
 uses medium presentation. Custom LDML patterns are not part of this argument
 style surface.
+
+For a combined instant, compose its date and time components in the same
+template, for example `{0,date,long} at {0,time,short}`. Both refer to the same
+encoded instant and rendering timezone; the localized template owns the
+connecting words. Long and full DateTime time styles include the timezone;
+TimeOnly has no timezone name at any width. Short time omits seconds and the
+other widths include them, using the locale's clock convention.
 
 The encoded semantic type takes precedence over conflicting template types.
 A DateOnly requested as `number` still renders as a date, and a TimeOnly

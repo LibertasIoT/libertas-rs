@@ -167,6 +167,10 @@ discriminator using its localized name, or the text of a Display Template
 [promoted](presentation.md#tableheader-promoted-fields-and-union-selectors)
 child appears on a separate row at the same indentation, preserving the
 Union's identity.
+The heading and native top bar use the title of the active displayed Request
+or Response under the [protocol page-title rule](presentation.md#suppresslabel-label-free-value-rows),
+including selected-variant fallback when the root Union suppresses its label.
+An editor uses its own variant, not the originating Response.
 An icon-only **Requests** button occupies the trailing end of that same row,
 with a localized tooltip/accessibility label and a native-sized tap target.
 Use the bulleted-list-in-a-rectangle glyph: Material `ListAlt` on Android and
