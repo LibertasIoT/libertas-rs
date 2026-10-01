@@ -527,6 +527,13 @@ whose `when` holds on a phone asks for it. A split is how a photo on the left
 with name, date of birth, and employee ID as rows on the right is expressed;
 every other layout arranges all children one way.
 
+Adjacent split regions have a platform-owned gutter in either direction and
+at every nesting level: 16 dp on Android, 16 pt on iOS, and 16 CSS px in Studio.
+The ratios divide the available extent after the gutters are deducted; nested
+device conditions use the resulting region size. The gutter is automatic,
+requires no `display.json` member, and is independent of the row `spacing`
+style token. A split rendered as ordinary `rows` has no region gutters.
+
 #### Labels and titles
 
 Two members change the text a person sees on the node their rule selects:
