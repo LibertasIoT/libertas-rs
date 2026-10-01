@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "sdkVersion": "0.3.0",
-  "sourceRevision": "eccfcfafb0fec75a471aadb0a87ec74c64ef4e4b",
+  "sourceRevision": "5f44c88b3e8810f35eec7378418acf26d1bcf569",
   "sourceDirty": false,
-  "sourceContentSha256": "cc9dd0a9131e1479814c6a0379ffc2cca37bdc8202e0f02c86855aff7faaf6b8",
+  "sourceContentSha256": "dedde13c10d67fed40d68634b53d2bbb7900d9fe48a6cca6d697d4e7c455657a",
   "entryContentSha256": "80ab16c55edbd462203d27da61a74cb78bb16639929bbb9e82729e07142646b0",
   "files": {
     "assets/comment/chart_code.png": "61b793cb5efad9cec765af07788d44c64c48a266fda143622d2a70288d29423b",
@@ -112,7 +112,7 @@
     "reference/deployment.md": "2d550edaadb065f9ce737f1bc9d9983ade5d13f71157e1cb10029fda8cdb4965",
     "reference/documentation.md": "cab75424a0591ece0140aa351ca6495d69351e36275bd75466c03e65df7c4f5b",
     "reference/endpoint-lifecycle.md": "0c220c5f47984e5eff97365ccadde616c2affa0077d56ee1d1d4989d5d0ab6d4",
-    "reference/endpoint-presentation.md": "3cd534903bbfbeb887a0bdbfb41214c85b6b90493242747a407ddcff6109a920",
+    "reference/endpoint-presentation.md": "4734e556836d8abb8bd2fc89a97e11362b9a356127ec0732173d1621d52de710",
     "reference/function-comments.md": "23885d644b45486ea04abf4ea5f16cfe6825da134f2908e599d7b8ebf5269877",
     "reference/index.md": "fa02ede149b6dc5a5214c473a99ae37fb281e860f6d8c9755796c0a568929430",
     "reference/languages/rust.md": "68eaad3dbe5b23b2dcab2c8af70d8693944a838bfff66d32961306bd0e644d62",

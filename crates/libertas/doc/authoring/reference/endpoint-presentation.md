@@ -256,8 +256,11 @@ an eligible previous action exists, and **Next** is the primary action at the
 trailing edge. Multiple previous actions retain their ordered chooser. The
 row reserves its own space; it never covers fields or validation feedback.
 The form uses the remaining viewport and can scroll its last field and error
-fully into view. The working surface accounts for the keyboard and system
-safe areas once, including when the editor is an embedded pane. Text remains
+fully into view. On Android and iOS, hide the whole action row while the
+software keyboard is visible, including in embedded panes; restore it when
+the keyboard is dismissed. Showing or dismissing the keyboard never submits
+or sends a previous action. The working surface accounts for the keyboard
+and system safe areas once, including when the editor is an embedded pane. Text remains
 readable and controls remain usable with enlarged text and localized labels.
 In a master-detail pane, Close remains distinct from the workflow's previous
 action and shares the compact row under the
