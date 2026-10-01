@@ -392,6 +392,13 @@ client that meets it draws `rows` under the forward-tolerant rule.
 | `accordion` | Table or List | Folding sections with the [folding](#folding-structs-and-unions) behavior and `initially_open`. |
 | `split` | Table | Two or three `regions` in a `direction`, `row` or `column`. See below. |
 
+In ordinary label-and-value rows, Android and iOS measure the rendered label
+and value, including icons and controls, using the current font and localized
+text. They keep both beside one another when their widths and the platform's
+label-value gap fit the available row width; otherwise the value goes below
+the label. The available width belongs to the actual pane or `form-grid` cell.
+This client-owned arrangement needs no additional template rule.
+
 <a id="master-detail-panes"></a>
 
 **Master-detail panes.** The leading pane shows the Response, the **leading
