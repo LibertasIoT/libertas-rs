@@ -403,11 +403,17 @@ action of the leading page, behave as they do below the widening gate: their
 result replaces the whole working surface, both panes. Both panes belong to the
 endpoint's one working surface, and interaction stays strictly ordered:
 
+- Both panes fill the available content height and scroll independently. The
+  working surface owns screen navigation and system insets once; the trailing
+  page keeps its content heading without duplicating the screen toolbar.
+  Close and Submit, when offered together, share one compact action row.
 - Navigation happens from the leading pane. The trailing pane shows no Back
   control of its own and offers one **Close** control on every page it shows,
   a displayed Response as well as an editor, in place of an editor's Cancel.
   Close empties the trailing pane, sends nothing, and keeps the leading page.
-  The workflow's previous action, which sends a request, stays available.
+  The workflow's previous action, which sends a request, stays available as a
+  separate action; a client may offer it in the trailing pane's Actions menu.
+  It is never the pane's Back or Close control.
   Close is inactive while the refresh is pending and while the trailing page
   awaits a reply; the [leaving rule](protocols.md#exit-while-pending) then
   governs leaving.
