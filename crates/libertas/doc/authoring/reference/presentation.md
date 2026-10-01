@@ -419,8 +419,9 @@ endpoint's one working surface, and interaction stays strictly ordered:
   a displayed Response as well as an editor, in place of an editor's Cancel.
   Close empties the trailing pane, sends nothing, and keeps the leading page.
   The workflow's previous action, which sends a request, stays available as a
-  separate action; a client may offer it in the trailing pane's Actions menu.
-  It is never the pane's Back or Close control.
+  separate secondary Go back action in the
+  [workflow action row](endpoint-presentation.md#workflow-editor-destinations).
+  It is never the pane's navigation Back or Close control.
   Close is inactive while the refresh is pending and while the trailing page
   awaits a reply; the [leaving rule](protocols.md#exit-while-pending) then
   governs leaving.

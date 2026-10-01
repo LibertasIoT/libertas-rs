@@ -1,7 +1,7 @@
 # Runtime endpoint presentation
 
-This document defines the application-shell presentation shared by the Android
-and iOS Libertas clients. It is not part of the chart schema grammar.
+This document defines the application-shell presentation shared by the Android,
+iOS and Studio Libertas clients. It is not part of the chart schema grammar.
 
 ## Presentation decision
 
@@ -249,6 +249,24 @@ submits the current editor. Entry through either workflow path always waits
 for user submission. Native screen Back/dismissal exits the flow; nested-editor
 and picker dismissal return to the same parent editor. Those local movements
 must not invoke PrevRequest or restore historical workflow drafts.
+
+The workflow controls share one compact, persistent action row outside the
+scrolling form: **Go back** is a secondary action at the leading edge, when
+an eligible previous action exists, and **Next** is the primary action at the
+trailing edge. Multiple previous actions retain their ordered chooser. The
+row reserves its own space; it never covers fields or validation feedback.
+The form uses the remaining viewport and can scroll its last field and error
+fully into view. The working surface accounts for the keyboard and system
+safe areas once, including when the editor is an embedded pane. Text remains
+readable and controls remain usable with enlarged text and localized labels.
+In a master-detail pane, Close remains distinct from the workflow's previous
+action and shares the compact row under the
+[pane rules](presentation.md#master-detail-panes).
+
+Next retains the same submission behavior on every page. Clients do not infer
+a final step or change it to a special Submit action from the content,
+variant names or possible replies; the service selects the result under the
+[workflow contract](protocols.md#submit-previous-actions-and-completion).
 
 ## Quick Actions
 
