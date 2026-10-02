@@ -387,7 +387,10 @@ variant through its enum member, Union branch, or payload type instead.
 
 ### Optional Types
 
-If you want to allow users to leave a field empty, you can use optional modifiers (`?`) or nullable unions (`| undefined`):
+Optional modifiers (`?`) and nullable unions (`| undefined`) declare meaningful
+absence. For ordinary optional user text, prefer a `string` with an empty
+Schema Default and size bounds permitting zero, under the shared
+[type-selection guidance](../app-contract.md#user-facing-and-non-user-facing-types):
 
 ```typescript
 /**
@@ -397,14 +400,22 @@ If you want to allow users to leave a field empty, you can use optional modifier
 export interface Student {
     /**
      * Middle name
-     * The user may enter the student's middle name when one is available.
+     * Enter the student's middle name. Leave it empty if absent.
+     * @LibertasDefault("")
+     * @LibertasSize(min=0, max=120)
      */
-    middleName?: string;
-    // or
-    // middleName: string | undefined;
+    middleName: string;
 }
 ```
-* **UI Presentation**: This makes the field optional in the UI. The user will be able to clear the field or skip providing a value. The parser maps both of these natively into the platform schema's `"Nullable"` attribute.
+
+This middle name starts empty and may stay empty. When absence must remain
+distinct from a present value, use `amount?: number` or
+`amount: number | undefined`, for example to distinguish an unknown amount from
+known zero. Both forms emit the platform schema's `Nullable` attribute; a
+Nullable value starts as valid absence. A size minimum constrains a supplied
+String, not null. A non-Nullable String without a Fixed or applicable default
+starts unanswered, even when its size minimum is zero.
+
 * **Special Case**: If you define a property referencing a Union Type Alias with `| undefined`, the parser correctly resolves it as a reference to the type alias with the `Nullable` attribute, rather than flattening the union inline.
 
 ---

@@ -313,6 +313,17 @@ a non-null Nullable List uses its selected item shape. A Nullable Number uses JS
 non-null numeric text strictly. Nullable Enumeration uses member name or null.
 `allowEmpty` is inapplicable to Nullable fields.
 
+For ordinary optional text whose domain meaning is “blank when not supplied,”
+use a non-Nullable String with an empty Schema Default and explicit
+`allowEmpty=true`. In Rust, combine `#[libertas_default("")]` with
+`#[libertas_llm_doc_field(allow_empty = true)]`; the bare field marker still
+defaults to `false` for String. Permit length zero in its size bounds. Describe
+the manual answer as “Leave it empty if absent” and tell the model to return
+exact `""` for genuinely missing text. Reserve JSON `null` for truly Nullable
+destinations. Unreadable text is an error, not evidence that the text is absent.
+Follow the [type-selection guidance](app-contract.md#user-facing-and-non-user-facing-types)
+when manual input and an internal record use different representations.
+
 The client accepts numeric text only when the entire string is a JSON number
 lexeme, with no surrounding whitespace, grouping separators, currency sign,
 `NaN`, or infinity, and checks the destination type and bounds. Conversion

@@ -43,6 +43,13 @@ numbers need explicit integer/float width when `f64` is not intended; Rust
 number width comes from its native type. `DateOnly` is integer `yyyyMMdd`,
 `TimeOnly` is seconds after midnight, and `DateTime` is epoch seconds.
 
+Choose types by occurrence: user input, displayed output, or internal data;
+public/exported does not mean editable. Ordinary optional text uses String with
+empty Default and minimum zero; meaningful absence uses Nullable. Labeled
+Enumerations/Unions make user decisions explicit, including binary choices;
+use folding for presentation alone. Follow the
+[type-selection and change-review guidance](../reference/app-contract.md#user-facing-and-non-user-facing-types).
+
 ## External types and App dependencies
 
 External declarations resolve through native imports/modules to the owning App

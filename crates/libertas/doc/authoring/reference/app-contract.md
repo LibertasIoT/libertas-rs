@@ -130,6 +130,77 @@ Use the closest native type. Do not encode typed values as ad-hoc strings.
 `TimeOnly` is seconds from midnight. `DateTime` is epoch seconds presented in
 the viewer's local timezone.
 
+### User-facing and non-user-facing types
+
+Choose a representation for the value's meaning and its consumers. A public,
+schema-reachable declaration is not necessarily user-facing: it may describe
+persistent records or internal calculations. Review each occurrence of a type,
+including its editability and visibility, rather than classifying it by `pub`
+or `export` alone.
+
+| Use | Design question |
+| --- | --- |
+| User input, including task configuration | What must the person enter or decide? Which answers may start blank, absent, or unselected? |
+| User-visible output | What does the App report? How does an unavailable result differ from an empty result or zero? |
+| Non-user-facing storage, calculation, or transport | Which states must the App preserve, and which distinctions affect its logic or compatibility? |
+
+Reuse a type when these meanings and constraints agree. Use separate input and
+internal types when they differ, and map between them explicitly. For example,
+an editor can use blank text while a stored record uses absence. This does not
+justify copying every type into a second hierarchy.
+
+For user input, choose among these representations:
+
+| Meaning | Recommended representation |
+| --- | --- |
+| Ordinary optional text, where blank means not supplied | String with `Default=""`, `SizeMin=0`, and a suitable maximum. |
+| Required text | String with `SizeMin` of at least 1; omit a Default when the person must supply the answer. |
+| Meaningful absence distinct from a present value | Nullable (`Option<T>` in Rust). For example, an unknown amount differs from an explicit zero. |
+| Optional text that must meet a minimum length when supplied | Nullable String with the appropriate size bounds; null remains valid. |
+| A decision between named alternatives, including “none” and “provide details” | A labeled Enumeration for choices without payloads, or a labeled Union when a choice carries additional input. |
+| Details that only need to expand or collapse | A Table with [folding](presentation.md#folding-structs-and-unions). Folding changes presentation without changing the answer. |
+
+Nullable means that absence is a valid answer. It does not by itself ask the
+person to decide between two domain choices. A labeled Union can make a binary
+decision easier to operate: its localized choices explain the alternatives,
+and the selected branch exposes the relevant inputs. Use meaningful labels
+such as “Kept all shares” and “Sold shares”; native `None`/`Some` or
+`Nothing`/`Something` names do not explain the decision. Optional
+[inline choices](presentation.md#inline-choices) show these choices as radio
+controls. For internal presence or absence alone, prefer Nullable instead of
+introducing a custom Union.
+
+An `Option<String>` with `SizeMin=1` is valid: null is allowed, but a present
+empty String is rejected. It therefore differs from a non-Nullable String with
+`SizeMin=0`. Use the latter for ordinary optional text when that distinction
+serves no purpose. Size bounds do not supply initial values. Under the
+[initialization contract](schema.md#shared-copyfrom-and-copyto-rules), when no
+Fixed, Schema Default, or localized default supplies a value, a String starts
+unanswered even if it permits empty text, a Nullable value starts as valid null,
+and a Union starts unselected. A Default selecting “none” does not establish
+that the person confirmed that choice.
+
+### Reviewing a representation change
+
+When changing Nullable text to blank text, review presence checks, validation
+rules, label fallbacks, calculations, and grouping keys. Translate `""` to
+absence only where the destination uses that meaning, and translate absence
+back to `""` for that editor. Do not accidentally group unrelated unnamed
+records together. Keep unknown amounts distinct from zero.
+
+Update [source comments](documentation.md#parameter-and-field) and
+[AI Import declarations and instructions](llm-document-transformation.md#blank-values-and-output-types)
+to match the new blank semantics. Optional imported text needs both an empty
+Schema Default and explicit `allowEmpty=true`; making manual entry optional
+does not enable blank import results automatically. Inspect the generated
+schema and document, and validate the affected entry and import behavior.
+
+Review published protocol and persistent-data compatibility before changing
+any representation. Replacing Nullable with a String or custom Union is not
+automatically compatible. Follow the
+[data-type evolution contract](data-type-evolution.md); changing an editor does
+not require changing an existing stored representation.
+
 ## External types and App dependencies
 
 Resolve an external type through the native language import/module system. The

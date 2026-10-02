@@ -1,5 +1,8 @@
 # Data-type evolution quick rules
 
+Choose initial representations under the shared
+[user-facing and non-user-facing type guidance](../reference/app-contract.md#user-facing-and-non-user-facing-types).
+
 Protocol and persistent-data Unions are published wire contracts. Keep each
 Union's native name versionless and unchanged for the App's lifetime. Append
 new variants only; never reorder, remove, renumber, rename, reinterpret, or

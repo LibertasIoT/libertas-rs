@@ -7,6 +7,8 @@ This manual provides a quick reference for writing Rust code for the Libertas Pl
 - [Project contract and library requirements](#project-contract-and-library-requirements)
 - [Documentation and localization](#documentation-and-localization)
 - [Libertas type system](#libertas-type-system)
+  - [Optional types](#optional-types)
+  - [Labeled decisions and internal absence](#labeled-decisions-and-internal-absence)
 - [Schema attributes and field presentation](#schema-attributes-and-field-presentation)
 - [Functions, persistent data, and resources](#functions-persistent-data-and-resources)
 - [Endpoint protocols and presentation](#endpoint-protocols-and-presentation)
@@ -344,20 +346,120 @@ If the enum variants contain data (payloads), it acts as a Union Type. You can u
 
 ### Optional types
 
-If you want to allow users to leave a field empty, simply wrap the type in an `Option<T>`:
+Separate user input, displayed output, and internal records when choosing types.
+`pub` makes a declaration available to schema discovery; it does not mean that
+people edit every occurrence. Follow the shared
+[type-selection guidance](../app-contract.md#user-facing-and-non-user-facing-types).
+
+For ordinary optional text, use `String` with an explicit empty Default and
+size bounds that permit zero. Required text uses a positive minimum and can
+remain unanswered until the person enters it:
 
 ```rust
 /// Student name
 /// Describes the parts of a student's name that a school records.
 #[derive(LibertasExport, LibertasAvroDecode)]
 pub struct Student {
+    /// First name
+    /// Enter the student's first name as recorded by the school.
+    #[libertas_size(min = 1, max = 120)]
+    pub first_name: String,
+
     /// Middle name
-    /// The school records the student's middle name when one is supplied;
-    /// leaving it empty means no middle name was provided.
-    pub middle_name: Option<String>,
+    /// Enter the student's middle name. Leave it empty if absent.
+    #[libertas_default("")]
+    #[libertas_size(min = 0, max = 120)]
+    pub middle_name: String,
 }
 ```
-* **UI Presentation**: This makes the field optional in the UI. The user will be able to clear the field or skip providing a value.
+
+The middle name starts as `""` and may stay empty. The first name has no
+Default and starts unanswered. `SizeMin=0` alone would not initialize a String
+to `""`; Rust's `String::default()` is not a Schema Default either.
+
+Use `Option<T>` when absence is a distinct, valid domain answer. For example:
+
+```rust
+/// Reported payment
+/// Describes the amount known for one payment.
+#[derive(LibertasExport, LibertasAvroDecode)]
+pub struct ReportedPayment {
+    /// Payment amount
+    /// Enter the known payment amount, including zero when no money was paid.
+    /// Omit the amount when it is unknown.
+    #[libertas_money("USD", 2)]
+    pub amount: Option<i64>,
+}
+```
+
+Here `None` means unknown and `Some(0)` means known zero. Retain Nullable text
+when absence must differ from a present answer, including an optional
+identifier with `#[libertas_size(min = 9, max = 10)]`: absence is valid, but
+any supplied identifier must meet that length constraint.
+
+`Option<String>` with a minimum of 1 is valid. The size rule applies to the
+present String; it rejects `Some("")`, not `None`. Prefer the simpler blank
+String for ordinary optional text when this distinction is unnecessary.
+
+### Labeled decisions and internal absence
+
+A binary decision can justify a named Union. Its localized labels explain what
+the person chooses, and a selected payload branch exposes the relevant input.
+Use an Enumeration when neither choice needs a payload. For example:
+
+```rust
+/// Email contact preference
+/// Choose whether email contact is wanted and where messages should be sent.
+#[derive(LibertasExport, LibertasAvroDecode)]
+#[libertas_inline_choices]
+pub enum EmailContact {
+    /// No email contact
+    /// Choose this when email messages are not wanted.
+    NoEmail,
+
+    /// Receive email
+    /// Choose this to receive messages at the supplied email address.
+    Receive {
+        /// Email address
+        /// Enter the address where messages should be sent.
+        #[libertas_size(min = 1, max = 254)]
+        address: String,
+    },
+}
+```
+
+This Union offers two labeled radio choices through
+[InlineChoices](../presentation.md#inline-choices); without that attribute,
+the normal choice selector is used. It has no Default, so the person must
+choose before submitting. Selecting `Receive` requires its address. An
+`Option<String>` instead starts as valid absence and supplies a generic
+presence/absence control. Defaulting a Union to its empty branch also removes
+the requirement to make a new choice; a Default is not proof of confirmation.
+Native names such as `Nothing` and `Something` are permitted, but their comments
+must provide meaningful standalone choice labels.
+
+For an internal email address that only needs presence or absence,
+`Option<String>` avoids an unnecessary named choice type. If an input String
+uses blank for absence while an existing record uses `Option<String>`, map at
+the boundary, for example:
+
+```rust
+fn record_text(input: String) -> Option<String> {
+    if input.is_empty() { None } else { Some(input) }
+}
+
+fn editor_text(stored: Option<String>) -> String {
+    stored.unwrap_or_default()
+}
+```
+
+Use this mapping only when exact empty text means absence in that domain;
+trimming whitespace would be a separate policy. Keep a reusable type when its
+meaning and constraints fit both uses. If the goal is only to collapse extra
+details, use `#[libertas_foldable]` on a struct: [folding](../presentation.md#folding-structs-and-unions)
+keeps its values, while selecting another Union branch changes the answer.
+Follow the shared [representation-change review](../app-contract.md#reviewing-a-representation-change)
+for validation, fallbacks, grouping, import, and published compatibility.
 
 ### Enum and variant documentation
 
@@ -451,7 +553,38 @@ For document-assisted Request entry, place
 doc_type = "image/*", accept_multiple_inputs = true)]` on a named struct.
 Only `instruction` is required. Mark direct result fields with
 `#[libertas_llm_doc_field]` or
-`#[libertas_llm_doc_field(allow_empty = false)]`. A non-Nullable numeric
+`#[libertas_llm_doc_field(allow_empty = false)]`. String defaults to
+`allow_empty = false`, even when manual entry permits empty text. For imported
+optional text, explicitly allow blanks and supply an empty Schema Default:
+
+```rust
+/// Supplier slip
+/// Records the supplier and reference printed on one supplier slip.
+#[derive(LibertasExport, LibertasAvroDecode)]
+#[libertas_llm_doc_trans(
+    instruction = "Read the supplier slip. Return an empty string for an absent reference. Report unreadable text as an error.",
+    doc_type = "image/*"
+)]
+pub struct SupplierSlip {
+    /// Supplier name
+    /// Enter the supplier name printed on the slip.
+    #[libertas_size(min = 1, max = 120)]
+    #[libertas_llm_doc_field]
+    pub supplier_name: String,
+
+    /// Slip reference
+    /// Enter the reference printed on the slip. Leave it empty if absent.
+    #[libertas_default("")]
+    #[libertas_size(min = 0, max = 120)]
+    #[libertas_llm_doc_field(allow_empty = true)]
+    pub reference: String,
+}
+```
+
+An editable Request occurrence offers AI Import for this struct. A blank
+reference converts to `""`, and a blank supplier name is rejected. The field
+comments and instruction agree on missing text; JSON `null` is reserved for
+Nullable destinations. A non-Nullable numeric
 field defaults to `allow_empty = true` and therefore needs a meaningful
 `#[libertas_default(value)]` for a truly blank form box. Keep the field's
 domain type; do not add `Option` solely for document recognition. The

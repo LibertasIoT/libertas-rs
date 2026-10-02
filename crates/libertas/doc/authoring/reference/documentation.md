@@ -140,6 +140,21 @@ explain what the user chooses or enters and the effect or scope of that choice.
 For output or read-only information, explain what the App reports, records, or
 calculates and when it is meaningful.
 
+Match the wording to the [type's use](app-contract.md#user-facing-and-non-user-facing-types).
+For ordinary optional text stored as `""`, say “Leave it empty if absent,” and
+explain any consequence of leaving it empty, such as using another name or
+leaving an activity ungrouped. Do not say “Leave it undefined” when the answer
+is an empty String. For a genuinely nullable answer, explain what absence means
+and how it differs from a present empty answer or zero. AI-import instructions
+must use the same meaning under the
+[blank-value conversion contract](llm-document-transformation.md#blank-values-and-output-types).
+
+An output description explains the reported result and its availability rather
+than telling the person to enter it. A non-user-facing schema field still needs
+domain documentation: describe what the App records and the meaning of missing
+or empty content. Keep mapping code, storage encodings, and other engineering
+details in ordinary `//` comments.
+
 Additional field rules:
 
 - A Boolean label states the positive choice or state. Its description makes

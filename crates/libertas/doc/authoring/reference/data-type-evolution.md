@@ -1,5 +1,9 @@
 # Libertas App data-type design guidelines
 
+For initial declarations, follow the App contract's
+[user-facing and non-user-facing type guidance](app-contract.md#user-facing-and-non-user-facing-types).
+This page owns compatibility when those declarations have been published.
+
 Libertas protocol schemas and persistent-data schemas are published contracts.
 Every published version of an App must remain backward compatible with the
 earlier versions of those contracts.

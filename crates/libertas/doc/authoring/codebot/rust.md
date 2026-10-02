@@ -32,6 +32,15 @@ Rust enum declaration order is its wire index. Published Unions append variants
 only. Use public `VariantIndex` / `variant_index!` when code needs a
 compile-time variant index; do not construct a payload merely to discover it.
 
+For ordinary optional input text, use `String`, `#[libertas_default("")]`, and
+`#[libertas_size(min = 0)]` with an appropriate maximum. Keep `Option<T>` for meaningful absence;
+use labeled enum choices for user decisions. See the
+[worked type examples](../reference/languages/rust.md#optional-types).
+For AI-imported optional text, also declare
+`#[libertas_llm_doc_field(allow_empty = true)]` and instruct the model to return
+`""` when absent; the bare String marker rejects blanks. Follow the
+[AI Import example and contract](../reference/languages/rust.md#general-field-attributes).
+
 ## Runtime and build
 
 Create `FormattedText` and every human-renderable data name with

@@ -43,6 +43,11 @@ catalogs because their fabricated members cannot carry required documentation.
 - Explain material empty, unavailable, zero, false, `None`, or `Unknown`
   meanings. Do not rely on order, position, color, shape, icons, animation, or a
   client-specific gesture.
+- Match text to its use: inputs explain entry and effects, outputs explain
+  reported meaning and availability, and internal schema records explain domain
+  purpose. For blank String answers say “Leave it empty if absent” and describe
+  any fallback or grouping effect. Keep AI-import instructions consistent with
+  [the field's blank semantics](../reference/documentation.md#parameter-and-field).
 - Do not expose identifiers/casing, codes, FQNs, Libertas Schema Paths, byte/storage/wire
   mechanics, or implementation terms such as field, type, struct, table, enum,
   Union, variant, schema, payload, protocol, endpoint, request, response,

@@ -6,6 +6,7 @@ context. Both link to these same owners. Source-language examples belong in the
 language pages, while portable semantics belong in the relevant topic below.
 
 - [App contract](app-contract.md)
+- [User-facing and non-user-facing type design](app-contract.md#user-facing-and-non-user-facing-types)
 - [TypeScript](languages/typescript.md)
 - [Rust](languages/rust.md)
 - [Source annotations](annotations.md)
