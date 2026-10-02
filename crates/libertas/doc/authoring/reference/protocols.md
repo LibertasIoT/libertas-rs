@@ -856,9 +856,26 @@ keeps waiting for. Links and document import are blocked during the wait.
 Prev and exit stay available and abandon the round. A
 calculation failure ends the wait with its error shown and sends nothing.
 When a required output is undefined because its calculation cannot run, an
-input being incomplete or invalid, the error is reported on the field that
-triggers the calculation and names the input it needs, not on the output
-field, which the user cannot edit.
+input being incomplete or invalid, reconstruct and validate the calculation
+request from its current inputs. Preserve the concrete failure's explanation
+and map its field or rule-owning group through the input
+[projection](schema.md#shared-copyfrom-and-copyto-rules) to the exact original
+current-request occurrence, including List positions, field names and the
+selected Union branch. Present that owner under the
+[validation result contract](validation-rules.md#18-validation-result).
+For example, a List inside an income document that violates `SizeMin` shows
+the size error on that List, even when the calculation copies the whole
+income-documents collection.
+
+Only when there is no concrete current-request owner to map, such as an
+unavailable copy, a reference-context input, an input without a matching source
+field, or a function-wide rule, report the blocked calculation on its triggering
+field and name the input it needs. Do not infer field blame from a rule
+expression. After an accepted edit, recheck the marked input in a freshly
+constructed calculation request and clear its marker when that input passes
+or its original occurrence is removed or replaced; do not wait for the output
+or transfer the marker to another List row or Union branch. A fallback marker
+for an unavailable required output remains until that output is usable.
 
 When inputs change, reset all affected output destinations inferred from every
 successful NextResponse's CopyTo mappings through ordinary default initialization:
@@ -1028,8 +1045,9 @@ It is not a chooser for the state machine's NextRequest actions.
 variant and emit `PrevRequest` containing one or more distinct Request variant
 native names in the same protocol Union. Their declared order is presentation
 order. With one eligible target, Back selects it directly; with several, Back
-opens a chooser using their ordinary localized names. With none, there is no
-workflow Back action.
+opens a chooser using their ordinary localized names. This is the workflow's
+in-app **Go Back** action, distinct from screen-navigation and system Back.
+With none, there is no workflow Back action.
 
 `PrevRequest` names this action declaration, not a stored previous request or
 reference context. Its declared target list is not dynamically filtered by

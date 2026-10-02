@@ -342,9 +342,21 @@ endpoint removes its drafts.
 
 Delete a submitted editor's draft only after its successful correlated backend
 reply. Transport acceptance alone is insufficient. Retain it on transport or
-backend error. Calculation replies never clear the parent draft. Successful
-PrevRequest navigation also retains it, because Back does not submit the
-current editor's unfinished data.
+backend error. Calculation replies never clear the parent draft.
+
+The workflow's in-app **Go Back** action selects a declared PrevRequest and
+voluntarily abandons the current edit. Delete that editor's draft after the
+successful correlated, non-error reply to the previous action. Cancelling its
+chooser, failing validation, or receiving a transport or backend error retains
+the draft. An explicit editor **Close**, including Close in the right-hand
+master-detail pane, deletes that editor's draft when the close is accepted.
+These actions delete only the departing editor's matching draft; they do not
+delete a retained leading editor's draft or other workflow identities.
+
+System-level Back by button or gesture, ordinary screen-navigation Back, and
+process exit or interruption preserve the committed draft for recovery. They
+are separate from the workflow's Go Back action. Closing a field picker or
+nested editor returns to its parent and does not discard the parent's draft.
 
 EditRequest does not itself delete a draft. If it is a successful reply to a
 submission, that correlation still clears the submitted draft. Incoming page
@@ -369,15 +381,36 @@ selection outside the fresh allowed set becomes unanswered under the
 draft.
 
 Restore atomically against the current schema; a source that a calculation writes is
-restored from the draft and recomputed by the seeded calculations. Corrupt encoding or any schema violation
-discards the cache and rolls back the entire attempt to the fresh editor.
-Do not partially restore, coerce incompatible data, or silently omit incompatible
-fields. An exact schema version match is not required.
+restored from the draft and recomputed by the seeded calculations. Corrupt
+encoding or structural/type incompatibility discards the cache and rolls back
+the entire attempt to the fresh editor. Compatibility includes the declared
+primitive kind and representation, record fields, List element types and
+available Union branches; a value of the wrong kind or an invalid encoding is
+not a restorable draft.
+Do not partially restore a structurally incompatible draft, coerce incompatible
+data, or silently omit incompatible fields. An exact schema version match is
+not required.
 
-Undefined required fields are legitimate draft state, not schema violations.
-They still prevent submission. Preserve undefined separately from null, false,
-zero, empty values, bytes, and Union selections. This local recovery does not
-permit incomplete Avro requests or backend persistence of unfinished requests.
+For a structurally compatible draft, check each restored node's own value
+constraints, including numeric bounds evaluated in the current editor and
+reference context under the [range contract](validation-rules.md#31-dynamic-numeric-ranges).
+Replace an invalid value through ordinary initialization at that node,
+including its applicable Default or an unanswered value. A descendant's
+failure must not reset its containing record, List item or page; preserve every
+other restored value. A List that itself violates its size constraint is
+reset at that List. These local resets are part of the atomic
+restoration and do not discard the compatible draft.
+
+Undefined required fields are legitimate draft state. Preserve undefined
+separately from null, false, zero, empty values, bytes, and Union selections.
+A committed empty String is assigned, not undefined; if it violates its own
+constraint, initialize that String normally, applying its Default when present.
+Ordinary initialization may leave a value unanswered or still invalid.
+Cross-field ValidationRules keep their normal evaluation, and final
+ValidationRules run at Next/Submit; neither resets restored values or discards
+the compatible draft. Submission stays blocked until the current editor is
+complete and valid. This local recovery does not permit incomplete or invalid
+Avro requests or backend persistence of unfinished requests.
 
 After successful restoration, seed calculations once for all current instances,
 including array items. Reset destinations through ordinary initialization and
