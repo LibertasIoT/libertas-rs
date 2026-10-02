@@ -846,15 +846,18 @@ as typed editor values, including becoming undefined; formatting alone is not
 a new input. Invalid intermediate input still invalidates pending work.
 Native inline editors may buffer text until Done. Buffered changes invalidate
 pending replies immediately and defer sending until the local edit finishes.
-Submit requires that edit to finish; an independently valid Prev request remains
-available to discard it. Submit waits until pending and deferred calculations
-settle, then validates and sends its snapshot; a calculation failure keeps the
+Submit requires that edit to finish; an independently valid Prev request, when
+offered in the current presentation, remains available to discard it. Submit
+waits until pending and deferred calculations settle, then validates and sends
+its snapshot; a calculation failure keeps the
 editor open. While Submit waits, nothing has been sent: the submit control
 shows that it is busy and a repeated Submit is ignored, the fields stay
 editable, and an edit starts a new calculation round that the same Submit
 keeps waiting for. Links and document import are blocked during the wait.
-Prev and exit stay available and abandon the round. A
-calculation failure ends the wait with its error shown and sends nothing.
+An offered Prev action and exit stay available and abandon the round; the
+[pane contract](presentation.md#master-detail-panes) still suppresses Prev in
+an embedded trailing pane. A calculation failure ends the wait with its error
+shown and sends nothing.
 When a required output is undefined because its calculation cannot run, an
 input being incomplete or invalid, reconstruct and validate the calculation
 request from its current inputs. Preserve the concrete failure's explanation
@@ -1048,6 +1051,15 @@ order. With one eligible target, Back selects it directly; with several, Back
 opens a chooser using their ordinary localized names. This is the workflow's
 in-app **Go Back** action, distinct from screen-navigation and system Back.
 With none, there is no workflow Back action.
+
+While the editor is embedded in a master-detail trailing pane, clients
+suppress all workflow Back controls, including the chooser and shortcuts,
+under the [pane contract](presentation.md#master-detail-panes). The pane offers
+Close and Next; the leading pane owns navigation for the two-panel arrangement,
+and the App must make that navigation complete.
+The declaration remains available for ordinary full-page workflow presentation.
+Suppression depends on the editor's actual placement, never on inferred
+equivalence between requests.
 
 `PrevRequest` names this action declaration, not a stored previous request or
 reference context. Its declared target list is not dynamically filtered by

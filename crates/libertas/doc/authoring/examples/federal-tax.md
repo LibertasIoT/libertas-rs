@@ -63,8 +63,18 @@ The sections, in the order a filer meets them:
 10. **Review your federal estimate** — the on-screen Form 1040, the amount owed
     or refunded, and the list of anything unsupported or still unanswered.
 
-**Back** reopens the previous section's saved page. Pages are validated on the
-device before they are sent; a rejected page keeps the editor open with the
+In a full-page workflow, **Go back** reopens the declared previous page. For the
+two-panel Income layout, the [pane contract](../reference/presentation.md#master-detail-panes)
+requires the left panel to own navigation: select a topic there
+to edit it, use **Next** to submit the right-panel edit, or **Close** to dismiss
+it without submission. The right panel must suppress Go back; links outside
+the detail nodes, such as Continue, leave the two-panel arrangement.
+The [heading contract](../reference/presentation.md#protocol-page-heading-and-top-bar)
+also assigns the shared top-bar title and Actions to the left page. It requires
+the full title to remain in content whenever the top-bar title is shortened;
+the right page keeps its own heading and Actions in its panel.
+Pages are validated on the device before they are sent; a rejected page keeps
+the editor open with the
 problem shown. Two people opening the same return see the same accepted
 answers, and an older editor cannot overwrite a newer accepted page.
 

@@ -53,7 +53,7 @@ each are the ones Apps get wrong; the linked owners hold the rest.
 | `CalculationRequest` on an editor field | a change of that input; never Actions |
 | `DefaultRequest` | endpoint entry, sent with no editor |
 | `EditRequest` / `WorkflowRequest` reply | the server opening that editor |
-| `PrevRequest` on the edited Request | the workflow Back button |
+| `PrevRequest` on the edited Request | the workflow Back button outside an embedded master-detail trailing pane |
 | none of the above | the request-list landing, only when the endpoint has no default entry |
 
 Nothing is inferred: not from CopyFrom (declare the `Link` yourself on any
@@ -103,7 +103,10 @@ every submission. Modifiers:
   without an editor ([variant identity](../reference/protocols.md#request-editor-variant-identity)).
   `PrevRequest` targets are listed in order and not filtered by
   `ConstrainedBy`: one goes directly, several open a chooser, none means no
-  workflow Back.
+  workflow Back. Embedded master-detail editors suppress all of these controls
+  and offer Close + Next under the [pane contract](../reference/presentation.md#master-detail-panes);
+  the leading pane owns navigation for the whole arrangement, and the App must
+  provide all required routes there.
 
 ### 2. Replies: replace the working screen or be consumed in place
 

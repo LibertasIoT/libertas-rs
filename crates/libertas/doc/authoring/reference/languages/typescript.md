@@ -1332,7 +1332,9 @@ If the variant is directly resolved as a union type itself or a single-field uni
 `@LibertasWorkflowRequest("EditProfile")` declares the
 [WorkflowRequest semi-role](../protocols.md#workflowrequest-semi-role).
 `@LibertasPrevRequest("ReopenProfile,ReopenAddress")` belongs on a Request and
-declares ordinary Back actions constructed from the current editor.
+declares ordinary Back actions constructed from the current editor. Their
+controls are suppressed in embedded master-detail trailing panes under the
+[pane contract](../presentation.md#master-detail-panes).
 NextResponse also permits Request variants returned as
 correlated EditRequest messages; they need no Response role. See the
 [workflow contract](../protocols.md#workflow-interactions) for completion,

@@ -53,9 +53,15 @@ Write each rule as four relations:
   compact`) and otherwise render as `rows`. `master-detail` takes `detail`, an array of
   selectors (`…[]` for a List's members, otherwise one node) reached through
   struct fields only; every detail node needs a `Link` and opens in the
-  trailing pane, and any other link or action replaces both panes. After a Submit or previous action in
-  the trailing pane gets a reply that is neither a failure nor an Error, the client sends the Request the
-  rule names in `refresh`, built from the leading page, unless that reply
+  trailing pane, and any other link or action replaces both panes. An embedded
+  workflow editor offers Close + Next and suppresses every `PrevRequest`
+  control; the leading pane owns navigation for the whole arrangement and the
+  App must provide all required routes there. Open a flow requiring
+  editor-specific previous actions on the whole working surface.
+  Full-page editors retain ordinary previous actions, including after narrowing.
+  After a Submit in the trailing pane gets a reply that is neither a failure
+  nor an Error, the client sends the Request the rule names in `refresh`,
+  built from the leading page, unless that reply
   replaced the leading page; `refresh` must be a pure navigation Request with
   no editable input, never a save
   ([panes](../reference/presentation.md#master-detail-panes)), so admit
@@ -71,7 +77,20 @@ Write each rule as four relations:
   `guide`, `palette`). No CSS, pixels, literal colors, or fonts. `media` is
   deferred until bytes fields have a MIME-type attribute.
 - **What removes its label:** [`suppress_label`](../reference/presentation.md#suppresslabel-label-free-value-rows) keeps a scalar, struct, or Union value and its controls while omitting its row label. On a List of structs it removes only the List-contributed member name and position, preserving its heading and member labels. At a suppressed root protocol Union, use the selected variant’s localized name in the heading and top bar; an explicit title/label of that active Request or Response wins. Keep accessible names. Retired `suppress_title` and its source spellings are rejected.
-- **What heads the page:** the first content-row title uses platform-owned screen-heading styling and accessibility on Requests and Responses; no App attribute is needed. See [protocol page headings](../reference/presentation.md#protocol-page-heading-and-top-bar).
+- **What heads the page:** Requests and Responses use platform-owned headings.
+  Move Actions to the top bar when its complete localized button fits while
+  reserving `min(full title width, 8em)` for title text at the current title font
+  size. Suppress the content heading only if the full title also fits without
+  clipping or ellipsis; otherwise keep the wrapping heading, with Actions in
+  that row when the minimum reservation cannot fit. Preserve descriptions,
+  long-press help, keyboard/screen-reader help, and heading accessibility.
+  The leading page alone uses the shared top bar in master-detail; the trailing
+  page keeps its own heading and Actions. Re-layout preserves the interaction
+  and sends nothing. Top-level content keeps normal page or pane padding,
+  aligned with any retained content heading, without an extra root indent;
+  no App attribute or `flatten` rule is needed.
+  Nested structures keep their ordinary indentation rules. See
+  [protocol page headings](../reference/presentation.md#protocol-page-heading-and-top-bar).
 - **What names it:** on a page (displayed Request or Response variant), struct, Union field, or
   List's members (`…[]`), [`label`](../reference/presentation.md#labels-and-titles)
   replaces only the displayed name (on a List's members, the name and position

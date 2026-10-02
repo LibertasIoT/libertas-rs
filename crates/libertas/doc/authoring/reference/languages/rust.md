@@ -1412,7 +1412,9 @@ BaseObjects navigation grammar does not apply.
 `#[libertas_workflow_request("EditProfile")]` declares the
 [WorkflowRequest semi-role](../protocols.md#workflowrequest-semi-role).
 `#[libertas_prev_request("ReopenProfile,ReopenAddress")]` belongs on a Request and
-declares ordinary Back actions constructed from the current editor.
+declares ordinary Back actions constructed from the current editor. Their
+controls are suppressed in embedded master-detail trailing panes under the
+[pane contract](../presentation.md#master-detail-panes).
 NextResponse also permits Request variants returned as
 correlated EditRequest messages; they need no Response role. See the
 [workflow contract](../protocols.md#workflow-interactions) for completion,

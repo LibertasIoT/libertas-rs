@@ -1428,7 +1428,7 @@ defines the universal client control vocabulary.
 | `AccessPrivilege` | Integer bitmap on a `Request` or `SubscriptionRequest`: `Read=1`, `Write=2`. The set bits are alternative end-user endpoint access levels allowed to invoke that runtime operation. Omission means `Read\|Write` (`3`). |
 | `SubscriptionRequest`, `SubscriptionData` | Subscription protocol roles for a union variant. |
 | `WorkflowRequest` | Response semi-role; see the [WorkflowRequest definition](protocols.md#workflowrequest-semi-role). |
-| `PrevRequest` | Request-only ordered list of distinct Request targets; workflow Back constructs the selected action from the current editor. |
+| `PrevRequest` | Request-only ordered list of distinct Request targets; workflow Back constructs the selected action from the current editor. Controls are suppressed in embedded trailing panes under the [pane contract](presentation.md#master-detail-panes). |
 | `NextRequest`, `NextResponse` | NextRequest names state-machine actions. On requests NextResponse names allowed server replies; on SubscriptionData it declares directional compatible updates. See the workflow contract for editor transitions and completion. |
 | `ProtocolConformance` | Management-tooling expression over Union variant native names. Parsers accept it on a Union declaration or a Union-typed variant; when used in an endpoint protocol, it declares requirements for the opposite endpoint at that Union level. |
 | `BaseObjects` | Comma-delimited Libertas Schema Paths defining the objects to which an endpoint instance is bound. |

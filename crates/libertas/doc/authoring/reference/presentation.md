@@ -413,18 +413,40 @@ endpoint's one working surface, and interaction stays strictly ordered:
 - Both panes fill the available content height and scroll independently. The
   working surface owns screen navigation and system insets once; the trailing
   page keeps its content heading without duplicating the screen toolbar.
-  Close and Submit, when offered together, share one compact action row.
-- Navigation happens from the leading pane. The trailing pane shows no Back
-  control of its own and offers one **Close** control on every page it shows,
+  The leading page supplies the shared top-bar title and Actions control,
+  following the [adaptive heading placement](#protocol-page-heading-and-top-bar).
+  The trailing page keeps its own heading and eligible Actions in its content.
+  An embedded workflow editor offers **Close** and the primary **Next** action
+  in one compact action row. Next retains ordinary validation and submission.
+- **Navigation ownership.** The leading pane owns navigation for the entire
+  two-panel arrangement. The trailing pane owns its displayed content, editing,
+  submission, and Close. It shows no Back control of its own and suppresses the
+  workflow's **Go back** action, including
+  every `PrevRequest` chooser and shortcut, even when the edited Request
+  declares eligible previous actions. This is unconditional while the editor
+  is embedded: clients do not compare previous actions with Close, refresh,
+  or leading-page links to infer equivalence. The declaration remains in the
+  schema and its ordinary controls are available when the editor is shown as
+  a full page outside the trailing pane.
+  The trailing pane offers one **Close** control on every page it shows,
   a displayed Response as well as an editor, in place of an editor's Cancel.
   Close empties the trailing pane, sends nothing, and keeps the leading page.
-  The workflow's previous action, which sends a request, stays available as a
-  separate secondary Go back action in the
-  [workflow action row](endpoint-presentation.md#workflow-editor-destinations).
-  It is never the pane's navigation Back or Close control.
+  Accepted Close follows the ordinary
+  [draft lifetime](annotations.md#draft-scope-and-lifetime).
   Close is inactive while the refresh is pending and while the trailing page
   awaits a reply; the [leaving rule](protocols.md#exit-while-pending) then
   governs leaving.
+- **Complete navigation is the App's responsibility.** An App choosing
+  master-detail must expose on the leading page the navigation needed to
+  revisit editable sections and leave the arrangement. Detail-node links
+  select the trailing page; other leading-page links and actions replace both
+  panes. A leading-page operation uses the leading page's construction source,
+  never the trailing editor's current values or private workflow context.
+  A flow that requires a previous action dependent on that editor context
+  must open on the whole working surface, where ordinary `PrevRequest`
+  controls remain available. Selecting another page does not submit or save
+  the current edit; Next remains the explicit submission action. These
+  navigation choices remain subject to the pending-operation rules below.
 - The platform's Back acts on the working surface as a whole, by the
   [landing rule](protocols.md#control-endpoint-landing-and-native-back) and,
   while an operation is pending, by the
@@ -440,8 +462,8 @@ endpoint's one working surface, and interaction stays strictly ordered:
 - **Refresh.** The rule's `refresh` member names one Request variant of the
   same protocol, the **refresh request**. It is a pure navigation request: it
   changes nothing in the service and answers with the current leading page.
-  After a Submit or a previous action in the trailing pane receives any reply
-  outside the failure class, which is neither a failure status nor an Error,
+  After a Submit in the trailing pane receives any reply outside the failure
+  class, which is neither a failure status nor an Error,
   the client constructs the refresh request from the
   current leading page by the ordinary construction rules, with no bound
   member, and sends it. The client never sends again the Request that
@@ -453,13 +475,13 @@ endpoint's one working surface, and interaction stays strictly ordered:
 - The refresh is an ordinary Request in strict order. While it is pending, the
   working surface accepts no operation: the leading pane shows loading and its
   rows cannot be selected, and the trailing pane's editor accepts no edit,
-  link, document import, Submit, or previous action until the refresh reply.
+  link, document import, or Submit until the refresh reply.
 - A refresh reply of the leading page's variant replaces the leading page. Any
   other reply is installed as the working surface, as it is on a phone. An
   Error reply leaves the previous leading page in place and is reported by the
   standard error procedure.
 - **A new page from the trailing pane.** When any operation in the trailing
-  pane, a Submit, a previous action, a link, or an action of a displayed
+  pane, a Submit, a link, or an action of a displayed
   Response there, receives a reply that installs a page, and the page is not
   of the leading page's variant, the client holds that page without drawing
   it, sends the refresh request, and places the page when the refresh reply has
@@ -493,7 +515,10 @@ endpoint's one working surface, and interaction stays strictly ordered:
   the trailing pane shows a page, that page becomes the working surface stacked
   above the leading page, as if it had been opened on a phone: it shows the
   platform's Back again in place of Close, and Back returns to the leading
-  page. A refresh that is pending when the device narrows still completes, and
+  page. A workflow editor also offers its eligible `PrevRequest` controls
+  again, separately from platform Back; this presentation change sends no
+  request. A refresh that is pending when the device narrows still completes,
+  and
   a page held for it is then placed as below the gate: it becomes the working
   surface above the leading page. When the device widens past the gate, the
   screen stays as it is until the next navigation; nothing is placed again and
@@ -1033,7 +1058,8 @@ and on a Union branch, because neither has a row of its own to flatten, with
 a message that names the owning List or Union; `name_row` on a List or a
 Union; and `{ "name_row": false }` on a struct that has a
 [`title`](#labels-and-titles), because one removes the name row and the other
-replaces it. Without a `flatten` rule, children keep normal indentation.
+replaces it. Without a `flatten` rule, children keep normal indentation;
+protocol page roots follow the [automatic root alignment](#protocol-page-heading-and-top-bar).
 `flatten` never promotes a field, including a field that references the
 flattened type: select that field with `promote` when wanted. `Hidden` still
 suppresses the whole subtree.
@@ -1199,13 +1225,26 @@ renderers consume only the modern hint.
 
 #### Protocol page heading and top bar
 
-The first content row naming the active protocol page is its screen heading
-on every client, including editable Requests, workflow editors and Responses.
-Use the platform's heading typography: larger, semibold text in the normal
-foreground color, wrapping for long localized titles, and extra space before
-the fields below. Omit the ordinary field-row divider and expose the title as
-an accessibility heading. Keep its existing controls and the typography of
-nested fields. This treatment is platform-owned and requires no App attribute.
+The title naming the active protocol page is its screen heading on every
+client, including editable Requests, workflow editors and Responses. Its
+placement follows the available top-bar space below. When the first content
+row retains the heading, use the platform's heading typography: larger,
+semibold text in the normal foreground color, wrapping for long localized
+titles, and extra space before the fields below. Omit the ordinary field-row
+divider and expose the title as an accessibility heading. Keep its existing
+controls and the typography of nested fields. This treatment is platform-owned
+and requires no App attribute.
+
+The content heading, when present, and the page's top-level content share the
+same leading edge within normal page or pane padding. Neither the root protocol
+Union nor its selected Request or Response payload adds an indentation level. This automatic root
+alignment applies to full-page Requests, workflow editors, and Responses, and
+independently inside each master-detail pane. The master-detail arrangement
+uses the full content width within the working surface's normal padding,
+without a root indent around the pair of panes. Root alignment is independent
+of `label`, `title`, and `suppress_label`, and requires no `flatten` rule;
+`flatten: false` retains this normal root alignment. Nested structs, Lists,
+and Unions continue to follow their ordinary indentation and template rules.
 
 When the displayed root protocol Union has `suppress_label: true`, the page
 heading and its native top bar use the localized selected variant name,
@@ -1220,7 +1259,7 @@ Request pages, including workflow editors, as well as Response pages; do not
 take an editor's title from its originating Response. An explicit variant
 rule also titles that active page when root suppression is absent.
 For example, a protocol labelled “Tax return” with selected variant “About
-you” shows “About you” as its heading and top-bar title under:
+you” uses “About you” as its page title under:
 
 ```json
 { "select": "^<TaxProtocol>", "suppress_label": true }
@@ -1228,6 +1267,67 @@ you” shows “About you” as its heading and top-bar title under:
 
 The selector in an App must use its actual protocol type name. No duplicated
 resource key or field is needed solely to remove “Tax return”.
+
+**Adaptive heading and Actions placement.** Apply this rule on every client
+to a protocol page with its own screen top bar, at any screen width. It is
+independent of the widening gate for two-panel layouts. **Actions** is the
+control for the displayed variant's eligible `NextRequest` choices, under the
+[request-selection rules](endpoint-presentation.md#protocol-transaction-stack);
+it is separate from an editor's primary Next/Submit and previous-action
+controls. Render its full localized Actions label and retain the platform's
+normal button target and spacing.
+
+Measure the title and button with their actual localized text, current font,
+weight, and accessibility text size. **Fits** means the complete text renders
+without clipping or ellipsis in the normal top-bar layout; never reduce the
+font size or button target to make it fit. Available title width is the actual
+title-text slot after reserving system insets, navigation and other controls,
+icons, gaps, and padding, including any space required by native title
+alignment. A title icon does not count as title-text space.
+
+Let `T` be the measured full title-text width. Its minimum reservation while
+Actions occupies the top bar is **`min(T, 8em)`**, where `1em` is the current
+rendered top-bar title font size. Thus `8em` is 160 layout units for a title
+font of size 20 and scales with accessibility text size; a short title needs
+only its full measured width. This reservation is a minimum, not a fixed or
+maximum width: the title uses additional available space.
+
+Evaluate the following cases in order, with Actions included in the proposed
+top-bar layout:
+
+| Available space | Top bar | First content row |
+| --- | --- | --- |
+| Complete title and complete Actions button fit | Full title and Actions | Suppress the redundant page-heading row. |
+| Actions fits and the title-text slot is at least `min(T, 8em)`, but the complete title does not fit | Title with end ellipsis as needed, and Actions | Retain the full, wrapping title; remove Actions from this row. |
+| Actions cannot fit while preserving that title reservation | Ordinary compact title, with ellipsis as needed | Retain the full, wrapping title and Actions. |
+
+An ellipsized title never qualifies for suppressing the content heading. With
+no eligible action, omit Actions and apply the full-title fit test alone.
+Place the heading's Actions control in one of these two locations, never
+both. Suppressing the heading removes only its redundant title presentation:
+retain any Union selector, promoted value, other row control, and requested
+inline description in the content, with their ordinary behavior. Content
+retains the root alignment and normal page padding above even when its
+heading moves to the top bar.
+
+**Description and accessibility.** A top-bar title supports the same long
+press as a regular title row and opens the same localized description popup.
+Keep a keyboard-accessible and screen-reader-accessible **Show description**
+action when a description is available; help must not depend on hover or
+long press alone. Moving the heading preserves its full accessible name and
+heading semantics. If the content heading remains, expose that as the page
+heading without adding a duplicate heading for the compact top-bar title.
+Description lookup remains bound to the same active page when its title is
+shortened or relocated.
+
+In a [master-detail arrangement](#master-detail-panes), only the leading page
+uses the working surface's top bar. The trailing page retains its own content
+heading and eligible Actions; selecting it does not take over the shared
+title or toolbar. A page shown on the whole working surface after narrowing
+uses the same placement rule for its own title and Actions. Re-evaluate when
+the available width, title, action availability, locale, font, or text size changes.
+Re-layout preserves values, focus, interaction and reference-context ownership,
+and pending-operation restrictions, and sends no request.
 
 ### Presentation only
 

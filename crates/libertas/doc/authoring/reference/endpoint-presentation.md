@@ -161,21 +161,26 @@ separate landing returns to the list or exits a single-endpoint task.
 See [landing ownership and Back](protocols.md#control-endpoint-landing-and-native-back).
 
 On Android and iOS, ProtocolData displays the response or subscription data
-owned by that screen. Its first content row represents the current Union
+owned by that screen. Its page title represents the current Union
 discriminator using its localized name, or the text of a Display Template
 [`label` or `title`](presentation.md#labels-and-titles) rule on the variant. A
 [promoted](presentation.md#tableheader-promoted-fields-and-union-selectors)
 child appears on a separate row at the same indentation, preserving the
 Union's identity.
 The heading and native top bar use the title of the active displayed Request
-or Response under the [protocol page-title rule](presentation.md#suppresslabel-label-free-value-rows),
+or Response under the [protocol page-title rule](presentation.md#protocol-page-heading-and-top-bar),
 including selected-variant fallback when the root Union suppresses its label.
 An editor uses its own variant, not the originating Response.
-An icon-only **Requests** button occupies the trailing end of that same row,
-with a localized tooltip/accessibility label and a native-sized tap target.
-Use the bulleted-list-in-a-rectangle glyph: Material `ListAlt` on Android and
-SF Symbols `list.bullet.rectangle` on iOS. Do not duplicate this action in the
-top bar.
+The **Actions** button exposes the requests below with its complete localized
+label and native-sized tap target. The
+[adaptive heading rule](presentation.md#protocol-page-heading-and-top-bar)
+places it in the top bar when the button fits while reserving
+`min(full title width, 8em)` for title text; otherwise it remains at the trailing
+end of the first content row. Suppress that row's redundant heading only when
+the full title also fits without clipping or ellipsis. Preserve description
+access and heading accessibility in the new location. A trailing master-detail
+page retains its own content heading and Actions; the leading page owns the
+shared top bar.
 
 Requests come from the displayed variant's effective `NextRequest`, preserving
 declared order and existing visibility/access filtering. Promoting a
@@ -186,16 +191,16 @@ multiple, show the next-request chooser, then open the selected request's
 builder. Missing `NextRequest` never implies every request in the protocol.
 
 The underlying ProtocolData screen remains intact while choosing or composing.
-Cancelling returns to that same screen. Opening Requests does not itself change
+Cancelling returns to that same screen. Opening Actions does not itself change
 its displayed data or subscription ownership. A request without editable input fields follows the
 [single-action presentation rule](protocols.md#single-action-confirmation-and-input-presentation):
-chosen from Requests or opened by a link, it is sent at once.
+chosen from Actions or opened by a link, it is sent at once.
 If the underlying data screen is the single-endpoint root, a transitioning
 response for the default subscribed variant updates that root; it must not pop
 the root as though another default-data screen existed underneath it.
 
 The first transitioning transaction therefore follows this invariant sequence:
-default protocol data -> Requests -> optional next-request chooser -> composer ->
+default protocol data -> Actions -> optional next-request chooser -> composer ->
 send and wait -> response carrying a declared `NextRequest` -> one interactive
 protocol-data destination. A sent composer remains the correlated response
 owner while waiting. Receipt installs or updates the single interactive
@@ -243,17 +248,19 @@ Preserve the originating state-machine screen beneath the flow when one exists.
 No cookie response is displayed between steps. A completed flow replaces its
 editor with the final response, including responses with no NextRequest.
 
-Display explicit Back and Next/Submit controls in a workflow. Back opens the
-ordered previous-action chooser only when several eligible actions exist; Next
+Display explicit Next/Submit in every workflow editor. Outside an embedded
+master-detail trailing pane, also offer eligible workflow Back actions. Back
+opens the ordered previous-action chooser only when several eligible actions exist; Next
 submits the current editor. Entry through either workflow path always waits
 for user submission. Native screen Back/dismissal exits the flow; nested-editor
 and picker dismissal return to the same parent editor. Those local movements
 must not invoke PrevRequest or restore historical workflow drafts.
 
 The workflow controls share one compact, persistent action row outside the
-scrolling form: **Go back** is a secondary action at the leading edge, when
-an eligible previous action exists, and **Next** is the primary action at the
-trailing edge. Multiple previous actions retain their ordered chooser. The
+scrolling form: outside an embedded trailing pane, **Go back** is a secondary
+action at the leading edge when an eligible previous action exists, and
+**Next** is the primary action at the trailing edge. Multiple previous actions
+retain their ordered chooser. The
 row reserves its own space; it never covers fields or validation feedback.
 The form uses the remaining viewport and can scroll its last field and error
 fully into view. On Android and iOS, hide the whole action row while the
@@ -262,9 +269,14 @@ the keyboard is dismissed. Showing or dismissing the keyboard never submits
 or sends a previous action. The working surface accounts for the keyboard
 and system safe areas once, including when the editor is an embedded pane. Text remains
 readable and controls remain usable with enlarged text and localized labels.
-In a master-detail pane, Close remains distinct from the workflow's previous
-action and shares the compact row under the
-[pane rules](presentation.md#master-detail-panes).
+In an embedded master-detail pane, the row offers **Close + Next** and suppresses
+all workflow previous-action controls, including their chooser and shortcuts,
+under the [pane rules](presentation.md#master-detail-panes). The leading pane
+owns navigation for the whole arrangement, and the App must provide all required
+routes there. The pane rules also own restoration of ordinary previous
+actions when the editor becomes a full page, including after narrowing the
+window. Local picker and nested-field-editor dismissal retain their normal
+behavior.
 
 Next retains the same submission behavior on every page. Clients do not infer
 a final step or change it to a special Submit action from the content,
@@ -286,7 +298,7 @@ Android and iOS use the same chart-capability promotion boundary, action-first
 section order, single preview header, Configure visibility, deduplication,
 localized actions, preview immutability, chart/protocol stack ownership,
 Chart3D full-screen-only manipulation with no inline mode,
-single-interaction-data rule, first-row Requests action and single-choice
+single-interaction-data rule, adaptive title/Actions placement and single-choice
 builder routing, non-transition acknowledgement behavior, and the
 [single-action presentation rule](protocols.md#single-action-confirmation-and-input-presentation). Platform
 navigation components and animations may remain native; they may not change
