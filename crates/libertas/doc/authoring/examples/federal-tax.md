@@ -63,12 +63,28 @@ The sections, in the order a filer meets them:
 10. **Review your federal estimate** — the on-screen Form 1040, the amount owed
     or refunded, and the list of anything unsupported or still unanswered.
 
-In a full-page workflow, **Go back** reopens the declared previous page. For the
+Each section hub offers its own **Continue** action while walkthrough steps
+remain. It records completion of that section and opens the next applicable
+section, which can be Review. Once the walkthrough is complete, the task
+offers **Review** instead, opening the main information hub. Accepted edits
+that reopen walkthrough work can restore Continue. The
+[task-controlled caption pattern](../reference/presentation.md#task-controlled-section-hub-action)
+keeps the button's name and operation aligned. Topic links and a previous-section
+link remain on each hub; the redundant next-step row is removed.
+
+Interview editors use **Save and continue**, **Previous step**
+where a previous action exists, and **Close editor** when embedded beside a hub.
+The final confirmation uses **Finish review** and **Return to review**. These
+captions describe the controls; they do not file
+a return. Clients that do not support button captions keep their system labels.
+
+In a full-page workflow, **Previous step** reopens the declared previous page. For the
 two-panel Income layout, the [pane contract](../reference/presentation.md#master-detail-panes)
 requires the left panel to own navigation: select a topic there
-to edit it, use **Next** to submit the right-panel edit, or **Close** to dismiss
-it without submission. The right panel must suppress Go back; links outside
-the detail nodes, such as Continue, leave the two-panel arrangement.
+to edit it, use **Save and continue** to submit the right-panel edit, or **Close editor** to dismiss
+it without submission. The right panel must suppress Go back. The left
+panel's Continue and Review actions, and links outside the detail nodes,
+leave the two-panel arrangement; they do not submit the right-panel editor.
 The [heading contract](../reference/presentation.md#protocol-page-heading-and-top-bar)
 also assigns the shared top-bar title and Actions to the left page. It requires
 the full title to remain in content whenever the top-bar title is shortened;

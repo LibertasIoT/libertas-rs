@@ -71,10 +71,11 @@ every submission. Modifiers:
   are rejected; missing values use declaration order; `Fixed` is never variant
   identity; stored schemas are never rewritten; see [Unions](../reference/schema.md#54-unions)).
   Access and `ExcludeUI` filter next; `ExcludeUI` removes a Request everywhere,
-  links included. Links and menus use the same filtered set, so a Response
-  wanting tappable rows declares no `ConstrainedBy`.
-- **Lone survivor.** A filtered set of exactly one (not counting `LinkOnly`)
-  is selected automatically once per accepted correlated Response; a
+  links included. Links and menus use the same filtered set; visible regular-response
+  content and link rows remain displayed even with one eligible action.
+- **Lone survivor on a regular response.** A filtered set of exactly one (not counting `LinkOnly`)
+  opens automatically only for an accepted correlated Response with no visible
+  content and an action needing editable input; otherwise wait for Actions. A
   subscription update re-filters and never selects
   ([action constraints](../reference/protocols.md#response-action-constraints)).
 - **`LinkOnly`** keeps a Request only on its links: Actions, menus, landings,
@@ -83,19 +84,29 @@ every submission. Modifiers:
   ([link-only](../reference/protocols.md#link-only)).
 - **Presentation by input.** A Request without editable input is sent at
   once when the person chooses it, by a link, from Actions, or from Quick
-  Actions, with no confirmation; mark a critical Request
+  Actions. Tapping Actions selects its sole eligible request directly;
+  several choices open a chooser without sending. Merely displaying a sole
+  action never sends. Mark a critical Request
   `RequestConfirmation` and the person confirms in a Send/Cancel dialog before
   any send ([critical requests](../reference/protocols.md#request-confirmation)).
-  Automatic singleton selection never sends. One
+  Automatic singleton selection on a regular response never sends. One
   primitive or enum field uses the one-field popup; complex input uses the
-  full editor. Cancel sends nothing; a repeated choice cannot send twice
+  full editor, even when defaults or CopyFrom fill every editable field.
+  Cancel sends nothing; a repeated choice cannot send twice
   ([single action](../reference/protocols.md#single-action-confirmation-and-input-presentation)).
 - **`DefaultRequest`**: at most one, input-free (Nil, or only Hidden/ReadOnly
   `Fixed`/`Default` fields such as a hidden `Fixed("current-user")`), never
   chart-producing, `LinkOnly`, or `ExcludeUI`; it needs no reference context
   and owns entry. Without it, the first effective-Nil `SubscriptionRequest` is
   the sole automatic default subscription and every other is explicit; with
-  neither, the landing lists Requests, previewing executable chart requests
+  neither, the landing lists Requests, previewing executable chart requests.
+  On a protocol landing, one eligible action always forwards: no editable input
+  validates and sends, input opens its popup/editor, confirmation still applies;
+  several choices wait. A data landing uses its filtered NextRequest; discovery
+  applies only with no default. Its forwarding result is the initial working
+  result and follows regular response rules; returning to a non-subscription
+  landing repeats entry and forwarding, while returning to a retained
+  subscription landing or applying updates never repeats it
   ([default entry](../reference/protocols.md#default-request-entry-and-dynamic-actions)).
 - **Editor identity.** An editor composes exactly one variant, fixed by its
   entry point; it has no Actions surface, and a `Link` or a declared previous
@@ -249,13 +260,15 @@ and Back-triggered landing refresh have no context, so reads handle null
   a field from validation, and is not authorization: validate submitted
   context on the server ([hidden context](../reference/protocols.md#hidden-protocol-context)).
 
-### 4. Screens: one landing, one working screen, one composer
+### 4. Screens: landing entry, one working page, one composer
 
 A task with several endpoints opens an endpoint list; only default
 subscription data shown inline there is also a landing (never duplicate it),
-and other landings stack above the list on tap. A single endpoint enters its
-landing directly with no list. Above the landing sits at most one working
-screen, which successive results replace or update, and above that at most one
+and other landings open on tap. A single endpoint enters directly with no list.
+A non-subscription landing is the initial working page; later results
+replace or update it. A subscription landing instead retains its live
+page, context, layout, and scroll position beneath one working page. Above the
+current page sits at most one
 [transient composer](../reference/endpoint-presentation.md#protocol-transaction-stack).
 An editor has at most one pending Submit, Prev, or link; the pending composer
 owns its reply, and within a Control session replies apply in
@@ -269,10 +282,18 @@ lost connection clears every endpoint's data; reconnecting starts from entry.
 
 - Cancel pops only the composer: nothing is sent and the screen and context
   stay.
-- Native Back reveals the layer beneath: from a working screen, the landing
-  (a workflow landing refreshes in place with no reference context; a live
-  subscription is kept); from a separate landing, the list, or exit for a
-  single endpoint. Back sends no `PrevRequest`, undoes nothing accepted, and
+- Above a subscription landing, Back from every working result reveals the
+  retained page without refresh, resubscription, or automatic forwarding;
+  Back from the subscription landing exits the endpoint.
+- For non-subscription entry, the first stable result records direct provenance;
+  every subsequent stable replacement clears it, even with the same variant.
+  Updates preserving the page preserve it. Native Back from landing or its
+  direct result exits the endpoint (the list, or out of a single-endpoint task).
+  Otherwise Back refreshes landing as the working page with no abandoned
+  context and reruns its automatic entry rules; its new immediate result has
+  the flag set. The endpoint's landing definition never comes from a working
+  result. Inline default subscription data keeps its existing list location.
+  Back sends no `PrevRequest`, undoes nothing accepted, and
   fences abandoned replies, calculations, and subscriptions
   ([landing and Back](../reference/protocols.md#control-endpoint-landing-and-native-back)).
   [CacheIdentity](../reference/annotations.md#cacheidentity) governs draft

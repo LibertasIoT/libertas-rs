@@ -143,22 +143,33 @@ above a stable editor its plain reply is applied to that editor as a
 [return](protocols.md#link-return) rather than an acknowledgement.
 
 A **stable endpoint destination** is an endpoint action/data screen, or the
-request editor entered through EditRequest or WorkflowRequest. Initial automatic
-landing entry may also create a stable request editor. Receiving a workflow
+request editor entered through EditRequest or WorkflowRequest. Landing entry
+may deliver such a stable editor; composing an ordinary landing request still
+uses the transient composer and its cancellation rules. Receiving a workflow
 entry or installing a response ends the transient composer's role; subsequent
 Back follows the stable destination's landing rules. Workflow steps replace
 one active editor rather than building a history of editors.
 
-Retain the endpoint landing beneath its working destination. Inline default
-subscription data is the exception: its landing is already displayed in the
-endpoint list, so retain that list without creating a duplicate landing screen.
-For other multi-endpoint entries the stack is endpoint list → landing → optional
-working screen. For a single-endpoint task it is landing → optional working
-screen, with no endpoint list. At most one working destination exists above its
-landing; successive results update or replace it. Back reveals the landing,
-refreshing workflow landings but preserving live subscriptions; Back from a
-separate landing returns to the list or exits a single-endpoint task.
-See [landing ownership and Back](protocols.md#control-endpoint-landing-and-native-back).
+A subscription landing retains its live page, layout, and scroll position
+underneath at most one working page. Back from every working result, including
+the first, reveals that retained page without refresh or automatic forwarding;
+Back from the landing exits the endpoint. Inline default subscription data uses
+its existing endpoint-list location, without a duplicate landing page.
+
+For request-list or DefaultRequest entry, the initial landing is the working
+page. Later results replace or update that page, without retaining the initial
+page beneath it. Track whether a stable page is the direct consequence of
+landing entry or its selected forwarding action. The initial result has the
+flag; every later stable replacement clears it, even with the same variant.
+Updates preserving the page preserve the flag. Back from landing or its direct
+result exits the endpoint; otherwise Back refreshes landing as the working page,
+with no abandoned reference context, and reruns its automatic entry and
+forwarding rules. Its new immediate result has the flag set.
+
+Neither model keeps a history of intermediate working pages. A transient
+composer may sit above the current page. A multi-endpoint task retains its
+endpoint list outside that interaction; a single-endpoint task has no
+endpoint-list page. See [landing and Back](protocols.md#control-endpoint-landing-and-native-back).
 
 On Android and iOS, ProtocolData displays the response or subscription data
 owned by that screen. Its page title represents the current Union
@@ -183,21 +194,23 @@ page retains its own content heading and Actions; the leading page owns the
 shared top bar.
 
 Requests come from the displayed variant's effective `NextRequest`, preserving
-declared order and existing visibility/access filtering. Promoting a
+declared order and existing visibility/access, ConstrainedBy, and LinkOnly filtering. Promoting a
 child changes presentation only; request resolution still belongs
-to the enclosing protocol variant. With no eligible request, hide the button.
-With exactly one, push its request builder directly without a chooser. With
-multiple, show the next-request chooser, then open the selected request's
-builder. Missing `NextRequest` never implies every request in the protocol.
+to the enclosing protocol variant. Follow the
+[Actions selection and input rules](protocols.md#single-action-confirmation-and-input-presentation):
+hide the button with no choice; tapping it selects a sole choice directly or
+opens the chooser for several. Selection sends an input-free request after
+validation and any required confirmation, or opens editable input and waits.
+Missing `NextRequest` never implies every request in the protocol.
 
 The underlying ProtocolData screen remains intact while choosing or composing.
-Cancelling returns to that same screen. Opening Actions does not itself change
-its displayed data or subscription ownership. A request without editable input fields follows the
-[single-action presentation rule](protocols.md#single-action-confirmation-and-input-presentation):
-chosen from Actions or opened by a link, it is sent at once.
-If the underlying data screen is the single-endpoint root, a transitioning
-response for the default subscribed variant updates that root; it must not pop
-the root as though another default-data screen existed underneath it.
+Cancelling returns to that same screen. Selection and composition preserve its
+displayed data and subscription ownership until the ordinary reply handling
+applies. Showing or relocating Actions never sends a request.
+A transitioning action reply belongs to its working interaction, even when it
+uses the default subscription's variant. Never use variant equality to replace
+the retained subscription landing or pop back to it; actual subscription
+deliveries continue to update their owning snapshot.
 
 The first transitioning transaction therefore follows this invariant sequence:
 default protocol data -> Actions -> optional next-request chooser -> composer ->
@@ -207,8 +220,9 @@ owner while waiting. Receipt installs or updates the single interactive
 destination with that response and exactly its declared next-request choices,
 preserving the protocol interaction chain.
 
-Outside workflows, a normal correlated Response with neither `WorkflowRequest`
-nor a declared `NextRequest` is instead a
+For a regular action above a displayed value, outside landing entry and
+SubscriptionRequest completion, a normal correlated Response with neither
+`WorkflowRequest` nor a declared `NextRequest` is instead a
 non-transition acknowledgement. It completes the in-flight attempt but does
 not install a response destination, replace the displayed protocol value,
 change the current choices, or interpret every
@@ -222,8 +236,9 @@ Apply these presentation rules under the
 correlated Response uses the separate out-of-band error procedure, preserving
 retry and taking precedence over normal-response presentation.
 
-A variant carrying both `Request` and `SubscriptionRequest` starts a
-subscription. Later live data updates each eligible interaction associated with
+A request invoked as SubscriptionRequest starts a subscription. The operation
+selected under the shared role rule, not the response variant, determines this.
+Later live data updates each eligible interaction associated with
 that endpoint and compatible response type; it does not become an unrelated
 interaction's reference context. `NextResponse`, when present, restricts the
 eligible response variants. An acknowledgement leaves the displayed state and
@@ -244,7 +259,8 @@ The [workflow contract](protocols.md#workflow-interactions) defines correlated
 EditRequest, automatic WorkflowRequest entry, PrevRequest construction, and
 terminal response presentation. Keep one active workflow editor destination;
 each successful step replaces it instead of accumulating historical editors.
-Preserve the originating state-machine screen beneath the flow when one exists.
+Retain an actual subscription landing beneath the flow; a non-subscription
+flow replaces its current stable working page.
 No cookie response is displayed between steps. A completed flow replaces its
 editor with the final response, including responses with no NextRequest.
 

@@ -145,7 +145,7 @@ three tests in order:
 | NextRequest, NextResponse, PrevRequest, WorkflowRequest, DefaultRequest, ExcludeUI | SuppressLabel, UIIncludeDescription |
 | AccessPrivilege, CacheIdentity | `Format` display pattern and precision, never the value or currency |
 | Money, PhysicalUnit, DateOnly, FormattedText, display names, descriptions | Chart scale type, guide position, and palette |
-| Chart channel bindings: which field is x, y, color, or tooltip | Template-only concepts: layout, density, emphasis, `label` and `title`, device conditions |
+| Chart channel bindings: which field is x, y, color, or tooltip | Template-only concepts: layout, density, emphasis, `label`, `title`, `button_labels`, device conditions |
 
 Unordered and ExcludeUI look presentational, but the wire and the protocol
 depend on them, so they stay in the schema. `Format` looks semantic, but
@@ -207,6 +207,7 @@ A rule is one JSON object with these members:
 | `style` | No | An object of [style tokens](#style-tokens). |
 | `label` | No | Replaces the node's displayed name and keeps its value ([labels and titles](#labels-and-titles)): `{ "field": "path" }` takes the text from a String or FormattedText field below the node, and a string names a fixed `StringResources` key. |
 | `title` | No | Replaces the node's whole row, label and value, with its text, in the same two forms ([labels and titles](#labels-and-titles)). |
+| `button_labels` | No | Localized captions for existing protocol-page controls, by slot: `go_back`, `next`, `close`, `actions` ([button labels](#button-labels)). |
 | `flatten` | No | Draws a struct's, List's, or Union's children at that node's own indentation ([flattening](#flatten)): `true`; `false`, which undoes a flattening that a lower-ranked rule set; or `{ "name_row": false }` on a struct to remove its name-only row as well. |
 | `inline`, `fold`, `promote`, `suppress_label`, `include_description`, `format`, `scale`, `guide`, `palette` | No | [Behavior hints](#behavior-hints). |
 | `switch` | No | A [conditional switch](#display-template-switch) whose chosen case supplies the presentation members. A rule with `switch` has no other presentation member. |
@@ -247,7 +248,9 @@ A rule applies to a node when its selector matches the node, its `when` holds,
 its data condition or pseudo-state holds, and, for a switch, a case or `else`
 is chosen. Every presentation member resolves independently: the
 highest-ranked applicable rule that sets that member wins, and a layout
-resolves together with its layout-specific members. Ranks, lowest first:
+resolves together with its layout-specific members. Each `button_labels` slot
+resolves independently; setting one slot leaves the others' cascade intact.
+Ranks, lowest first:
 
 1. the platform default;
 2. a rule of another package's compiled template, on a node that package
@@ -658,6 +661,107 @@ field as the label and its promoted `status` as the value. The third draws the
 hub page's top row as just "Income", the name of the section whose topics the
 page lists.
 
+#### Button labels
+
+`button_labels` changes the captions of existing controls on one protocol
+page. It is a non-empty object with one or more of these slots:
+
+| Slot | Existing control | Behavior retained |
+| --- | --- | --- |
+| `go_back` | Workflow Go Back | Constructs and sends the selected `PrevRequest`; native Back is unaffected. |
+| `next` | Workflow Next/Submit | Validates and submits the current Request; it does not choose a `NextRequest`. |
+| `close` | Page or detail-pane Close | Performs the existing local dismissal without submitting. |
+| `actions` | Page Actions | No eligible choices hides the control; one selects directly; several open the ordinary chooser. |
+
+Each slot accepts a package `StringResources` key, or `null` to restore the
+localized platform caption. Literal display text, field sources, empty strings,
+and unknown slots are invalid. Localization uses the package that authored the
+winning rule and the ordinary resource fallback. If a client cannot resolve a
+non-empty caption, it uses the platform caption, never a blank button or raw
+resource key. Omission preserves a lower-ranked override or the platform default;
+`null` overrides lower-ranked captions with that default. Slots do not inherit
+into children or another page.
+
+The `actions` slot also accepts exactly `{ "source": "single_action" }`.
+It uses the sole offered action's localized schema variant `Name`. Count the
+final offered set after `NextRequest`, `ConstrainedBy`, access privileges, `ExcludeUI`, and
+`LinkOnly` filtering. With several choices, or a missing or blank name, use
+the localized platform Actions caption, never a raw native name or payload
+type name; with no choices, retain the existing hidden control. This source
+uses the action's owning document, not the
+template author's resources or a display title. No other slot accepts it.
+An explicit `null` resets this source just like a resource override.
+
+```json
+{ "select": "^<Hub>", "button_labels": { "actions": "GO_TO" } }
+{ "select": "^<SectionHub>", "button_labels": {
+    "actions": { "source": "single_action" } } }
+{ "select": "^<SaveIncome>", "button_labels": {
+    "next": "SAVE_AND_CONTINUE", "close": "CLOSE_EDITOR" } }
+{ "select": "^<Finish>", "button_labels": { "next": "FINISH_REVIEW" } }
+{ "select": "^<SaveIncome>", "when": { "form": "phone" },
+  "button_labels": { "next": null } }
+```
+
+Rules select whole Request, Response, or SubscriptionData variants of an
+Endpoint protocol. `go_back` and `next` require a Request variant. A rule
+cannot select a field, reusable payload type, List member, configuration, or
+persistence-only variant to rename page controls. Device `when` conditions
+are allowed; data conditions, switch cases, and pseudo-states cannot set
+`button_labels`. A valid caption remains dormant when its control is absent.
+
+The active displayed variant owns its captions. A workflow editor uses its
+Request, not its originating Response. In master-detail, the leading page
+owns its toolbar and the trailing page owns its own controls. An embedded
+editor's Go Back remains suppressed, even when a caption is configured.
+Captions never create controls, change eligible requests or their order,
+change input presentation, submit automatically, or alter validation,
+confirmation, pending-operation ownership, or draft lifetime. Request names
+inside choosers, native navigation, ordinary request-editor Send, and
+confirmation/picker Send and Cancel labels are unchanged.
+
+Choose wording that remains truthful for every state in which the page uses
+it. For example, "Go to…" can describe a sole destination-chooser request;
+"Return to review" is appropriate only when the offered operation actually
+returns to review. Renaming Actions does not change its target. "Save changes"
+does not promise a particular next page when the service can ask follow-up
+questions; Close must not imply submission or saving.
+
+Clients measure the resolved caption with the actual locale and accessibility
+text size under the existing responsive control and heading rules, allowing
+content action rows to wrap as needed while retaining readable text and touch
+targets. The visible caption is also the accessible name. Re-resolve it when
+the displayed variant, offered action set, template, locale, or device condition changes. Older
+clients ignore this optional member and retain their platform captions.
+
+#### Task-controlled section-hub action
+
+For a walkthrough with section hubs and a main Review page, declare the
+continuation and review Requests in each hub's `NextRequest`, then let the
+task's `ConstrainedBy` value offer exactly one of them. Use the
+`single_action` caption source so its name and destination change together.
+Keep row-opening Requests `LinkOnly`; they remain available to their links
+without becoming additional Actions choices. Clients need no walkthrough
+flag, navigation history, or conditional caption rule.
+
+For example, the tax task offers **Continue** while walkthrough
+steps remain. Each section hub has its own continuation Request, which
+records that section's completion and advances to its next applicable
+section using the task's existing navigation. When no walkthrough step
+remains, the task offers **Review**, opening the main Review
+page. If an accepted edit creates unfinished walkthrough work, the task
+offers continuation again. Derive this choice from existing completion state
+rather than persisting a separate presentation flag. Remove a redundant
+next-step or Review row when this button owns that operation.
+
+The section-hub Actions control and an editor's Next control remain separate.
+An editor's **Save and continue** submits its answers and follows the task's
+save route; a hub's **Continue** follows that section's onward route. The
+routes may differ. A hub action cannot submit an open editor's uncommitted
+fields. Preserve other required leading-page navigation when replacing a
+chooser with one direct action. Keep full captions on phones and use the
+responsive sizing and wrapping above.
+
 #### Style tokens
 
 | Token | Values |
@@ -718,7 +822,7 @@ template unless:
 - every data condition and switch case parses under the ValidationRules
   grammar, is Boolean, and reads only the selected node and the reference
   context, every switch meets the rules [above](#display-template-switch),
-  and neither a data condition nor a switch case sets `label`, `title`,
+  and neither a data condition nor a switch case sets `label`, `title`, `button_labels`,
   `promote`, or `flatten`;
 - no rule member is outside the catalog, including every schema-only
   attribute;
@@ -743,6 +847,9 @@ template unless:
   valid; no node has both `label` and
   `title`, and neither is combined with `suppress_label` on the same node;
   Studio reports these at the member's line of `display.json`;
+- every `button_labels` is a non-empty object of the four slots above, with
+  package resource-key or null values, selects only whole protocol page
+  variants, and sets `go_back` or `next` only on Request variants;
 - every `promote` rule selects a field of a struct, never a type, a List
   member, a Union branch, a function parameter, or a Response; every
   `flatten` rule selects a struct, a List, or a Union, by type or by field,
@@ -1274,8 +1381,9 @@ independent of the widening gate for two-panel layouts. **Actions** is the
 control for the displayed variant's eligible `NextRequest` choices, under the
 [request-selection rules](endpoint-presentation.md#protocol-transaction-stack);
 it is separate from an editor's primary Next/Submit and previous-action
-controls. Render its full localized Actions label and retain the platform's
-normal button target and spacing.
+controls. Render its full localized caption (Actions by default, or the
+active page's [button label](#button-labels)) and retain the platform's normal
+button target and spacing. The fit rules below measure that resolved caption.
 
 Measure the title and button with their actual localized text, current font,
 weight, and accessibility text size. **Fits** means the complete text renders

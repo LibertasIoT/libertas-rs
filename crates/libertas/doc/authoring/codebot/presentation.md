@@ -15,9 +15,22 @@ Follow the [documentation invariants](documentation_invariants.md).
 
 ## Display Template
 
-This contract precedes its implementation: until Studio, the Hub, and the
-clients ship the template, published schemas keep the presentation attributes
-and clients render from them as today.
+Page-specific [button captions](../reference/presentation.md#button-labels) use
+`button_labels` on a whole protocol Request, Response, or SubscriptionData
+variant. Its optional `go_back`, `next`, `close`, and `actions` slots each name
+a package StringResources key or use `null` to restore the platform caption;
+slots cascade independently and never inherit into another page. `go_back`
+and `next` require Request variants. Only `actions` also accepts
+`{"source":"single_action"}`: use the sole final eligible action's localized
+variant Name, otherwise the platform caption. Exclude LinkOnly from that
+count. Let the task change its offered request through `ConstrainedBy`;
+the [section-hub pattern](../reference/presentation.md#task-controlled-section-hub-action)
+keeps Continue navigation separate from editor Save and continue submission.
+Device `when` is allowed, but data
+conditions, switches, field sources, and pseudo-states are not. Captions change
+only existing controls: preserve Next submission, PrevRequest behavior,
+Actions eligibility/choosers, local Close, native Back, and embedded Go Back
+suppression. Use truthful captions for all states of the selected page.
 
 Every package has one mandatory [Display Template](../reference/presentation.md#display-template),
 the sole runtime owner of how values are arranged and styled; it is not schema

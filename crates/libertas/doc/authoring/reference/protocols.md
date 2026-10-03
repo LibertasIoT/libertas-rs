@@ -1042,6 +1042,9 @@ variant; a delivered editor beyond the user's access, as above; a
 
 The workflow's **Next/Submit** button validates and sends the current request.
 It is not a chooser for the state machine's NextRequest actions.
+These are control roles: a page's Display Template may supply localized
+[button captions](presentation.md#button-labels) without changing their
+behavior, eligibility, or request names inside a chooser.
 
 `@LibertasPrevRequest("ReopenProfile,ReopenAddress")` and
 `#[libertas_prev_request("ReopenProfile,ReopenAddress")]` belong on a Request
@@ -2093,8 +2096,8 @@ so a per-user endpoint can identify the caller from its first request. It
 requires no reference context. A chart-producing request cannot be
 DefaultRequest: none of its declared NextResponse payloads may contain Chart or
 Chart3D, including referenced types and nested fields. Studio validates these
-conditions. DefaultRequest is optional; it is never inferred from an
-input-free payload.
+conditions. DefaultRequest is optional; an input-free payload alone does not
+make a Request the default.
 
 An explicit DefaultRequest owns initial interactive entry, including when the
 protocol also has a default subscription. Without the explicit marker, the
@@ -2103,15 +2106,40 @@ the landing presents the available requests in declaration order, except
 [link-only requests](#link-only), using chart
 previews instead of rows for chart requests with executable inputs. That
 landing is a displayed value without data whose actions are those requests. An
-input-free payload alone never makes a Request the default. Invoke an explicit default
-request as a client-owned correlated
+input-free payload alone never makes a Request the default. Invoke an explicit
+default request as a client-owned correlated
 Request, never as a pooled subscription. While pending, show loading; an error
 keeps retry available. A late or duplicate reply cannot reopen an interaction
 that the user has left. Do not automatically replay an entry request merely
 because a view recomposes or a subscription reports new data.
 
-If no default is available, retain explicit request selection. Once a default
-has been selected, never fall back to listing all protocol requests on failure.
+**Landing forwarding.** On entry, a protocol landing with exactly one eligible
+action always selects it without a chooser. A landing supplied by DefaultRequest
+or default SubscriptionData uses that value's filtered NextRequest; a request-list
+landing uses its discovered requests. Apply access, ExcludeUI, and ConstrainedBy
+where applicable, and exclude LinkOnly before counting. This rule applies to
+static as well as constrained action sets, independently of visible landing
+content. Validate and send a request with no editable input, or open its ordinary
+popup/editor and await submission when it has input. Defaults do not make
+editable fields input-free, and RequestConfirmation still requires confirmation.
+With no eligible action keep the landing; with several, await a choice. Chart
+workspaces and automatic previews retain their own entry rules.
+
+The selected landing action's result is the initial working result, not another
+landing-forwarding step; it follows the regular response and editor rules. The
+result is a direct consequence of landing whether its action was selected
+automatically or by the person. For example, entry can send Enter, receive a
+landing offering only OpenInterview, send OpenInterview, and open its returned
+editor with that designation; the editor still waits for submission. The
+designation alone never authorizes following its own NextRequest. Returning to a non-subscription
+landing repeats entry and forwarding; returning to a retained subscription
+landing preserves its page without forwarding again. Rendering, subscription updates, and
+auxiliary traffic do not repeat forwarding; initial default subscription data
+is used for forwarding only as part of an explicit endpoint entry, never merely
+because inline data appeared in the endpoint list.
+
+Once an entry or forwarding request has been selected, never fall back to listing
+all protocol requests on failure.
 DefaultRequest does not authorize automatic submission of an editor. Existing
 WorkflowRequest and EditRequest replies open their editor without submitting.
 
@@ -2128,14 +2156,30 @@ set is empty retains its action surface with no actions.
 
 ### Single-action confirmation and input presentation
 
-Android, iOS, and Libertas Studio present a request by its constructed input.
-The entry point does not change the presentation: a direct link, a choice from
-**Actions**, and a choice from Quick Actions are each the person's choice of
-that request.
+**Actions chooses a request before input determines whether to send it.** Count
+the current displayed value's eligible NextRequest choices after access,
+ExcludeUI, ConstrainedBy, and LinkOnly filtering:
+
+| Eligible Actions choices | On tapping Actions |
+| --- | --- |
+| None | Hide the button. |
+| Exactly one | Select that request directly, without a chooser, then apply the input rule below. |
+| Several | Open the ordered chooser; send nothing until the person selects a request and its input rule permits sending. |
+
+The Actions tap in the one-choice case is the person's choice of that request.
+Merely displaying one action is not a choice and never authorizes sending.
+The same input rule applies to a chosen menu item, Quick Action, or declared
+link. The [inline subscription header](endpoint-presentation.md#endpoint-list-with-displayed-subscription-data)
+keeps its required drawer even for one choice; it is not the Actions button or
+a new landing entry.
+
+Android, iOS, and Libertas Studio present the chosen request by its constructed
+input, with [RequestConfirmation](#request-confirmation) taking precedence over
+immediate sending:
 
 | Constructed request input | Presentation |
 | --- | --- |
-| No editable input fields | Validate and send at once, without a confirmation dialog. This also applies when Actions has only one eligible request and skips its chooser. |
+| No editable input fields | Validate and send at once. A RequestConfirmation request first requires its Send/Cancel dialog. |
 | One editable primitive or enum field | Use the existing one-field popup with its normal confirmation and cancellation controls. |
 | More complex input | Use the existing full request editor with its normal submit and cancellation controls. |
 
@@ -2146,6 +2190,8 @@ is not input, also when a ReadOnly field is visible. A visible ReadOnly or
 Fixed value is still shown, because it is visible for the person to see: a
 request with one editable primitive or enum field beside such a value uses the
 full request editor, not the one-field popup.
+Default or CopyFrom values do not remove editable input: even a completely
+initialized editable request waits for the person to submit its popup/editor.
 Cancelling or dismissing a popup or an editor sends nothing and preserves the
 current protocol data and reference context. One choice sends at most one
 request, with ordinary validation and request correlation: recomposition,
@@ -2159,8 +2205,8 @@ send.
 `#[libertas_request_confirmation]` take no argument and emit
 `{"Name":"RequestConfirmation","Value":"true"}` on a protocol Request variant,
 the marker form of DefaultRequest and LinkOnly.
-Whenever a person's choice or submission is about to send a marked request,
-the client first shows a dialog that names the action, with its display name
+Whenever a person's choice, landing forwarding, or submission is about to send
+a marked request, the client first shows a dialog that names the action, with its display name
 and description, and offers **Send** and **Cancel**. The rule holds for every
 entry point and every input:
 
@@ -2188,16 +2234,25 @@ Request, on a DefaultRequest, and on a request that a
 [CalculationRequest](#field-calculation-requests) names, because the client
 sends those two by itself and asks nobody.
 
-Only the person's choice sends a request without editable input.
+Outside [landing entry](#default-request-entry-and-dynamic-actions), only the
+person's choice sends a request without editable input.
 [Automatic singleton selection](#response-action-constraints) is not such a
-choice: it opens a popup or an editor, and a request without editable input
+choice: only an accepted regular Response with no visible content and exactly
+one eligible constrained action may automatically open that action's popup or
+editor once. A request without editable input
 that it would select stays offered as the one action until the person chooses
-it. A reply therefore never selects or sends an action by itself. The only
+it. Visible response content, including link rows, stays displayed. Rendering,
+layout changes, subscription updates, and return to retained content do not
+select or send an action. A regular reply therefore never sends a next action
+by itself. Apart from the
+[landing forwarding rule](#default-request-entry-and-dynamic-actions), the only
 requests that follow a reply without the person's choice are auxiliary
 [field calculations](#field-calculation-requests) and the
 [refresh](presentation.md#master-detail-panes) of a master-detail leading page.
 
-Static and constrained NextRequest sets follow the same rule.
+Actions taps and input-based sending follow the same rule for static and
+constrained NextRequest sets; only constrained regular responses have the
+automatic input-opening behavior above.
 Existing explicit DefaultRequest entry, default subscriptions, and
 chart previews retain their own rules. WorkflowRequest and EditRequest
 continue to require their existing explicit editor submission.
@@ -2306,9 +2361,9 @@ rejects a link there. On a Response or SubscriptionData, a link row is offered
 only while its target is in the displayed value's
 [filtered action set](#response-action-constraints). In a request editor the
 link is offered only when the target passes the same access and ExcludeUI
-filtering; an editor has no ConstrainedBy set. A constrained singleton is
-still selected automatically, and its presentation covers the rows, so a
-Response that wants tappable rows declares no ConstrainedBy on its actions.
+filtering; an editor has no ConstrainedBy set. Visible regular-response content,
+including link rows, remains displayed even when only one action is eligible;
+the person opens that action through Actions.
 
 ```rust
 #[derive(LibertasExport, LibertasAvroDecode, LibertasAvroEncode)]
@@ -2436,74 +2491,93 @@ data may be displayed directly under an endpoint in that list; only this
 inline subscription data also serves as that endpoint's landing. Do not create
 a duplicate subscription landing when its endpoint header is tapped.
 
-Other landings, including chart and workflow landings, are not displayed or
-entered in the endpoint list. Tapping such an endpoint enters its landing and
-stacks it above the list. With exactly one endpoint, enter its landing directly,
+Other landing content, including chart workspaces and workflow editors, is
+entered when the endpoint is tapped and displayed above the endpoint list.
+With exactly one endpoint, enter its landing directly,
 including a subscription-data landing: never create, display, or retain an
 endpoint-list screen underneath it.
 
-Initial endpoint entry has **no reference context** and follows default-entry
-selection above. Its immediate stable destination may be SubscriptionData, a
-Response, or a Request editor. An initial Response can be stable without
-NextRequest; do not suppress it as an acknowledgement of a previous screen.
-Transient cookie responses opening an editor are not separate destinations.
-Identify the retained base by its actual navigation ownership, never by variant
-name, payload equality, or all variants reachable through NextResponse.
+The endpoint defines its landing entry independently of later interactions.
+There are exactly two landing kinds, determined by the operation actually sent
+for default entry, never by a response variant or a later working page:
 
-A **working screen** may be stacked above the retained endpoint landing. For
-an inline subscription landing, its retained base screen is the endpoint list.
-It can display an explicitly requested subscription's data, a response, or a
-stable EditRequest/WorkflowRequest editor. Successive working results replace
-or update that working destination rather than accumulating historical screens.
-The landing remains underneath with its own data and subscription ownership;
-working data must not overwrite its context. A reply to an operation sent from
-the landing that installs a displayed value or an editor is installed as the
-working screen above the landing, whether the landing is a displayed value or a
-request editor; an editor that is the landing is not replaced and stays beneath.
-An explicitly selected subscription request creates a working subscription
-screen, even though the base already contains a default subscription landing:
-the Response that completes it is installed as the working screen and is the
-first state of its SubscriptionData snapshot, whether or not it declares
-NextRequest, and is not an acknowledgement. A failure or Error is handled as for
-any other action.
+- **Subscription landing:** the selected default entry request was sent as a
+  SubscriptionRequest.
+  Retain that live page underneath at most one working page, including its
+  subscription owner, reference context, layout, and scroll position. Later
+  working results replace that working page, never the subscription landing.
+  Inline default data uses its existing endpoint-list location as the retained
+  landing, without creating a duplicate page.
+- **Non-subscription landing:** default entry uses an ordinary Request, or
+  no default is selected and entry begins with the request list. The initial
+  landing page is the working page; later
+  interactions replace or update that one page, without retaining the initial
+  page underneath it. Returning to landing refreshes it as the working page and
+  runs its automatic entry and forwarding rules again.
+
+A working reply cannot redefine either landing or become its entry source.
+Non-subscription landing entry has **no reference context** from the abandoned
+page; never construct it from that page's response or cookie. A working
+subscription cannot overwrite the retained default subscription's snapshot.
+
+For a non-subscription landing, each stable page remembers whether it is the
+**direct consequence of landing**.
+The immediate stable destination produced by landing entry or its selected
+forwarding action has this flag.
+It may be SubscriptionData, a Response, or an EditRequest/WorkflowRequest editor,
+including the result of a request selected automatically or by the person from
+landing. An initial Response can be stable without NextRequest; do not suppress
+it as an acknowledgement of a previous screen. Transient cookie responses
+opening an editor and transient request composers are not separate stable pages.
+The flag records this page's entry provenance, never its variant name, payload
+equality, or all variants reachable through NextResponse. It governs Back, not
+automatic selection of the page's NextRequest.
+
+After the landing entry or forwarding result, subsequent navigation or
+submission results replace the current working page
+and **clear the flag**, even when the new page has the same variant or values.
+An initial stable editor is replaced on the same terms as an initial displayed
+Response. Later replacements keep the flag clear; clients keep no history of
+intermediate pages. Field edits, calculations, same-subscription updates,
+redraws, and acknowledgements that do not replace the page preserve its flag.
+
+An explicitly selected subscription request installs its completing Response
+as the first state of its own SubscriptionData snapshot, whether or not it
+declares NextRequest; that reply is not an acknowledgement. Its page gets the
+flag only when the request was selected as landing entry. A failure or Error
+preserves the originating page and its flag, under the ordinary retry rules.
 
 For native Back in a **stable Control endpoint destination**:
 
-- From a working screen, abandon that working interaction and reveal the
-  retained endpoint landing (or the endpoint list for an inline subscription
-  landing). Refresh the current endpoint's workflow
-  landing as specified below. Do not recreate the base or add a duplicate
-  subscription landing.
-- From a separately opened landing, return to the endpoint list for a
-  multi-endpoint task; exit the task for a single-endpoint task.
+- Above a subscription landing, abandon the working interaction and reveal
+  the retained subscription page, even from the first working result. Preserve
+  its live data, reference context, layout, and scroll position; do not rerun
+  entry, refresh, resubscribe, or repeat automatic forwarding on this return.
+- From a subscription landing itself, or from a non-subscription landing or
+  page whose direct-consequence flag is set, exit that endpoint: return to the
+  endpoint list for a multi-endpoint task, or exit the task for a single-endpoint
+  task. Do not rerun landing entry before exiting.
+- From a non-subscription page whose flag is clear, abandon the working interaction and
+  return to the independently defined landing. Remove intervening endpoint
+  pages, refresh landing as the working page and run its normal automatic entry
+  and forwarding without the abandoned reference context, and mark
+  any new immediate stable result as directly produced by landing. The next
+  Back from that result exits the endpoint.
 - From the endpoint list itself, exit the task.
 
-Returning preserves the base screen, with refresh determined by the current
-endpoint's landing:
-
-- **Workflow landing:** refresh it through its landing entry request so the
-  backend supplies current workflow state and legal actions. Construct that
-  refresh with no reference context, as for landing entry; never inherit the
-  abandoned working screen's response or cookie. Install the result in the
-  retained endpoint landing rather than pushing another landing screen.
-- **SubscriptionData landing:** keep its live subscription and current data.
-  No Back-triggered refresh or resubscription is needed because incoming
-  subscription data already refreshes it. This also applies when the dismissed
-  working screen was a workflow editor over a subscription-data landing.
-
-Workflow landings refresh within their separately opened landing screen, never
-by entering a workflow from the endpoint list during Back. Preserve the endpoint
-list and its other endpoints' live subscriptions beneath that landing. A working
-workflow editor above an inline subscription landing returns to the endpoint
-list without initiating a workflow landing refresh. A genuinely new endpoint entry
-still starts without a reference context.
+Non-subscription return reruns landing entry and its automatic forwarding rules;
+subscription return reveals the retained page. The selected landing action's
+result follows ordinary response presentation. Its direct-consequence flag
+controls Back only for non-subscription entry; a subscription landing always
+receives Back from the working page above it. Other endpoints and their default
+subscriptions retain their own ownership.
 
 These rules apply to the Back button and system back navigation alike. A
 [transient request composer](endpoint-presentation.md#protocol-transaction-stack)
 first follows its cancellation and pending-response rules. A local picker or
 modal retains its ordinary dismissal behavior. Abandoned pending replies,
 calculations, and explicit subscriptions cannot navigate or overwrite the
-retained base. Back does not undo a request already accepted by the backend.
+new entry or another interaction. Back does not undo a request already accepted by the backend.
 Workflow PrevRequest remains a separate explicit protocol action.
 
 ### Response action constraints
@@ -2526,10 +2600,14 @@ legacy-schema fallback, and the separation from payload `Fixed` constraints are
 defined in [Unions](schema.md#54-unions).
 Only declared actions in the allowed set are displayed, after the ordinary
 access and ExcludeUI restrictions. An empty array is valid and means no actions;
-duplicate entries do not duplicate actions. If the constrained set, after access
+duplicate entries do not duplicate actions. Landing uses its separate
+[forwarding rule](#default-request-entry-and-dynamic-actions). On a regular
+response, if the constrained set, after access
 and visibility filtering and without [link-only requests](#link-only), contains
-exactly one action, select it automatically
-once for that accepted response, then apply the
+exactly one action, keep the response visible when it has visible content,
+including link rows. Choosing Actions opens that request directly, without a
+chooser. Only a response with no visible content automatically selects its sole
+action once for that accepted response, then applies the
 [single-action presentation rule](#single-action-confirmation-and-input-presentation):
 one primitive or enum uses the existing one-field popup, and complex input
 uses the full editor. Automatic selection never sends: a request without
@@ -2539,7 +2617,11 @@ serialize an unfinished request. Rendering or returning to
 the same retained response must not repeat the selection. A subscription
 update re-filters the actions and never selects one, also when it leaves
 exactly one: automatic selection happens only for an accepted correlated
-Response, because auxiliary traffic never navigates. Without ConstrainedBy, NextRequest
+Response without visible content, because auxiliary traffic never navigates.
+Use the visible-content definition under [default entry](#default-request-entry-and-dynamic-actions);
+the initial working result after a landing action follows this same rule even
+when its Back flag is set; the landing action source uses its forwarding rule.
+Without ConstrainedBy, NextRequest
 remains static. Missing, malformed, out-of-range, or undeclared entries refuse
 the whole reply or update before it takes effect: the prior surface, its
 reference context, its actions, and any draft stay. Clients never fall back to
