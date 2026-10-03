@@ -111,6 +111,11 @@ does not change an unaffected node's initialization. On an existing destination,
 unaffected nodes keep their current values; copying another field does not
 reset them.
 
+CopyFrom on a Union selector may supply its initial branch. Browsing or explicitly
+choosing another branch does not reapply that selector's CopyFrom; the chosen
+payload and its descendants retain their own ordinary construction, including
+their CopyFrom mappings and the current reference context.
+
 Initialization and validation are separate. Studio rejects `Fixed` together
 with `CopyFrom` on one field: a copied value that differed from the Fixed
 value would leave a protected field that blocks submission. Within a copied

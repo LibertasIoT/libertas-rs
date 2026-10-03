@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "sdkVersion": "0.3.0",
-  "sourceRevision": "cd51b5a69745871952998df680c4072a9a4bcc01",
+  "sourceRevision": "5930c4d7659e6295359af72419d3bec1441f2da3",
   "sourceDirty": false,
-  "sourceContentSha256": "6c32373adc4185163313b393a3c7d88b819e185c0692bc06e8f6e1c961ac258f",
+  "sourceContentSha256": "bbfdd3dfbf6a82528605c8df905004d17d9c2743a214ec15b5881b0f708a8aee",
   "entryContentSha256": "80ab16c55edbd462203d27da61a74cb78bb16639929bbb9e82729e07142646b0",
   "files": {
     "assets/comment/chart_code.png": "61b793cb5efad9cec765af07788d44c64c48a266fda143622d2a70288d29423b",
@@ -88,7 +88,7 @@
     "codebot/validation_rules.md": "4b64c1593f1437aee3fc0139d345d50d935a4b9122a1bdae403ed14d700a1782",
     "concepts/index.md": "3430a0c4ddefac7a1477ac926f989722d54fc1eace1a9ac0fabdd329477d89da",
     "examples/app-recipes.md": "ba886c342cd82079521b3d5e71b9804f138959102be3ce639aa5791218eff41e",
-    "examples/federal-tax.md": "87a321274f2431d91e9188d44fdc2eb3b4e9c6b4fa65e8247bbfb6cc99a9adf7",
+    "examples/federal-tax.md": "4d9725ce1418478c758c816d8ce7e82d165d88ed1823de7ad5bf04c9f059a3cd",
     "examples/index.md": "4724ddb28d4825ef2445c69d3aa8b236ecae29135d51e204eb8af8267662693b",
     "examples/weather-sprinkler.md": "da3ed4d657b3a36c77b62ce0ded59f888df1397c6f24637743f650196cdd22ef",
     "guides/administration.md": "356379598ec6927ddc202b0fc5c2e2201bccb9368877ef4cc7645d4c4bd915a4",
@@ -125,7 +125,7 @@
     "reference/presentation.md": "998fe3c7e792d2dc12cc9220d64bbdfaadc253837cd78a70c1f6054a129b7720",
     "reference/protocols.md": "a26d3177716ff1ba2a3e16f3c2902968f020d20fdd42d8d892d2e1fe1f7859ab",
     "reference/publication.md": "75ab1d9aab45cb5ac481866afb9481375d68af650348f5e89818a647fd0b7f6b",
-    "reference/schema.md": "9c93ecf6d7a27f7549037bd2358b2982254ea1ce70091fc9d97da720550a1b29",
+    "reference/schema.md": "6b5c4ec1dd3c7e082399b2626e4edc293bb72d100e0a59b794658c2071c04f28",
     "reference/translation.md": "bc8a72f69c2571e37c3589b6309bdc276ace3e40ffabe41b149aa3ce1ad0db19",
     "reference/validation-rules.md": "7e191e28db46db4543d0466373fa495a5ab1a6b627fdc06d3756c309cc8ae35a"
   }

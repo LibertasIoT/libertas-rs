@@ -72,6 +72,30 @@ that reopen walkthrough work can restore Continue. The
 keeps the button's name and operation aligned. Topic links and a previous-section
 link remain on each hub; the redundant next-step row is removed.
 
+The Income, Adjustments, Itemized deductions and Credits hubs, plus Review,
+declare a secondary **Go to** control and **AI Search** across the return's
+available topics. Eight groups organize the existing 46 destination identities;
+real prerequisites still decide which pages are offered. Opening a page leaves
+unfinished sections unfinished. Continue and each editor's submission retain
+their separate responsibilities.
+
+Search uses actual topic links, including the folded All topics catalog.
+Descriptions recognize formal references and common names; the shared page
+prompt also recognizes bare identifiers case-insensitively and prioritizes exact
+matches. For example, Section 199A, `199a`, Form 8995, `8995`, Form 8995-A,
+qualified business income and QBI deduction identify the Self-employment entry;
+an explicit rental or K-1 question identifies its more specific supporting page.
+Ambiguous queries can return alternatives, and unrelated queries can return no
+match. These references identify pages and do not establish tax eligibility.
+Live model ranking has not been evaluated for this prototype.
+
+Grouped Go to uses the
+[general hierarchical builder](../reference/protocols.md#hierarchical-single-field-requests).
+The suggested category seeds the initial selection; choosing another category
+preserves that explicit choice. Studio and web require a build with the corrected
+[Union construction rule](../reference/schema.md#shared-copyfrom-and-copyto-rules);
+earlier builds may reapply the initial category while switching groups.
+
 Interview editors use **Save and continue**, **Previous step**
 where a previous action exists, and **Close editor** when embedded beside a hub.
 The final confirmation uses **Finish review** and **Return to review**. These
