@@ -458,9 +458,15 @@ endpoint's one working surface, and interaction stays strictly ordered:
   the trailing pane.
 - A selection in the leading pane constructs its link against the leading
   page, also while the trailing pane shows another page.
-- While the trailing pane's editor awaits a reply, a selection is ignored.
-  While that editor is idle, a selection first closes the trailing pane as
-  Close does and then opens the selected detail node's link.
+- **One pending operation for both panes.** The two panes are one working
+  surface with at most one pending operation. While any operation in either
+  pane awaits its reply, every control that would send a request is
+  temporarily disabled in both panes: links, including detail nodes, Actions,
+  action controls, Submit, and previous actions. They become active again when
+  the reply has been applied. Calculations, which are auxiliary, still run; the
+  platform's Back follows the [leaving rule](protocols.md#exit-while-pending).
+  While the trailing pane's editor is idle, a selection first closes the
+  trailing pane as Close does and then opens the selected detail node's link.
 - A reply of the leading page's own variant replaces the leading page and
   empties the trailing pane.
 - **Refresh.** The rule's `refresh` member names one Request variant of the

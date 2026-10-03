@@ -170,9 +170,10 @@ Consequences:
   rest wait in the queue; a change that schedules the in-flight occurrence
   again makes its reply obsolete, which is discarded and never queued again
   on its own; deferred requests are
-  rebuilt and validated at dispatch. Submit waits for pending and deferred
-  calculations to settle, then validates and sends; a calculation failure keeps
-  the editor open
+  rebuilt and validated at dispatch. Submit is disabled while any calculation is
+  pending or deferred, and validates and sends once they settle; links and
+  exit stay available and discard the round; a calculation failure keeps the
+  editor open
   ([deferred calculation](../reference/protocols.md#changes-resets-and-deferred-calculation)).
   Array removal follows dependency scope, not positions: cancel removed-item
   work, keep unaffected surviving item-local work, reschedule work crossing

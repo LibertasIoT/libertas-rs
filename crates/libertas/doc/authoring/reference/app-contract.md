@@ -284,6 +284,18 @@ A function may opt into checked Data API results using `DataErrorStatus`; see th
 [Data API owner](protocols.md#explicit-error-status-opt-in). This exception transfers
 consistency handling to that App without adding Hub-automatic restart.
 
+## Task version selection
+
+A task runs the App version selected for it. Installing or upgrading an App
+never changes any task's selection. A person with configuration permission on
+the task changes it through the task's settings; selecting a version of
+another App retargets the task and also requires configuration permission on
+that App, as task creation does. The Hub then replaces the task's runtime with
+the selected version, keeping its arguments and enabled state. When the
+arguments cannot be initialized under the selected version, the change fails
+and the task keeps its version. Which version reads the data another wrote
+follows the [directional evolution rules](data-type-evolution.md).
+
 ## Task removal
 
 On Hubs supporting removal preflight, Android and iOS ask the Hub to identify
@@ -306,9 +318,15 @@ automatically with the new arguments; otherwise it is disabled with the new
 arguments.
 
 The Hub repeats the same analysis immediately before executing removal. An
-earlier successful probe cannot bypass a later permission change. If the Hub
-cannot inspect the complete task configuration, it reports a failed check and
-does not begin removal. Older Hubs retain their supported removal operation;
+earlier successful probe cannot bypass a later permission change. When the
+repeated check fails, including when the Hub cannot inspect the complete task
+configuration, the Hub reports the failure and does not begin removal.
+
+Removal is atomic. The Hub applies it in the order of the dependency map: the
+removed task and its data, then each dependent task's nulled arguments and its
+restart or disabling. Either the whole removal takes effect or none of it does;
+no person or task observes a partial state, and a removal interrupted by a
+power loss is completed before the Hub resumes ordinary operation. Older Hubs retain their supported removal operation;
 the clients warn that dependency and permission preflight requires a Hub
 update.
 

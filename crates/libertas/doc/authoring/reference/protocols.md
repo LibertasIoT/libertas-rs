@@ -847,17 +847,20 @@ a new input. Invalid intermediate input still invalidates pending work.
 Native inline editors may buffer text until Done. Buffered changes invalidate
 pending replies immediately and defer sending until the local edit finishes.
 Submit requires that edit to finish; an independently valid Prev request, when
-offered in the current presentation, remains available to discard it. Submit
-waits until pending and deferred calculations settle, then validates and sends
-its snapshot; a calculation failure keeps the
-editor open. While Submit waits, nothing has been sent: the submit control
-shows that it is busy and a repeated Submit is ignored, the fields stay
-editable, and an edit starts a new calculation round that the same Submit
-keeps waiting for. Links and document import are blocked during the wait.
-An offered Prev action and exit stay available and abandon the round; the
+offered in the current presentation, remains available to discard it.
+While any calculation is pending or deferred, Submit is temporarily disabled;
+nothing is queued to send later. The fields stay editable, and an edit starts a
+new calculation round that keeps Submit disabled. Submit becomes active again
+when the calculations settle, and then validates and sends its snapshot; a
+[RequestConfirmation](#request-confirmation) dialog comes after that
+validation, and its Send sends the validated snapshot. A calculation failure
+shows its error and keeps the editor open. Links, an offered Prev action, and
+exit stay available during calculations: leaving the editor discards the
+round and its unfinished values. A link chosen while a calculation is pending
+constructs its request from the values as displayed, including a calculated
+value whose newer result has not arrived. The
 [pane contract](presentation.md#master-detail-panes) still suppresses Prev in
-an embedded trailing pane. A calculation failure ends the wait with its error
-shown and sends nothing.
+an embedded trailing pane.
 When a required output is undefined because its calculation cannot run, an
 input being incomplete or invalid, reconstruct and validate the calculation
 request from its current inputs. Preserve the concrete failure's explanation
@@ -941,8 +944,9 @@ propagation. Scheduling never changes the bindings of an in-flight transaction.
 
 A failed calculation, whether a timeout, a transport failure, or a
 [rejected update](#applying-calculation-results), is not sent again
-automatically: the next edit or Submit evaluates it again, and that Submit
-waits for it. Obsolete errors do
+automatically: the next edit or Submit runs it again. That Submit sends
+nothing; Submit stays disabled until the retry settles and is then pressed
+again. Obsolete errors do
 not report against a newer edit. Leaving or replacing the editor abandons its
 pending/deferred calculations; late replies cannot reopen it or update array
 positions that have changed ownership.
@@ -1060,9 +1064,18 @@ suppress all workflow Back controls, including the chooser and shortcuts,
 under the [pane contract](presentation.md#master-detail-panes). The pane offers
 Close and Next; the leading pane owns navigation for the two-panel arrangement,
 and the App must make that navigation complete.
+A [transient request composer](endpoint-presentation.md#protocol-transaction-stack)
+likewise never offers a workflow Back control: it was opened above a displayed
+page by the person's own choice, and its Cancel already closes it while idle.
 The declaration remains available for ordinary full-page workflow presentation.
 Suppression depends on the editor's actual placement, never on inferred
 equivalence between requests.
+
+A request whose purpose is to choose where to go, such as a section chooser
+offered as a "Go to" action, belongs in a composer above the page it leaves.
+There is no reason to deliver it as a workflow editor through WorkflowRequest
+or EditRequest: such a page would exist only to be left, and the service
+already opens the chosen destination as the reply to the composed request.
 
 `PrevRequest` names this action declaration, not a stored previous request or
 reference context. Its declared target list is not dynamically filtered by
@@ -1260,7 +1273,48 @@ protocol Union variants. It is not a path to every field inside that payload.
 Once the capability is selected, ordinary serialization/deserialization handles
 the payload under its compatible schema. Capability correspondence and encoding
 are separate concerns; finding a matching prefix does not make incompatible
-payload definitions compatible. The current runtime limits are stated below.
+payload definitions compatible.
+
+<a id="capability-prefixes"></a>
+
+### Capability prefixes across nesting depths
+
+A capability may sit at a different Union depth in each peer. Its prefix is the
+chain of protocol variants from the protocol root to the variant that carries a
+role; that variant is the capability, and a Union inside its payload is ordinary
+payload data, not a further capability. A variant without a role extends the
+prefix when it is itself a Union or holds exactly one field whose type is a
+Union; a chain of such variants that returns to itself without a role is
+invalid. Matching follows a partial prefix while a supported complete path
+remains possible, and an unsupported path is rejected.
+
+Correspondence must be unique. A capability's identity is the materialized
+Union that owns it together with the role-bearing variant of that Union, so
+aliases and enclosing wrappers do not change it. Each endpoint protocol exposes
+at most one occurrence of an identity: duplicate occurrences, such as
+Primary / OnOff and Backup / OnOff exposing the same OnOff identity, reject the
+match before connection, even when their enclosing paths differ. The matcher
+never chooses the first occurrence. Distinct identities that share a short name
+are not duplicates, and conformance is evaluated in the corresponding
+capability context, not by requiring identical outer grouping.
+
+Every prefix element without a role is a Union, or a record whose only field is
+a Union, so its Avro encoding is that Union's discriminator alone. A message is
+therefore its prefix's discriminators followed by the capability's payload. The
+client task host builds a translation plan in both directions, using the server
+schema as the wire representation. It translates a message by reading the
+sender's discriminators up to the capability, writing the receiver's
+discriminators for the corresponding capability, and copying the payload bytes
+unchanged. For example, client Manual / OnOff / SetState corresponds to server
+OnOff / SetState: the client's three discriminators become the server's two,
+and the Boolean payload passes through.
+
+Integers in a payload that name protocol choices, a response's
+[allowed-action list](#response-action-constraints) and
+[named action-control](#named-action-controls) lists, always name
+discriminants of the server schema, the wire representation. The translator
+copies them unchanged with the payload, and a client App reads them against
+the server's schema, never its own arrangement.
 
 ### Required and optional capabilities
 
@@ -1282,11 +1336,11 @@ client declaration; both must pass. Operators are:
 
 Without an expression, every direct variant in that Union context is mandatory.
 
-Matching variants must also have pass-through-compatible payloads. Libertas may
-reorder root protocol variants by translating the first Avro discriminator in
-the client task host, but positional fields and overlapping nested Union slots
-must remain aligned. Nested optional variants may only extend the tail of a
-smaller Union. Payload bytes are not decoded by the translator; the receiving
+Matching variants must also have pass-through-compatible payloads. Libertas
+translates only the [capability prefix](#capability-prefixes); inside a
+payload, positional fields and overlapping nested Union slots must remain
+aligned, and nested optional variants may only extend the tail of a smaller
+Union. Payload bytes are not decoded by the translator; the receiving
 server or client App decoder validates them against its own schema.
 
 The following focused snippets are non-copyable schematics: the referenced
@@ -2128,7 +2182,10 @@ For a landing with [named action controls](#named-action-controls), count the
 deduplicated union of requests actually offered through those controls.
 
 The selected landing action's result is the initial working result, not another
-landing-forwarding step; it follows the regular response and editor rules. The
+landing-forwarding step; it follows the regular response and editor rules. A
+plain Response, with neither NextRequest nor WorkflowRequest, is the
+[non-transition acknowledgement](#protocol-roles) and never replaces the
+landing, including a subscription landing. The
 result is a direct consequence of landing whether its action was selected
 automatically or by the person. For example, entry can send Enter, receive a
 landing offering only OpenInterview, send OpenInterview, and open its returned
@@ -2275,9 +2332,11 @@ does not verify the confirmation. The marker does not change the wire form of th
 validation. A program that calls the endpoint directly is not affected, and
 the service still validates every request. Studio
 rejects RequestConfirmation on anything other than a protocol variant carrying
-Request, on a DefaultRequest, and on a request that a
-[CalculationRequest](#field-calculation-requests) names, because the client
-sends those two by itself and asks nobody.
+Request, and on a DefaultRequest, which the client sends by itself.
+A [calculation request](#field-calculation-requests) ignores the marker: when
+the client sends a marked variant as a calculation, it shows no dialog and asks
+nobody. The same variant chosen by a person, forwarded at landing, or submitted
+still requires confirmation.
 
 Outside [landing entry](#default-request-entry-and-dynamic-actions), only the
 person's choice sends a request without editable input.
@@ -2612,7 +2671,8 @@ For native Back in a **stable Control endpoint destination**:
 
 Non-subscription return reruns landing entry and its automatic forwarding rules;
 subscription return reveals the retained page. The selected landing action's
-result follows ordinary response presentation. Its direct-consequence flag
+result follows ordinary response presentation; a plain Response is a
+[non-transition acknowledgement](#protocol-roles). Its direct-consequence flag
 controls Back only for non-subscription entry; a subscription landing always
 receives Back from the working page above it. Other endpoints and their default
 subscriptions retain their own ownership.
@@ -2638,7 +2698,9 @@ The ConstrainedBy array supplies membership only: its order never reorders
 actions. For example, NextRequest `A,B,C` with allowed discriminants for
 `C,A` displays `A,C`. No separate order attribute is needed.
 Each integer in the response's allowed array identifies an original protocol
-Union discriminant, never a position in NextRequest or a filtered action list.
+Union discriminant of the server schema, never a position in NextRequest or a
+filtered action list; a client App whose protocol arranges the Union
+differently reads it under the [capability prefix rule](#capability-prefixes).
 Union members carry explicit consecutive `Discriminator` values starting at zero;
 Children are pre-sorted by that value. Runtime initialization,
 legacy-schema fallback, and the separation from payload `Fixed` constraints are
