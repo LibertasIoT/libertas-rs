@@ -2168,6 +2168,12 @@ initialization, immutability, validation, and payload editing.
 
 Default endpoint entry uses `#[libertas_default_request]` on a Request variant whose payload needs no user input (Nil, or only hidden/read-only Fixed or Default fields, such as a hidden `#[libertas_fixed("current-user")]` caller). Response-level ConstrainedBy filters NextRequest through a hidden integer array. See [default entry and dynamic actions](../protocols.md#default-request-entry-and-dynamic-actions).
 
+For additional response controls, put `#[libertas_action_control("sections")]`
+and `#[libertas_hidden]` on a direct `Vec<i32>` field of a Response or
+SubscriptionData payload with `NextRequest`. The field's values are original
+protocol Union Request discriminants; `"Actions"` names the built-in button.
+See [named action controls](../protocols.md#named-action-controls).
+
 ### Union member identity and payload constraints
 
 Rust payload enums emit an explicit numeric `Discriminator` on every Union

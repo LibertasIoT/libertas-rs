@@ -43,12 +43,16 @@ catalogs because their fabricated members cannot carry required documentation.
 - Explain material empty, unavailable, zero, false, `None`, or `Unknown`
   meanings. Do not rely on order, position, color, shape, icons, animation, or a
   client-specific gesture.
+- Include relevant [domain references and alternate names](../reference/documentation.md#domain-references-and-discoverability)
+  in natural descriptions: formal references, form/document numbers,
+  abbreviations, and common terminology, with their actual supported scope.
+  Document each bound topic or choice as well as a shared link operation.
 - Match text to its use: inputs explain entry and effects, outputs explain
   reported meaning and availability, and internal schema records explain domain
   purpose. For blank String answers say “Leave it empty if absent” and describe
   any fallback or grouping effect. Keep AI-import instructions consistent with
   [the field's blank semantics](../reference/documentation.md#parameter-and-field).
-- Do not expose identifiers/casing, codes, FQNs, Libertas Schema Paths, byte/storage/wire
+- Do not expose internal identifiers/casing, codes, FQNs, Libertas Schema Paths, byte/storage/wire
   mechanics, or implementation terms such as field, type, struct, table, enum,
   Union, variant, schema, payload, protocol, endpoint, request, response,
   runtime, discriminator, or index.

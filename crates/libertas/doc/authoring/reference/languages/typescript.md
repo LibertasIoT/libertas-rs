@@ -1698,6 +1698,13 @@ initialization, calculated allowed sets, validation, and payload editing.
 
 Default endpoint entry uses `@LibertasDefaultRequest` on a Request variant whose payload needs no user input (Nil, or only hidden/read-only Fixed or Default fields). Response-level ConstrainedBy filters NextRequest through a hidden integer array. See [default entry and dynamic actions](../protocols.md#default-request-entry-and-dynamic-actions).
 
+For additional response controls, put `@LibertasActionControl("sections")`
+and `@LibertasHidden` on a direct integer-list field of a Response or
+SubscriptionData payload with `NextRequest`. Give the list member its normal
+integer NumberType annotation. The values are original protocol Union Request
+discriminants; `"Actions"` names the built-in button. See
+[named action controls](../protocols.md#named-action-controls).
+
 For large workflow request payloads, `@LibertasCacheIdentity` marks direct root-record
 identity fields for opt-in draft recovery. Small requests omit it. See the
 [CacheIdentity contract](../annotations.md#cacheidentity) for immutable multi-field

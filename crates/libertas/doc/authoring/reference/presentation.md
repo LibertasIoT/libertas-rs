@@ -140,12 +140,12 @@ three tests in order:
 | Schema only | Template (a source attribute, where one exists, is the default rule) |
 | --- | --- |
 | Hidden, ReadOnly, Fixed, Default, Nullable, Size, Number ranges, Unique, Unordered | `promote` with `use_parent_name`, and `flatten` with `name_row` |
-| ValidationRules, RangeMin, RangeMax, EnumSource, ConstrainedBy | Foldable and `initially_open` |
+| ValidationRules, RangeMin, RangeMax, EnumSource, ConstrainedBy, ActionControl | Foldable and `initially_open` |
 | CopyFrom, CopyTo, CalculationRequest, Link, LinkOnly, RequestConfirmation | InlineChoices |
 | NextRequest, NextResponse, PrevRequest, WorkflowRequest, DefaultRequest, ExcludeUI | SuppressLabel, UIIncludeDescription |
 | AccessPrivilege, CacheIdentity | `Format` display pattern and precision, never the value or currency |
 | Money, PhysicalUnit, DateOnly, FormattedText, display names, descriptions | Chart scale type, guide position, and palette |
-| Chart channel bindings: which field is x, y, color, or tooltip | Template-only concepts: layout, density, emphasis, `label`, `title`, `button_labels`, device conditions |
+| Chart channel bindings: which field is x, y, color, or tooltip | Template-only concepts: layout, density, emphasis, `label`, `title`, `button_labels`, `action_controls`, device conditions |
 
 Unordered and ExcludeUI look presentational, but the wire and the protocol
 depend on them, so they stay in the schema. `Format` looks semantic, but
@@ -208,6 +208,7 @@ A rule is one JSON object with these members:
 | `label` | No | Replaces the node's displayed name and keeps its value ([labels and titles](#labels-and-titles)): `{ "field": "path" }` takes the text from a String or FormattedText field below the node, and a string names a fixed `StringResources` key. |
 | `title` | No | Replaces the node's whole row, label and value, with its text, in the same two forms ([labels and titles](#labels-and-titles)). |
 | `button_labels` | No | Localized captions for existing protocol-page controls, by slot: `go_back`, `next`, `close`, `actions` ([button labels](#button-labels)). |
+| `action_controls` | No | Labels, placement, and applicable style for App-declared response controls and built-in Actions ([named action controls](#named-action-controls)). |
 | `flatten` | No | Draws a struct's, List's, or Union's children at that node's own indentation ([flattening](#flatten)): `true`; `false`, which undoes a flattening that a lower-ranked rule set; or `{ "name_row": false }` on a struct to remove its name-only row as well. |
 | `inline`, `fold`, `promote`, `suppress_label`, `include_description`, `format`, `scale`, `guide`, `palette` | No | [Behavior hints](#behavior-hints). |
 | `switch` | No | A [conditional switch](#display-template-switch) whose chosen case supplies the presentation members. A rule with `switch` has no other presentation member. |
@@ -734,6 +735,61 @@ targets. The visible caption is also the accessible name. Re-resolve it when
 the displayed variant, offered action set, template, locale, or device condition changes. Older
 clients ignore this optional member and retain their platform captions.
 
+#### Named action controls
+
+The [ActionControl schema attribute](protocols.md#named-action-controls) declares
+the controls and their choices. No authored template is required. A named
+control uses its field's ordinary localized display name; this is a document
+name, not the retired UIName schema attribute. The built-in Actions control
+keeps its platform caption when implicit, and an explicit Actions field can
+supply its default name. The selected Requests keep their own localized names
+inside a chooser.
+
+Named controls occupy one secondary region immediately below the page heading
+and above content. They appear in field declaration order, leading aligned,
+with full visible captions and secondary emphasis. They wrap at narrow widths
+without making a new panel or navigation stack. No eligible choices hide that
+control and release its space. Actions keeps its adaptive heading placement by
+default. A template may move it into the shared secondary region, ahead of
+the named controls. In master-detail, the leading page owns global controls;
+trailing Response controls stay in their pane. An embedded Request editor keeps
+Close and Next, with no response controls.
+
+On a whole Response or SubscriptionData protocol-page rule, `action_controls`
+is an object keyed by an exact declared control name or `Actions`. A rule
+cannot invent a control. Each entry can set `label`, `placement`, and the
+`emphasis` and `density` style tokens. Members cascade independently under device `when`
+conditions; data conditions, switches, and pseudo-states cannot set them.
+
+```json
+{
+  "select": "^<Hub>",
+  "action_controls": {
+    "sections": { "label": { "field": "section_caption" }, "placement": "secondary" },
+    "Actions": { "label": "PAGE_ACTIONS", "placement": "secondary" }
+  }
+}
+```
+
+`placement` is `secondary` or `header`. Header asks the page-heading fit
+rule to place whole controls in declaration order after reserving the title
+and system controls. A control that does not fit remains in the secondary
+region with its full caption. A trailing pane does not get another screen
+toolbar. Styling never changes eligibility or invocation.
+
+`label` accepts a package StringResources key, `{ "field": "path" }`, or
+`null` to restore the default caption. The field form uses the existing
+[label path](#labels-and-titles) below this displayed payload through struct
+fields only, ending at a String or statically ReadOnly FormattedText field.
+It never reads the selected Request, a reference context, List or Union
+member, or an expression. A Hidden caption source is allowed as an explicit
+text source. Invalid paths and types fail Studio validation. An absent, null,
+empty, or unresolvable current value falls back to the field's localized name
+or platform Actions caption, never a blank or raw key. Caption updates do not
+select or submit an action. For Actions, an explicit
+`action_controls.Actions.label` takes precedence over `button_labels.actions`,
+then an explicit Actions field name, then the platform caption.
+
 #### Task-controlled section-hub action
 
 For a walkthrough with section hubs and a main Review page, declare the
@@ -822,7 +878,7 @@ template unless:
 - every data condition and switch case parses under the ValidationRules
   grammar, is Boolean, and reads only the selected node and the reference
   context, every switch meets the rules [above](#display-template-switch),
-  and neither a data condition nor a switch case sets `label`, `title`, `button_labels`,
+  and neither a data condition nor a switch case sets `label`, `title`, `button_labels`, `action_controls`,
   `promote`, or `flatten`;
 - no rule member is outside the catalog, including every schema-only
   attribute;
@@ -850,6 +906,9 @@ template unless:
 - every `button_labels` is a non-empty object of the four slots above, with
   package resource-key or null values, selects only whole protocol page
   variants, and sets `go_back` or `next` only on Request variants;
+- every `action_controls` key names a control declared on the selected whole
+  Response or SubscriptionData page, or built-in Actions; its label source,
+  placement, and style satisfy the named-control rule above;
 - every `promote` rule selects a field of a struct, never a type, a List
   member, a Union branch, a function parameter, or a Response; every
   `flatten` rule selects a struct, a List, or a Union, by type or by field,

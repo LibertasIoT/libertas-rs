@@ -102,6 +102,25 @@ control, automatic behavior, result, warning, condition, prerequisite, and limit
 This guidance changes prose only; identifiers, structural keys, and message
 placeholders retain their exact spelling and syntax.
 
+### Domain references and discoverability
+
+Document the names people use to identify a supported capability. Where
+relevant, connect formal domain references, document or form numbers, standard
+abbreviations, and common names in natural descriptive prose. For example, a
+tax topic can identify the forms and statutory provisions it covers, while an
+equipment topic can identify the industry standard it implements. These are
+user-domain references, distinct from internal identifiers and wire codes.
+Preserve their exact meaning during translation and explain unfamiliar
+abbreviations. Keep labels concise; put this context in descriptions.
+
+State the actual purpose, supported scope, and material conditions. A reference
+to a subject does not establish that every case within it is supported. For
+links that share one request but bind different topics or records, document
+the individual topic or selected choice as well as the common operation, so
+the destination is understandable from its own documented meaning and data.
+Maintain this information in its owning source documentation when behavior
+changes; generated documents and private code comments are not substitutes.
+
 ## Node-specific invariants
 
 ### Package

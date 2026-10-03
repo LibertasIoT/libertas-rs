@@ -2124,6 +2124,8 @@ popup/editor and await submission when it has input. Defaults do not make
 editable fields input-free, and RequestConfirmation still requires confirmation.
 With no eligible action keep the landing; with several, await a choice. Chart
 workspaces and automatic previews retain their own entry rules.
+For a landing with [named action controls](#named-action-controls), count the
+deduplicated union of requests actually offered through those controls.
 
 The selected landing action's result is the initial working result, not another
 landing-forwarding step; it follows the regular response and editor rules. The
@@ -2651,3 +2653,56 @@ Actions {
 Studio checks response placement, NextRequest presence, exclusions, source
 resolution, and hidden integer-list shape. Clients validate entries against
 declared actions before installation.
+
+### Named action controls
+
+A displayed Response or SubscriptionData with `NextRequest` may declare named
+action controls on direct Hidden fields of its payload record. A named record
+used as the payload is also valid. Each field is a non-nullable List of
+non-nullable plain integers and carries one
+`#[libertas_action_control("sections")]` or
+`@LibertasActionControl("sections")`. A control name is a nonempty,
+case-sensitive identifier (`[A-Za-z_][A-Za-z0-9_]*`), unique on that page.
+`Actions` names the built-in control; other names declare additional controls.
+Error and WorkflowRequest pages cannot use this attribute. On a dual-role
+variant it applies only while the value is displayed, never in its Request
+editor. Hidden keeps the source list out of content and editors; the marker
+creates a separate control for its choices.
+
+The App supplies each control's current membership as original protocol Union
+Request discriminants in the marked field. The field array never names a
+NextRequest position or changes order. Start with `NextRequest`, apply the
+response's existing ConstrainedBy ceiling, access and ExcludeUI restrictions,
+then intersect each control with its own array. LinkOnly requests are absent
+from every control. Duplicates collapse; an empty array hides only that control.
+Without an `Actions` field, Actions offers the shared eligible set. A named
+control does not remove its requests from Actions. To separate the controls,
+the App supplies an explicit Actions array. Links continue to use the shared
+response set independently of control-specific arrays.
+
+A missing, null, malformed, out-of-range, or out-of-NextRequest member rejects
+the entire reply or subscription update before installation. A client keeps the
+prior page, reference context, controls, and draft through the ordinary failure
+procedure. Every accepted update replaces all arrays together; an open chooser
+re-filters before selection. An already-open composer or confirmation follows
+the normal response-action lifetime rule. The service still authorizes and
+validates every selected Request.
+
+Zero eligible choices hide a control; one choice selects its Request directly
+on tap; several open the ordinary ordered chooser. The Request owns its
+CopyFrom, field ConstrainedBy, inputs, confirmation, validation, and submission.
+A control has no tapped data row or bound List member and never borrows another
+panel's unfinished editor values. A regular page declaring any ActionControl
+stays displayed even when it has only one eligible request and all ordinary
+content is Hidden. Rendering, caption changes, and subscription updates never
+activate it. Pages without this attribute keep the preceding automatic
+presentation rule.
+
+On landing entry, count the deduplicated union of actual targets offered by
+its controls, including implicit Actions. LinkOnly and requests omitted from
+all controls do not count. The ordinary landing forwarding rule then applies
+once. A retained subscription landing never forwards again. Named controls
+do not change landing kind, native Back, interaction correlation, or the Next
+submission control of an embedded editor. See
+[action-control presentation](presentation.md#named-action-controls) for
+captions, placement, and template customization.
