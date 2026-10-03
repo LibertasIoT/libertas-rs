@@ -2182,7 +2182,7 @@ immediate sending:
 | Constructed request input | Presentation |
 | --- | --- |
 | No editable input fields | Validate and send at once. A RequestConfirmation request first requires its Send/Cancel dialog. |
-| One editable primitive or enum field | Use the existing one-field popup with its normal confirmation and cancellation controls. |
+| One editable primitive or enum field, or one hierarchical choice field as defined below | Use the one-field popup with its normal confirmation and cancellation controls. |
 | More complex input | Use the existing full request editor with its normal submit and cancellation controls. |
 
 Use the existing request-composition rules after initialization, including hidden
@@ -2190,7 +2190,7 @@ subtrees and constrained choices; count input fields, not rendered layout rows.
 An input field is one the person can edit: a Hidden, ReadOnly, or Fixed field
 is not input, also when a ReadOnly field is visible. A visible ReadOnly or
 Fixed value is still shown, because it is visible for the person to see: a
-request with one editable primitive or enum field beside such a value uses the
+request with one editable field beside such a value uses the
 full request editor, not the one-field popup.
 Default or CopyFrom values do not remove editable input: even a completely
 initialized editable request waits for the person to submit its popup/editor.
@@ -2200,6 +2200,49 @@ request, with ordinary validation and request correlation: recomposition,
 repeated taps, or returning to a retained response must not replay it. A
 popup or an editor whose originating surface has been left or replaced cannot
 send.
+
+<a id="hierarchical-single-field-requests"></a>
+
+**Hierarchical single-field requests.** A single editable choice field may be
+a non-nullable Union whose branches carry Enumerations or further such Unions.
+Single-field record wrappers may preserve that shape; Hidden construction fields
+do not add editable input. Every branch must have this choice-only shape. Other
+editable payloads, nullable containers, Lists, or visible ReadOnly/Fixed companion
+content retain the ordinary full editor. This is general one-field request
+composition, applicable to category/item selection as well as navigation; it
+requires no new attribute, grouping catalog or template opt-in.
+
+The popup presents Union branches as expandable groups and Enumeration members
+as selectable leaves. Apply [ConstrainedBy](#backend-constrained-choices) at every
+ancestor and leaf using the existing request-owned sources. Sources needed while
+browsing inactive branches must be available through normal construction without
+changing the live selection, invoking calculations, or sending domain requests
+to discover choices. Preserve each original Union discriminant and declared enum
+value; neither a flattened row position nor a label is the transmitted identity.
+Recursively omit groups with no eligible descendant leaf. With no leaf available,
+show the empty state and prevent confirmation; existing absent or invalid source
+errors remain applicable, with no nullable bypass or invented defaults.
+
+Expanding or collapsing a group never selects a branch, discards another branch's
+payload, or sends a request. Choosing a leaf assigns the complete typed branch
+path and enum value atomically. Cancel preserves the prior value. The popup
+still requires its ordinary confirmation, validation and submission, including
+RequestConfirmation when declared; one eligible leaf does not authorize sending.
+Check current eligibility again before accepting the selection and submitting.
+WorkflowRequest and EditRequest entry retain their normal editor and Next control.
+
+Above twelve permitted leaves, use the ordinary chooser text filter over localized
+names and descriptions, including ancestor group names. Reveal matching paths and
+retain the current permitted selection. Text filtering only changes visibility;
+it neither changes allowed sets nor makes a previously ineligible leaf selectable.
+
+For hierarchical navigation, a group's overview must be an explicit destination
+leaf; its expand/collapse header is not an action. The same App-owned destination
+definitions can supply the navigation request's hierarchy and the information
+hub's bound links. [AI Search](#candidate-discovery-and-assembly-before-ai) continues
+to select actual offered, fully constructed invocations: the chooser hierarchy
+does not generate speculative AI candidates. Its protocol and selection engine
+need no change for this pattern when those bound links are supplied.
 
 <a id="request-confirmation"></a>
 
@@ -2215,7 +2258,7 @@ entry point and every input:
 | Constructed request input | Presentation of a marked request |
 | --- | --- |
 | No editable input fields | The dialog takes the place of the immediate send, also when Actions has only one eligible request and skips its chooser. |
-| One editable primitive or enum field | The one-field popup, then the dialog after the popup is confirmed. |
+| One editable primitive, enum or hierarchical choice field | The one-field popup, then the dialog after the popup is confirmed. |
 | More complex input | The full request editor, also a workflow editor, then the dialog after Submit. A previous action that names a marked request shows the dialog before it is sent. |
 
 Opening the dialog does not start a pending request. **Cancel** sends nothing
@@ -2611,7 +2654,7 @@ including link rows. Choosing Actions opens that request directly, without a
 chooser. Only a response with no visible content automatically selects its sole
 action once for that accepted response, then applies the
 [single-action presentation rule](#single-action-confirmation-and-input-presentation):
-one primitive or enum uses the existing one-field popup, and complex input
+one popup-eligible field uses the existing one-field popup, and complex input
 uses the full editor. Automatic selection never sends: a request without
 editable input stays offered as the one action and is sent when the person
 chooses it. Never auto-submit a workflow editor or
@@ -2706,3 +2749,199 @@ do not change landing kind, native Back, interaction correlation, or the Next
 submission control of an embedded editor. See
 [action-control presentation](presentation.md#named-action-controls) for
 captions, placement, and template customization.
+
+## AI Navigation and AI Search
+
+**AI Navigation** and **AI Search** name the same capability: use a person’s
+text or editable voice transcript to select an existing offered link. The App
+supplies destination meaning; the client constructs and validates complete
+requests before selection; AI returns only candidate identifiers. A candidate
+is one offered invocation and binding, so two links to one Request with
+different bound topics are distinct candidates.
+
+This feature requires an implementing client and a supporting modern Hub.
+It is unavailable on legacy Hubs and on non-task pages. A resolved Union or
+page prompt opts the owning task page in; Hub policy may disable it. Search
+and task-scoped Assistant are independent features. A navigation prompt does
+not grant access or enable tool execution.
+
+Search opens a secondary text/dictation composer without changing the working
+page, panes, or scroll position. Recording starts only on explicit microphone
+action; stopping retains an editable transcript and never submits. Typing works
+without microphone permission. Search requires explicit submission. No match
+or a transient failure retains the query and page. An explicit Ask Assistant
+handoff is available only when Assistant is available in the stated scope;
+a failed search never executes tools automatically.
+
+Each Search is a fresh model operation with no prior conversation, tool calls,
+or request history. The current selector uses a configured OpenAI or Gemini
+connection; a missing or unsupported connection reports a failure and retains
+the query. Candidate context is limited to 64 KiB and 256 candidates;
+clients report an oversized search without silently dropping destinations.
+Voice recognition uses the offered destination names and documented domain
+references through the recognizer’s supported bias API.
+
+### Prompt attribute and composition
+
+The schema attribute is `AINavigationPrompt`, whose value is one key
+in the declaring package's StringResources. The source spellings are:
+
+| Language | Declaration |
+| --- | --- |
+| TypeScript | `@LibertasAINavigationPrompt("NAVIGATION_PROMPT")` |
+| Rust | `#[libertas_ai_navigation_prompt("NAVIGATION_PROMPT")]` |
+
+It may occur on the protocol Union and on a page-defining protocol variant.
+Each location has at most one declaration. Several pages may reference the
+same resource key. A request editor uses its own Request variant's page
+declaration; an instruction that opens that editor does not become its page.
+A synthetic request-list landing has only the Union declaration available.
+
+Resolve the Union and current page resources through ordinary localization,
+in that order, and concatenate their texts with a blank line. Both
+declarations contribute. Page guidance adds local meaning and can refine
+common selection preferences; it does not erase the Union guidance. An
+absent declaration contributes nothing. Either declaration suffices to opt
+the page into AI Navigation; with neither, the page does not offer it.
+
+This is an additive rule, not ordinary nearest-attribute replacement. Keep the
+two declaration locations through resolution. Reuse the normal package and
+locale resolution rules; do not implement a separate translation catalog.
+Studio must validate placement, a nonempty key, and an existing nonempty
+StringResource. A client that cannot resolve the applicable prompt reports
+the configuration failure and does not send an AI request.
+
+The App authors the resource at development time; a navigation prompt takes
+no runtime message arguments. Runtime page and item values are supplied
+separately as data. The platform supplies the general
+selection instructions and result format. App guidance and runtime text
+cannot expand the candidate set or change construction, access, validation,
+confirmation, or submission rules. The existing `LLMToolCall` attribute
+continues to control Hub tool projection; it is not this page opt-in.
+
+### Candidate discovery and assembly before AI
+
+1. Identify the page that owns the search and its current interaction context.
+   Discover its actual link occurrences and offered action-control choices.
+2. Apply the existing NextRequest, shared response ConstrainedBy, access,
+   ExcludeUI, and visibility rules. Respect each action control's membership.
+   A LinkOnly target is eligible through its actual declared link, never as
+   an invented unbound action. Control-specific arrays do not restrict
+   independent links; the [named-control contract](#named-action-controls)
+   continues to own that distinction. Folding and scroll position do not
+   remove an otherwise available link; a Hidden occurrence is not a link.
+3. Construct every candidate request through ordinary initialization,
+   CopyFrom, defaults, Fixed values, and the authenticated current user, with
+   the candidate's actual binding. Check the complete value against the
+   request's structural and semantic validation rules.
+4. Exclude a candidate whose request cannot be fully assembled and validated.
+   Do not ask the model to fill a missing field, invent a binding, or choose
+   new arguments. Do not send domain requests or calculations just to search
+   for additional candidates. With no valid candidate, report no available
+   match without invoking AI.
+5. Assign each remaining occurrence an identifier local to this selection
+   attempt and retain its complete request, origin, and bindings in the
+   client. A request variant alone is not a sufficient identifier.
+
+Eligibility is evaluated before the AI call, including when there is only
+one candidate. A search does not follow that candidate unless it matches the
+user's intent. App-wide coverage requires the App to expose the intended
+destinations from the page offering that scope. The client does not traverse
+unoffered pages or combine all enum values into speculative links.
+
+The [pane ownership contract](presentation.md#master-detail-panes)
+still applies. Search over the leading page uses its context and controls;
+it does not borrow unfinished values from the trailing editor. A selected
+detail link follows its existing pane routing. Rendering, prompt resolution,
+and subscription updates do not start a search or invoke a link.
+
+### Navigation context supplied to AI
+
+The client assembles one context for each selection attempt:
+
+| Part | Source and required meaning |
+| --- | --- |
+| User intent | The user's text, including text obtained by voice transcription. |
+| App guidance | Resolved Union prompt followed by resolved page prompt. |
+| Current page | Its resolved name and description and relevant current response/context values. |
+| Candidate identifier | The client-owned identifier for this exact invocation and binding. |
+| Candidate meaning | The resolved link or control label, its source description, the target request's description, and the meaning of the bound destination. |
+| Distinguishing data | Relevant bound row values, selected Enumeration/Union member descriptions, and documented domain references that distinguish this candidate. |
+
+Derive candidate meaning from the bound schemas, extracted documents, and
+current data. Resolve StringResources and FormattedText through the normal
+rendering rules. Retain schema descriptions even when a template changes the
+visible label. Follow the actual selected members and bound occurrences;
+collecting only a generic request description loses the destination's meaning.
+Candidate request schemas may be projected to the descriptions and typed
+values needed for selection; the full wire payload is not an AI input.
+
+Supply enough context to distinguish all offered candidates, rather than
+dumping the package's unrelated schemas or all return data. Keep credentials,
+authentication identifiers used only for construction, and opaque continuation
+values in the client. A domain identity needed to distinguish links can use
+its ordinary meaningful display value. Treat user and response text as data,
+not as authority to change the selection contract.
+
+### Selection result and invocation
+
+The logical JSON result is an ordered array of zero or more candidate
+identifiers, for example:
+
+```json
+{"links":["L7","L12"]}
+```
+
+Return `{"links":[]}` when no candidate adequately matches. Return one
+identifier when the choice is sufficiently clear, or several ranked
+alternatives when user choice would help. Multiple candidates are alternatives,
+never a batch to execute: show their ordinary destination labels and relevant
+distinguishing context, and invoke only the one the person selects. A provider
+adapter may encode this logical result in its supported structured-output
+format. The result contains no request payload or field patch. Reject unknown
+or repeated identifiers, additional request values, malformed output, and
+results belonging to an invalidated selection attempt. Model failure or no
+match leaves the current page in place.
+
+Before acting, verify that the originating page, binding, eligibility, and
+assembled request still match the selection snapshot, and feature availability
+still permits the action. Recheck after a person chooses from multiple results
+as well as after the AI reply. A replacement page,
+changed request value or choice set, or removed bound item invalidates the
+old selection; use the existing operation-ownership rules rather than a new
+recovery state machine. The client then invokes the selected occurrence once
+through the normal link/action path, including validation, RequestConfirmation,
+pending-operation ownership, cancellation, and reply classification. The
+service still authorizes and validates the request.
+
+**Auto-assembly does not change auto-submission.** A request with no editable
+input follows the normal send-on-selection rule, subject to confirmation.
+Populated editable fields still require the ordinary popup/editor submission.
+WorkflowRequest and EditRequest still open editors awaiting submission. AI
+Navigation neither submits another editor nor replaces its Next control.
+Landing forwarding and native Back keep their existing rules.
+
+### App and CodeBot authoring obligations
+
+| Area | Obligation |
+| --- | --- |
+| Planning | Associate each supported user goal with an ordinary reachable destination. Expose the links needed for the advertised search scope and make their requests constructible from real available data. A navigation request may open an editor where subsequent user input occurs. |
+| Comments | Describe each destination's purpose, scope, consequences, and distinguishing domain vocabulary in extracted source documentation. Document bound topic choices and linked items as well as the generic request. |
+| Attributes and data | Use Link, NextRequest, applicable ConstrainedBy and ActionControl membership, and request-owned construction/confirmation declarations. Supply their actual runtime data; the AI does not create allowed sets. |
+| Prompt resources | Put shared interpretation in the Union resource and local interpretation in the page resource. Keep cross-topic guidance here and destination-specific meaning with its documented destination, with one owner for each fact. |
+| Review | Verify representative formal references, abbreviations, and everyday descriptions against the context the client will actually supply. Check unsupported and ambiguous queries as well as successful selections. |
+
+Follow the existing [source-documentation contract](documentation.md#domain-references-and-discoverability).
+Ordinary private code comments are not extracted navigation knowledge. Missing
+domain meaning must be authored; collecting more schema does not create it.
+
+For the Tax App, statutory references, form/schedule numbers, formal names,
+abbreviations, and common names must all be useful ways to find supported
+topics. A description can connect a qualified-business-income destination to
+Section 199A, Form 8995/8995-A, and QBI. These associations identify a topic;
+they do not assert that a taxpayer qualifies for a deduction. The actual
+destination, jurisdiction, tax year, and supported scope come from the App.
+When several topics share a form or citation, supply enough context to select
+the appropriate topic or its available overview, or offer the relevant
+alternatives for the person to choose. Multiple OpenSection links must carry
+their individual topic meaning.

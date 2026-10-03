@@ -4,6 +4,13 @@ This page is the compact App-authoring projection of the full
 [presentation and localization contract](../reference/presentation.md).
 Presentation metadata never changes the underlying typed wire value.
 
+One-field requests can use a [hierarchical choice popup](../reference/protocols.md#hierarchical-single-field-requests):
+Union groups ending in Enumeration leaves, constrained independently at every
+level. Empty groups disappear recursively; expansion never selects or sends,
+and a chosen leaf retains ordinary confirmation/submission. Other inputs keep
+the full editor. Navigation is one use; AI Search still needs actual offered
+bound links and does not enumerate this hierarchy into candidates.
+
 ## Source documentation
 
 Give every authored schema node a natural label and complete description.

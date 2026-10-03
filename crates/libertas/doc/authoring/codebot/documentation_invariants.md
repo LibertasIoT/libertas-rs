@@ -46,7 +46,8 @@ catalogs because their fabricated members cannot carry required documentation.
 - Include relevant [domain references and alternate names](../reference/documentation.md#domain-references-and-discoverability)
   in natural descriptions: formal references, form/document numbers,
   abbreviations, and common terminology, with their actual supported scope.
-  Document each bound topic or choice as well as a shared link operation.
+  Document each bound topic or choice as well as a shared link operation;
+  an Enumeration destination owns this vocabulary in its member description.
 - Match text to its use: inputs explain entry and effects, outputs explain
   reported meaning and availability, and internal schema records explain domain
   purpose. For blank String answers say “Leave it empty if absent” and describe

@@ -90,7 +90,8 @@ every submission. Modifiers:
   `RequestConfirmation` and the person confirms in a Send/Cancel dialog before
   any send ([critical requests](../reference/protocols.md#request-confirmation)).
   Automatic singleton selection on a regular response never sends. One
-  primitive or enum field uses the one-field popup; complex input uses the
+  primitive, enum, or [hierarchical choice field](../reference/protocols.md#hierarchical-single-field-requests)
+  uses the one-field popup; complex input uses the
   full editor, even when defaults or CopyFrom fill every editable field.
   Cancel sends nothing; a repeated choice cannot send twice
   ([single action](../reference/protocols.md#single-action-confirmation-and-input-presentation)).

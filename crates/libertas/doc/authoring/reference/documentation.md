@@ -118,6 +118,12 @@ to a subject does not establish that every case within it is supported. For
 links that share one request but bind different topics or records, document
 the individual topic or selected choice as well as the common operation, so
 the destination is understandable from its own documented meaning and data.
+When an Enumeration member identifies a navigation destination, its extracted
+member description owns the destination’s domain references, abbreviations,
+and common names. For example, a qualified business income topic can associate
+Section 199A, Form 8995/8995-A, and QBI deduction with that supported topic.
+The client supplies the descriptions of the actual bound members; a generic
+request description does not replace them.
 Maintain this information in its owning source documentation when behavior
 changes; generated documents and private code comments are not substitutes.
 

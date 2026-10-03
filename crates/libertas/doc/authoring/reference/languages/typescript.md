@@ -1727,3 +1727,11 @@ complete initial snapshots and owns ordering and retention. See the
 [array append contract](../protocols.md#subscriptiondata-array-append) for
 placement, combining CopyTo with append, exclusion of index controls from copied
 data, writer conflicts, independent recipients, and live charts.
+
+## AI Search guidance
+
+Use `@LibertasAINavigationPrompt("NAVIGATION_PROMPT")` on a protocol Union or page variant to reference
+a package StringResource. Both Union and page guidance contribute, in that
+order. Document destination vocabulary in each offered topic or Enumeration
+member’s extracted description. See [AI Search](../protocols.md#ai-navigation-and-ai-search)
+for candidate construction, selection, confirmation, and submission rules.

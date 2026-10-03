@@ -178,6 +178,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     || attr.path().is_ident("libertas_copy_from")
                     || attr.path().is_ident("libertas_constrained_by")
                     || attr.path().is_ident("libertas_action_control")
+                    || attr.path().is_ident("libertas_ai_navigation_prompt")
                     || attr.path().is_ident("libertas_default_request")
                     || attr.path().is_ident("libertas_copy_to")
                     || attr.path().is_ident("libertas_append_to")
@@ -562,6 +563,7 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_copy_from,
     libertas_constrained_by,
     libertas_action_control,
+    libertas_ai_navigation_prompt,
     libertas_default_request,
     libertas_copy_to,
     libertas_append_to,

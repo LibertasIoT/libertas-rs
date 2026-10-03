@@ -1020,6 +1020,13 @@ it never changes the permitted set, its order, or the selection, and clearing
 the field shows every choice again. The current selection stays visible and
 selected even when the query would otherwise filter it out.
 
+The [hierarchical single-field request builder](protocols.md#hierarchical-single-field-requests)
+also presents a choice-only Union/Enumeration hierarchy as expandable groups.
+It derives grouping from the App's types and removes groups with no eligible
+leaves recursively. This is the default compact request presentation for that
+shape; ordinary content folding and the Display Template do not change the
+underlying selection type, constraints or submission behavior.
+
 The source uses a [Libertas Schema Path](schema.md#context-and-syntax) in the
 current data tree; it does not read the interaction reference context. An explicit Default or
 Fixed retains ordinary initialization; otherwise the selection is unanswered.
