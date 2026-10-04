@@ -1,8 +1,8 @@
 {
   "formatVersion": 1,
   "sdkVersion": "0.3.0",
-  "sourceRevision": "230c99f71455c659600db9cf4b5c985169c2804f",
-  "sourceDirty": true,
+  "sourceRevision": "9fc57fcde20b5d83aee8ef3f499477d4d7740e8e",
+  "sourceDirty": false,
   "sourceContentSha256": "cc43d5cd31a47a010c9736333a5e71a1a170f0504e5a79a0a7ccbb41742478f1",
   "entryContentSha256": "80ab16c55edbd462203d27da61a74cb78bb16639929bbb9e82729e07142646b0",
   "assistantEntryContentSha256": {
