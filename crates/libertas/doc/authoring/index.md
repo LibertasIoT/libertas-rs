@@ -15,7 +15,7 @@ interoperability, security, auditing, automation, and AI.
 
 <p class="app-authoring-note">All Libertas applications can be built entirely by a CodeBot, starting from a short prompt.</p>
 
-**[Build your first App](guides/developing-apps.md)** · [Get started](guides/getting-started.md)
+**[Start here](principles.md)**: the principles, and prompts that let your AI assistant answer the rest.
 
 <h2 id="projects" style="font-size:2rem;line-height:1.2;margin:1.5em 0 0.65em;">See What You Can Build</h2>
 
@@ -41,6 +41,9 @@ interoperability, security, auditing, automation, and AI.
 
 <h2 id="start-building" style="font-size:2rem;line-height:1.2;margin:1.5em 0 0.65em;">Your Next App</h2>
 
-Follow the [human tutorial](guides/developing-apps.md), explore the
-[guides](guides/index.md), or give your coding agent the [CodeBot guide](codebot/index.md).
-The [reference](reference/index.md) supplies the full contracts.
+Read the [principles](principles.md), then ask your AI assistant: give a coding
+agent the [CodeBot entry](codebot/index.md), and use the
+[developer](assistants/developer.md) or [user](assistants/user.md) assistant
+entry for questions. The [tutorial](guides/developing-apps.md) shows one App
+from source to running task; the [reference](reference/index.md) supplies the
+full contracts.

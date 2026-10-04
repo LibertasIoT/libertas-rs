@@ -3,6 +3,20 @@
   "home": "index.md",
   "items": [
     {
+      "title": "Start here",
+      "page": "principles.md",
+      "children": [
+        {
+          "title": "Developer assistant entry",
+          "page": "assistants/developer.md"
+        },
+        {
+          "title": "User assistant entry",
+          "page": "assistants/user.md"
+        }
+      ]
+    },
+    {
       "title": "Guides",
       "page": "guides/index.md",
       "children": [

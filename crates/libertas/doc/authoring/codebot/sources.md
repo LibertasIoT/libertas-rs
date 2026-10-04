@@ -17,6 +17,10 @@ inspect private implementation to fill an App-contract gap.
 For prompts and tools that need a public URL, the Rust SDK bundle's entry point is
 [Libertas CodeBot guidance](https://github.com/LibertasIoT/libertas-rs/blob/main/crates/libertas/CODEBOT.md).
 Its [complete documentation tree](https://github.com/LibertasIoT/libertas-rs/tree/main/crates/libertas/doc/authoring)
-contains the linked contracts and guides. Prefer the installed SDK's local
+contains the linked contracts and guides. Two further entries beside it serve an
+AI that answers people:
+[developer assistant](https://github.com/LibertasIoT/libertas-rs/blob/main/crates/libertas/DEVELOPER-ASSISTANT.md)
+and [user assistant](https://github.com/LibertasIoT/libertas-rs/blob/main/crates/libertas/USER-ASSISTANT.md).
+Prefer the installed SDK's local
 `CODEBOT.md` for version-matched work; `main` represents the latest pushed bundle.
 A first-time bundle becomes available only after the SDK commit is pushed.

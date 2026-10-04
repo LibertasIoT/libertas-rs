@@ -1,5 +1,9 @@
 # Human guides
 
+Start with [Start here](../principles.md): its principles and AI-assistant
+prompts are the entry for people. These guides are the detailed material the
+assistants read and cite, and remain available to read directly.
+
 The guides explain how to accomplish a task and recognize its result. They
 are organized around what you want to do, rather than the implementation of
 Studio or the Hub.
