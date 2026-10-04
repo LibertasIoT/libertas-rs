@@ -2950,7 +2950,9 @@ values into speculative links.
 The [pane ownership contract](presentation.md#master-detail-panes)
 still applies. Search over the leading page uses its context and controls;
 it does not borrow unfinished values from the trailing editor. A selected
-detail link follows its existing pane routing. Rendering, prompt resolution,
+destination uses the resolved editing Request's Display Template relationship
+after WorkflowRequest or EditRequest resolution, including direct entry into
+another section. Rendering, prompt resolution,
 and subscription updates do not start a search or invoke a link.
 
 ### Navigation context supplied to AI

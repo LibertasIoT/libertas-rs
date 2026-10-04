@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "sdkVersion": "0.3.0",
-  "sourceRevision": "9b465b09f77516859c6f7418d81b4e37a97073d6",
+  "sourceRevision": "00416364c4395ec3299d975a9892031acf01029a",
   "sourceDirty": false,
-  "sourceContentSha256": "7fa8347e0902da1baa001d123b04b6282d6da427d27dbbf1de2c6d39c8b6b302",
+  "sourceContentSha256": "2d4522aa28a3e8e9b8fdce23e84ed86e84190b3f9e11df2c3fad4dfcb902005d",
   "entryContentSha256": "80ab16c55edbd462203d27da61a74cb78bb16639929bbb9e82729e07142646b0",
   "assistantEntryContentSha256": {
     "DEVELOPER-ASSISTANT.md": "9a09109e51a166e03a9bb0cf218d12754a2ade05ee35fc17452186e47e7bf97b",
@@ -84,7 +84,7 @@
     "codebot/function_comment_invariants.md": "d178743594a9e74e2f1aa2f0cf58eef3c7241e3d5243c52ed2fb8075ed126319",
     "codebot/index.md": "d704c12a005ef3f12fe4d2c523e714f945702696177c4e699415fc8bd7f5a389",
     "codebot/matter.md": "5dedb462cf1c698259f4fc7f539ba655e1bc4bc0c3aa69267612c0e42ecea149",
-    "codebot/presentation.md": "cddff51441ce53214fd19cf6828657fd2d74fecf286d21e1c5ffdc0f4ceeb8ef",
+    "codebot/presentation.md": "bcd52ccf552ed5a6f2e35b2b7c313eb51654dd9f6cea41bc2bf0f4e65730c725",
     "codebot/protocols_runtime.md": "78c089c4f8dfb3e31dbe7d1c167bcbbd2f97ceb7a3fdc12a041dcf62a878cb4d",
     "codebot/recipes.md": "010acaf316f09b0565d1c2eb1758d983fa5877e75d1530b4ee20fe5a7159790c",
     "codebot/rust.md": "d68bd85fd8de2d55713d71eb388bfff5eda0ed3df9b936b00bce20293a30f9e3",
@@ -129,10 +129,10 @@
     "reference/matter/status.md": "aefabe9e3d7cef25f0fdf010b9bc7793b6038b26c75bc44393dc2794b53fb791",
     "reference/message-format.md": "f642a062fc43d23a07a5423868553e46128216207fa9d9130b75779b6ec7cae5",
     "reference/network-access.md": "5227c5f68ad96f9e03f586a47784c49d677fcf3644130f6e69e7ba9faf80eb09",
-    "reference/presentation.md": "b94a6d3348d0d1537d534127c0f046a675f656e96ed4bbe60c183a567c5c192a",
-    "reference/protocols.md": "7cfbd605b5b24066ff715517617bf87e82b5296e8f04ca6b983ffc0eca6578e2",
+    "reference/presentation.md": "e47539429c0f6d5d11786cd4c30dde2171cd84daff8c7be90f608e05498abb47",
+    "reference/protocols.md": "93819ec0c0f6935cbc310a933ea7ac87b972eab3e3a15a06727634b2b7465b6c",
     "reference/publication.md": "75ab1d9aab45cb5ac481866afb9481375d68af650348f5e89818a647fd0b7f6b",
-    "reference/schema.md": "50cc1a658bf80623c5390cd1e7e83630c97fc57680cca1290d4eabc8793b791c",
+    "reference/schema.md": "443e6246276e83daa91d6239de7c93133d1bbac3e4d752014facf915b8a5d7a4",
     "reference/translation.md": "4b4be1c9a813f2d54657bad22852f8b6f7fe8272462cf6e1ae0914c90f708e9d",
     "reference/validation-rules.md": "7e191e28db46db4543d0466373fa495a5ab1a6b627fdc06d3756c309cc8ae35a"
   }

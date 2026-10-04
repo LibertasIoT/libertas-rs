@@ -111,7 +111,9 @@ owns its identity and delivery.
   Every other layout applies only where a rule asks for it and, for a gated
   layout, only while its gate holds; otherwise the node renders as `rows`.
 - **Presentation only.** No rule, condition, or device state can hide a field,
-  make it read-only, change a value, or change what is sent. A condition may
+  make it read-only, change a value, or change a user's submitted payload. The
+  [pane arrangement](#master-detail-panes) may load or refresh a leading page
+  through a declared pure navigation Request. A condition may
   change style, layout, or fold state only. Hidden, ReadOnly, and every other
   schema rule apply before and regardless of the template.
 - **Forward tolerant.** A client that meets a token value, layout, hint, or
@@ -174,7 +176,8 @@ Studio, see [the Studio MCP live-preview guide](../guides/studio.md#live-preview
   "DisplayVersion": 1,
   "rules": [
     { "select": "^<Hub.topics>[]", "layout": "rows", "style": { "emphasis": "primary" } },
-    { "select": "^<Hub>", "when": { "form": "tablet" }, "layout": "master-detail",
+    { "select": "^<Hub>", "when": { "form": ["tablet", "desktop"] },
+      "right_pane": ["EditWages", "EditInterest"],
       "detail": ["^<Hub.told>", "^<Hub.topics>[]"], "refresh": "OpenHub" },
     { "select": "^<Review.return_lines>", "when": { "form": "desktop" }, "layout": "table",
       "columns": ["form_line", "amount"] },
@@ -204,6 +207,7 @@ A rule is one JSON object with these members:
 | `select` | Yes | One [selector](schema.md#display-template-selectors), optionally ending in a pseudo-state or a `:condition(...)` [data condition](#display-template-conditions). |
 | `when` | No | A [device condition](#display-template-conditions). Without it the rule applies on every device. |
 | `layout` | No | One [catalog layout](#display-template-catalog), with the layout-specific members its row names. |
+| `right_pane`, `refresh`, `detail` | No | Leading Response relationships, its pure loader, and optional linked-node highlighting under [master-detail panes](#master-detail-panes). |
 | `style` | No | An object of [style tokens](#style-tokens). |
 | `label` | No | Replaces the node's displayed name and keeps its value ([labels and titles](#labels-and-titles)): `{ "field": "path" }` takes the text from a String or FormattedText field below the node, and a string names a fixed `StringResources` key. |
 | `title` | No | Replaces the node's whole row, label and value, with its text, in the same two forms ([labels and titles](#labels-and-titles)). |
@@ -392,7 +396,7 @@ client that meets it draws `rows` under the forward-tolerant rule.
 | `card` | Table or List member | A bordered block titled by the node's header text. |
 | `table` | List of Tables with scalar fields | One row per member; `columns` names the member fields shown, in order; an optional `sort` names one of them and orders the rows ascending by it for display only, never changing the List. Applies only while the [widening gate](#display-template-conditions) holds; otherwise `rows`. |
 | `tabs` | Union, or Table with `sections` | One tab per Union branch or section. |
-| `master-detail` | Response | `detail` is a non-empty array of selectors that declare the **detail nodes**: an entry ending in `[]` selects the members of a List, and any other entry selects one node. Each selected List and node lies in the Response and is reached through struct fields only, never through another List or a Union, so a titled struct can head a List (`^<Hub.topics.items>[]`). Every detail node carries a [`Link`](protocols.md#links). The optional `refresh` names the [refresh request](#master-detail-panes). The Response shows in the leading pane; the page that a detail node's link opens shows in the trailing pane. Applies only while the widening gate holds; otherwise `rows`. |
+| `master-detail` | Response | `right_pane` lists the editing Request variants that belong beside this leading Response; declaring it implies this layout. Required `refresh` loads and refreshes the leading page. Optional `detail` selectors name linked nodes eligible for selection highlighting; a selector ending in `[]` names List members. Membership depends on the current editing Request, including an editor opened directly through Go to or AI Search. Applies only while the widening gate holds; otherwise `rows`. See [master-detail panes](#master-detail-panes). |
 | `accordion` | Table or List | Folding sections with the [folding](#folding-structs-and-unions) behavior and `initially_open`. |
 | `split` | Table | Two or three `regions` in a `direction`, `row` or `column`. See below. |
 
@@ -405,154 +409,124 @@ This client-owned arrangement needs no additional template rule.
 
 <a id="master-detail-panes"></a>
 
-**Master-detail panes.** The leading pane shows the Response, the **leading
-page**; the trailing pane shows the page that the [link](protocols.md#links)
-of a detail node opened, whether a Response or a request editor. The rule's
-`detail` array alone decides which nodes are detail nodes; no field name has a
-meaning of its own. A link on any other node of the leading page, and an
-action of the leading page, behave as they do below the widening gate: their
-result replaces the whole working surface, both panes. Both panes belong to the
-endpoint's one working surface, and interaction stays strictly ordered:
+**Master-detail panes.** A rule on a leading Response declares `right_pane`,
+a non-empty array of editing Request variant native names from the same
+protocol, and `refresh`, a pure navigation Request that loads that Response.
+`right_pane` implies `layout: "master-detail"`; an explicit layout must agree.
+For example:
 
-- Both panes fill the available content height and scroll independently. The
-  working surface owns screen navigation and system insets once; the trailing
-  page keeps its content heading without duplicating the screen toolbar.
-  The leading page supplies the shared top-bar title and Actions control,
-  following the [adaptive heading placement](#protocol-page-heading-and-top-bar).
-  The trailing page keeps its own heading and eligible Actions in its content.
-  An embedded workflow editor offers **Close** and the primary **Next** action
-  in one compact action row. Next retains ordinary validation and submission.
-- **Navigation ownership.** The leading pane owns navigation for the entire
-  two-panel arrangement. The trailing pane owns its displayed content, editing,
-  submission, and Close. It shows no Back control of its own and suppresses the
-  workflow's **Go back** action, including
-  every `PrevRequest` chooser and shortcut, even when the edited Request
-  declares eligible previous actions. This is unconditional while the editor
-  is embedded: clients do not compare previous actions with Close, refresh,
-  or leading-page links to infer equivalence. The declaration remains in the
-  schema and its ordinary controls are available when the editor is shown as
-  a full page outside the trailing pane.
-  The trailing pane offers one **Close** control on every page it shows,
-  a displayed Response as well as an editor, in place of an editor's Cancel.
-  Close empties the trailing pane, sends nothing, and keeps the leading page.
-  Accepted Close follows the ordinary
+```json
+{
+  "select": "^<Income>",
+  "when": { "form": ["tablet", "desktop"] },
+  "right_pane": ["Wages", "Interest", "InvestmentSales"],
+  "refresh": "OpenIncome"
+}
+```
+
+The **current editing Request** determines membership. Resolve a
+[WorkflowRequest](protocols.md#workflow-interactions) to its Request editor,
+or adopt the complete Request supplied by EditRequest, before looking up
+`right_pane`. The carrier Response, originating link, Go to, AI Search, and
+previously displayed section do not determine placement. At most one leading
+Response may own that Request under overlapping device conditions. A rule's
+relationship cannot depend on a leading-page data condition, pseudo-state,
+or conditional switch. Ordinary presentation precedence resolves device rules.
+An editor outside an applicable relationship uses the whole working surface.
+A displayed Response also uses the whole working surface; a relationship names
+editing Requests, not Response variants or navigation Requests that lead to them.
+
+- **Initial leading-page load.** On installing an associated editor above the
+  [widening gate](#display-template-conditions), construct `refresh` from the
+  current complete editing Request by the shared
+  [construction-context rules](schema.md#context-and-syntax), without a bound
+  member, and send it as an ordinary correlated Request. Keep the editor's
+  server-supplied interaction reference context unchanged. The reply must supply
+  the declared leading Response before the editor is embedded; a same-named
+  Response already on screen is not evidence that it is the right section or
+  record. This supports entry into any section, including direct entry with no
+  previous leading page. It never submits the editing Request automatically.
+  On failure, report the ordinary error and keep the editor usable as a full
+  page. A stale or duplicate reply cannot replace another editor.
+- **Navigation ownership.** Both panes belong to the endpoint's one working
+  surface. The leading pane owns complete navigation and the shared toolbar.
+  Both panes fill the content height and scroll independently; the editor keeps
+  its heading and content actions without another screen toolbar.
+  An embedded workflow editor shows **Close** and primary **Next** in one
+  compact action row. **Go back disappears**, including every `PrevRequest`
+  chooser and shortcut, and the editor has no Back control of its own.
+  This is unconditional while embedded; no comparison with Close or another
+  action determines suppression. Next retains ordinary validation and explicit
+  submission. Close clears the right pane, sends nothing, and keeps the leading
+  page; accepted Close follows the ordinary
   [draft lifetime](annotations.md#draft-scope-and-lifetime).
-  Close is inactive while the refresh is pending and while the trailing page
-  awaits a reply; the [leaving rule](protocols.md#exit-while-pending) then
-  governs leaving.
-- **Complete navigation is the App's responsibility.** An App choosing
-  master-detail must expose on the leading page the navigation needed to
-  revisit editable sections and leave the arrangement. Detail-node links
-  select the trailing page; other leading-page links and actions replace both
-  panes. A leading-page operation uses the leading page's construction source,
-  never the trailing editor's current values or private workflow context.
-  A flow that requires a previous action dependent on that editor context
-  must open on the whole working surface, where ordinary `PrevRequest`
-  controls remain available. Selecting another page does not submit or save
-  the current edit; Next remains the explicit submission action. These
-  navigation choices remain subject to the pending-operation rules below.
-- The platform's Back acts on the working surface as a whole, by the
-  [landing rule](protocols.md#control-endpoint-landing-and-native-back) and,
-  while an operation is pending, by the
-  [leaving rule](protocols.md#exit-while-pending); it never navigates within
-  the trailing pane.
-- A selection in the leading pane constructs its link against the leading
-  page, also while the trailing pane shows another page.
-- **One pending operation for both panes.** The two panes are one working
-  surface with at most one pending operation. While any operation in either
-  pane awaits its reply, every control that would send a request is
-  temporarily disabled in both panes: links, including detail nodes, Actions,
-  action controls, Submit, and previous actions. They become active again when
-  the reply has been applied. Calculations, which are auxiliary, still run; the
-  platform's Back follows the [leaving rule](protocols.md#exit-while-pending).
-  While the trailing pane's editor is idle, a selection first closes the
-  trailing pane as Close does and then opens the selected detail node's link.
-- A reply of the leading page's own variant replaces the leading page and
-  empties the trailing pane.
-- **Refresh.** The rule's `refresh` member names one Request variant of the
-  same protocol, the **refresh request**. It is a pure navigation request: it
-  changes nothing in the service and answers with the current leading page.
-  After a Submit in the trailing pane receives any reply outside the failure
-  class, which is neither a failure status nor an Error,
-  the client constructs the refresh request from the
-  current leading page by the ordinary construction rules, with no bound
-  member, and sends it. The client never sends again the Request that
-  produced the leading page, which may have been a save. A
-  link return and a calculation result do not refresh, because the trailing
-  editor stays open. A reply that itself replaced the leading page needs no
-  refresh, and none is sent. Without `refresh` no refresh is sent: the leading
-  page stays as shown, or a subscription's reports keep it current.
-- The refresh is an ordinary Request in strict order. While it is pending, the
-  working surface accepts no operation: the leading pane shows loading and its
-  rows cannot be selected, and the trailing pane's editor accepts no edit,
-  link, document import, or Submit until the refresh reply.
-- A refresh reply of the leading page's variant replaces the leading page,
-  also when that variant declares neither NextRequest nor WorkflowRequest: a
-  refresh re-installs the page it refreshes with current data, so the
+  Outside the pane the editor's eligible Go back and Cancel controls return.
+  Platform Back acts on the whole working surface under the
+  [landing](protocols.md#control-endpoint-landing-and-native-back) and
+  [leaving](protocols.md#exit-while-pending) rules.
+- **Complete navigation is the App's responsibility.** The leading page must
+  expose the navigation needed to revisit editable sections and leave the
+  arrangement. Its links and actions construct from its own context, never
+  the right editor's current values or private workflow context. Selecting
+  another destination closes an idle editor before opening it; selection does
+  not submit or save the edit. A flow requiring a previous action that depends
+  on the editing context must remain a full-page flow.
+- **One pending operation for both panes.** While an operation awaits its
+  reply, request-sending controls in both panes are disabled. Auxiliary
+  calculations retain their ordinary ownership. During a leading-page load
+  or refresh the working surface accepts no edit, link, import, Submit, or
+  Close; it shows loading until the reply. Native Back follows the leaving
+  rule. All replies remain owned by their ordinary pending operations.
+- **Every successful right-panel commit refreshes.** After explicit Submit
+  receives any reply outside the failure class (neither a failure status nor
+  an Error), construct the declared `refresh` from the current leading page
+  with the ordinary construction rules and no bound member, and send it.
+  This includes successful commits that install no next page. If the commit
+  reply itself supplies the updated leading Response, it replaces that page
+  and clears the editor; no redundant refresh Request is sent. Validation
+  failures, rejected commits, Close, calculations, and a link return that keeps
+  the editor open do not refresh. Never replay the Request that originally
+  produced the leading page: it may have been a save.
+- **Following a commit.** Apply the refresh before presenting a new page from
+  the commit. A newly resolved editor is placed by its own `right_pane`
+  relationship; if it belongs to another leading page, load that page from
+  that editor before embedding it. No row match is required. A terminal
+  Response or an unassociated editor becomes the whole working surface.
+  A refresh failure leaves the previous leading page in place, reports the
+  ordinary error, and does not discard the valid commit reply.
+- **Refresh replies.** The declared leading Response replaces the leading
+  page even without NextRequest or WorkflowRequest; the
   [non-transition acknowledgement](protocols.md#protocol-roles) rule does not
-  apply to it. Any other reply is installed as the working surface, as it is
-  on a phone. An
-  Error reply leaves the previous leading page in place and is reported by the
-  standard error procedure.
-- **A new page from the trailing pane.** When any operation in the trailing
-  pane, a Submit, a link, or an action of a displayed
-  Response there, receives a reply that installs a page, and the page is not
-  of the leading page's variant, the client holds that page without drawing
-  it, sends the refresh request, and places the page when the refresh reply has
-  been applied; without `refresh` it places the page against the leading page
-  as shown. If the refresh reply is installed as the working surface, the held
-  page is not shown. If the refresh fails, with a failure status or an Error,
-  the leading page stays as shown, the failure is reported by the standard
-  error procedure, and the held page is placed against that leading page.
-- **Matching a page to a detail node.** For each detail node of the current
-  leading page, the client constructs the request that the node's link would
-  send. That request **completely matches** a page when both hold:
-  - **Variant.** The Protocol Variant of the reply that installed the page is
-    one that the request's `NextResponse` names: the Response variant, or the
-    Request variant that an EditRequest delivered.
-  - **Fields.** Every field of the request, nested and Hidden fields included,
-    is present in the page at the same place below its variant, under the same
-    native name, with an equal value.
+  apply to this page load. An Error leaves the previous leading page in place
+  and follows ordinary error handling. Any other admitted refresh reply becomes
+  the whole working surface, as on a phone.
+- **Optional row highlighting.** `detail`, when present, is a non-empty array
+  of selectors naming linked nodes within the leading Response. An entry
+  ending in `[]` selects List members; another entry selects one node. Paths
+  traverse struct fields only, never another List or Union. Selected nodes
+  and their ancestors must be visible, and each node must carry a Link with
+  NextResponse. A client may highlight a uniquely known linked occurrence.
+  On direct entry there may be no selected row. Missing, ambiguous, or changed
+  rows clear highlighting and never determine pane membership or require a
+  full-page fallback. Clients do not compare every link-request field with the
+  editor to infer this relationship.
+- **Crossing the widening gate.** Narrowing shows the current editor as a full
+  page above its leading page, with ordinary Back, Go back, and Cancel controls.
+  This change sends no editing Request. Widening evaluates the current editing
+  Request's relationship again and embeds it, restoring Close and suppressing
+  Go back. If its leading page has not yet been loaded, perform the initial
+  load described above. A pending operation retains ownership through resizing;
+  apply its reply once, then use the current device conditions.
 
-  Every detail node is tried. When several match completely, the node whose
-  request has the most fields is chosen, and among equal counts the first in
-  document order. With a match, the page is shown in the trailing pane and that node is
-  selected. Without one, the page replaces the whole working surface, both
-  panes, and becomes the working surface as it would on a phone: the platform's
-  Back then follows the landing rule and does not restore the two panes.
-- **Selection is by identity.** After every update of the leading page, by a
-  refresh or by a subscription report, the selected detail node is the one
-  whose request completely matches the page in the trailing pane, by the same
-  rule, wherever it now lies in the List. When no node matches, the trailing
-  pane keeps its page and no node is marked.
-- **Crossing the widening gate.** When the device narrows below the gate while
-  the trailing pane shows a page, that page becomes the working surface stacked
-  above the leading page, as if it had been opened on a phone: it shows the
-  platform's Back again in place of Close, and Back returns to the leading
-  page. A workflow editor also offers its eligible `PrevRequest` controls
-  again, separately from platform Back; this presentation change sends no
-  request. A refresh that is pending when the device narrows still completes,
-  and
-  a page held for it is then placed as below the gate: it becomes the working
-  surface above the leading page. When the device widens past the gate, the
-  screen stays as it is until the next navigation; nothing is placed again and
-  nothing is sent.
-
-A page stays beside its detail node only when it carries the fields of that
-node's link under the same names, so an App names the fields of a link
-request and of the pages that follow it consistently. A page that carries none
-of them, such as a summary that ends a section, replaces both panes.
-
-The refresh request is constructed from the leading page as it is shown, so
-after a save it carries that page's earlier values, such as a revision; the
-service admits a request that only navigates by identity rather than by
-revision. Naming it changes no action set and offers the person nothing: the
-request is declared in the schema, and the template only says which one
-reloads this arrangement. A tablet therefore sends one Request more
-than a phone does. What is the same on every device is the rule: every
-Request is constructed from a current page by the same construction rules.
-Below the widening gate the layout is `rows`, the linked page replaces the
-working screen, and no refresh is sent.
+The loader must be constructible from both the leading Response and every
+listed editing Request, using Fixed, Default, or supplied CopyFrom values.
+It has no editable input, RequestConfirmation, or subscription behavior, changes
+nothing in the service, and admits the leading Response in NextResponse.
+When refresh carries earlier values such as a revision, the service admits
+pure navigation by identity rather than rejecting a stale editing revision.
+Below the widening gate no pane-only load or refresh is sent.
+Retained compiled templates without `right_pane` keep their earlier detail-link
+arrangement; new relationships use the explicit editing-Request declaration.
 
 `sections` is an ordered list of `{ "fields": [...], "title": "KEY" }`
 objects. `fields` names direct children by native name; `title` optionally
@@ -759,13 +733,32 @@ keeps its platform caption when implicit, and an explicit Actions field can
 supply its default name. The selected Requests keep their own localized names
 inside a chooser.
 
-Named controls occupy one secondary region immediately below the page heading
-and above content. They appear in field declaration order, leading aligned,
-with full visible captions and secondary emphasis. They wrap at narrow widths
-without making a new panel or navigation stack. No eligible choices hide that
-control and release its space. Actions keeps its adaptive heading placement by
-default. A template may move it into the shared secondary region, ahead of
-the named controls. In master-detail, the leading page owns global controls;
+Actions is the prominent page-heading control. Its default treatment uses a
+filled accent background, contrasting text and a semibold caption. Optional
+named controls use secondary emphasis: a transparent background, subtle outline
+and normal-weight caption. Controls share normal platform sizing, padding and
+corner treatment; emphasis never reduces their touch targets. Authored emphasis
+and density tokens retain their ordinary overrides.
+
+Named controls use their field declaration order. By default they join Actions
+in the top bar only when the full title and the complete eligible named-control
+group fit, after reserving navigation, system controls and Actions. Actions is
+always last in a shared action row, at the logical trailing end (right in a
+left-to-right layout). Promotion never shortens a full title, displaces Actions,
+or creates a repeated content heading. Decide Actions placement first under the
+[heading rule](#protocol-page-heading-and-top-bar), then measure named controls
+in the remaining space. Move all header-eligible named controls together; do
+not promote a smaller subset. With no eligible Actions, apply the same full-title
+and complete-group fit test to the named controls alone.
+
+Named controls that stay in content occupy one secondary region immediately
+below the page heading and above content, leading aligned with full captions.
+They never join the first content title row, even when Actions moves there.
+They wrap as space requires; an individually oversized caption wraps within
+its button and grows its height. No eligible choices hide that control and
+release its space; an empty secondary region takes no space. A template may
+keep a named control in this region or move Actions there, after the named
+controls. In master-detail, the leading page owns global controls;
 trailing Response controls stay in their pane. An embedded Request editor keeps
 Close and Next, with no response controls.
 
@@ -785,11 +778,15 @@ conditions; data conditions, switches, and pseudo-states cannot set them.
 }
 ```
 
-`placement` is `secondary` or `header`. Header asks the page-heading fit
-rule to place whole controls in declaration order after reserving the title
-and system controls. A control that does not fit remains in the secondary
-region with its full caption. A trailing pane does not get another screen
-toolbar. Styling never changes eligibility or invocation.
+`placement` is `secondary` or `header`. For named controls, omission and
+`header` both request the adaptive top-bar group placement above; `secondary`
+keeps that control below the heading and excludes it from the header-eligible
+group. A multiline caption or a button too tall for the native top bar makes
+the group remain in the secondary region. For Actions, omission and `header`
+retain its independent heading rule; `secondary` moves it into the secondary
+region as its last control. A trailing pane does not get another screen
+toolbar: its named controls stay below its local heading, while Actions retains
+its local heading placement. Styling never changes eligibility or invocation.
 
 `label` accepts a package StringResources key, `{ "field": "path" }`, or
 `null` to restore the default caption. The field form uses the existing
@@ -897,6 +894,9 @@ template unless:
 - no rule member is outside the catalog, including every schema-only
   attribute;
 - every layout selects a node kind its row allows; every `master-detail`
+  relationship names a non-empty list of distinct Request variants of the same
+  protocol, excludes a WorkflowRequest leading Response, has no overlapping
+  other owner, and does not depend on data conditions or switches; each optional
   `detail` entry is a `^<…>` path within the selected Response, never a
   `$…` path or a descendant search, and resolves through struct fields only;
   no entry repeats another; no detail node is Hidden or lies under a Hidden
@@ -904,7 +904,7 @@ template unless:
   `NextResponse`; a `refresh` names a Request of the same protocol whose
   `NextResponse` admits the selected Response, whose every field is Hidden or
   ReadOnly and is filled by Fixed, Default, or a `CopyFrom` alternative that
-  the selected Response supplies, and which is neither a
+  the selected Response and every listed editing Request supply, and which is neither a
   `SubscriptionRequest` nor marked `RequestConfirmation`, and a rule with
   `refresh` selects a Response that does not carry `SubscriptionData`; `table` columns and `sort` name scalar fields of the member
   type; `sections`, `regions`, and `fields` name direct children; a section's
@@ -1491,12 +1491,18 @@ top-bar layout:
 | --- | --- | --- |
 | Complete title and complete Actions button fit | Full title and Actions | Suppress the redundant page-heading row. |
 | Actions fits and the title-text slot is at least `min(T, 8em)`, but the complete title does not fit | Title with end ellipsis as needed, and Actions | Retain the full, wrapping title; remove Actions from this row. |
-| Actions cannot fit while preserving that title reservation | Ordinary compact title, with ellipsis as needed | Retain the full, wrapping title and Actions. |
+| Actions cannot fit while preserving that title reservation | Ordinary compact title, with ellipsis as needed | Retain the full, wrapping title and Actions at its trailing end. |
 
 An ellipsized title never qualifies for suppressing the content heading. With
 no eligible action, omit Actions and apply the full-title fit test alone.
 Place the heading's Actions control in one of these two locations, never
-both. Suppressing the heading removes only its redundant title presentation:
+both. If Actions cannot fit beside the content title, wrap it beneath the
+title within the heading area, before the separate named-control region.
+Keep its full caption and prominent treatment in either location. After this
+decision, optional [named controls](#named-action-controls) may join the top
+bar only when the full title and their complete group also fit. Named controls
+never cause Actions or a previously full title to move. Suppressing the
+heading removes only its redundant title presentation:
 retain any Union selector, promoted value, other row control, and requested
 inline description in the content, with their ordinary behavior. Content
 retains the root alignment and normal page padding above even when its
@@ -1516,8 +1522,13 @@ In a [master-detail arrangement](#master-detail-panes), only the leading page
 uses the working surface's top bar. The trailing page retains its own content
 heading and eligible Actions; selecting it does not take over the shared
 title or toolbar. A page shown on the whole working surface after narrowing
-uses the same placement rule for its own title and Actions. Re-evaluate when
-the available width, title, action availability, locale, font, or text size changes.
+uses the same placement rule for its own title and Actions. Re-evaluate the
+complete candidate set when the available width or height, title, control
+availability or captions, template, locale, font, text size or device conditions
+change, including rotation and window resizing. Restore controls to the top
+bar when they fit again. Measure actual localized controls and native slots,
+never a device-category breakpoint or a fixed estimate for system controls.
+Preserve logical order in right-to-left layouts and the full accessible names.
 Re-layout preserves values, focus, interaction and reference-context ownership,
 and pending-operation restrictions, and sends no request.
 

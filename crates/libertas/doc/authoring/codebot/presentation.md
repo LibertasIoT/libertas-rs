@@ -43,12 +43,20 @@ only existing controls: preserve Next submission, PrevRequest behavior,
 Actions eligibility/choosers, local Close, native Back, and embedded Go Back
 suppression. Use truthful captions for all states of the selected page.
 Controls declared by the [`ActionControl`](../reference/presentation.md#named-action-controls)
-schema attribute need no template: each shows its field's localized name in a
-secondary row below the heading. An `action_controls` member on a whole
+schema attribute need no template: each shows its field's localized name with
+secondary emphasis. After Actions placement, their complete header-eligible
+group joins the top bar only if the full title and group fit; otherwise they
+stay in a wrapping secondary row below the heading, never beside its content
+title. Actions uses prominent filled styling and is last wherever it shares
+an action row. Re-layout restores controls when space returns and preserves
+interaction state. An `action_controls` member on a whole
 Response or SubscriptionData rule, keyed by a declared control name or
 `Actions`, may set `label` (a key, `{ "field": "path" }` String or ReadOnly
 FormattedText, or `null`), `placement` (`secondary` or `header`), `emphasis`,
-and `density`; it cannot invent a control. For Actions,
+and `density`; it cannot invent a control. Omitted placement and `header` use
+adaptive placement; `secondary` pins the control below the heading. Authored
+style overrides remain supported. Trailing-pane named controls stay local
+below their heading. For Actions,
 `action_controls.Actions.label` precedes `button_labels.actions`.
 
 Every package has one mandatory [Display Template](../reference/presentation.md#display-template),
@@ -82,32 +90,35 @@ Write each rule as four relations:
   `accordion`, or `split`. Every layout except `rows` applies only
   where a rule asks; `table` and `master-detail` also need the widening gate
   (`form` `tablet` or `desktop`, or `width: expanded` without `height:
-  compact`) and otherwise render as `rows`. `master-detail` takes `detail`, an array of
-  selectors (`…[]` for a List's members, otherwise one node) reached through
-  struct fields only; every detail node needs a `Link` and opens in the
-  trailing pane, and any other link or action replaces both panes. Every
-  trailing page shows one Close (sends nothing, keeps the leading page) and no
-  Back of its own. The two panes have one pending operation: while any reply is
-  awaited, every sending control in both panes is disabled (calculations still
-  run). An embedded
-  workflow editor offers Close + Next and suppresses every `PrevRequest`
-  control; the leading pane owns navigation for the whole arrangement and the
-  App must provide all required routes there. Open a flow requiring
-  editor-specific previous actions on the whole working surface.
-  Full-page editors retain ordinary previous actions, including after narrowing.
-  After a Submit in the trailing pane gets a reply that is neither a failure
-  nor an Error, the client sends the Request the rule names in `refresh`,
-  built from the leading page, unless that reply
-  replaced the leading page; `refresh` must be a pure navigation Request with
-  no editable input, never a save
-  ([panes](../reference/presentation.md#master-detail-panes)), so admit
-  navigation requests by identity, not by revision. A refresh reply of the
-  leading page's variant re-installs it even without NextRequest. A new page
-  from the trailing pane stays there only when a detail node's link request
-  completely matches it (reply variant in that request's NextResponse, every
-  request field present under the same name and value); otherwise it replaces
-  both panes, so name link-request fields consistently across the pages that
-  follow. `split` nests at most three levels and renders as `rows` on
+  compact`) and otherwise render as `rows`. A leading Response rule declares
+  `right_pane`, a non-empty list of editing Request variants, and required
+  `refresh`; `right_pane` implies `master-detail`. Resolve WorkflowRequest or
+  adopt EditRequest before lookup: the current editing Request determines
+  membership, including Go to and AI Search entry into another section.
+  Initial loading constructs the pure loader from that complete editor without
+  changing its interaction reference context. Optional `detail` selectors name
+  visible linked nodes reached through struct fields (`…[]` for List members)
+  for highlighting; missing or ambiguous rows never prevent panes. The leading
+  pane owns complete navigation, and the App supplies all required routes there.
+  An embedded editor shows Close + Next and no Go back or `PrevRequest` control.
+  Close sends nothing and keeps the leading page; Next validates and submits.
+  Full-page editors regain ordinary previous actions and Cancel on narrowing;
+  widening reevaluates membership and restores Close. Pending operations retain
+  reply ownership through resizing. Both panes allow one pending operation;
+  sending controls are disabled while it awaits a reply, and leading loading
+  or refresh also blocks editing, links, imports, Submit, and Close.
+  After every successful right-pane Submit, send the declared `refresh` from
+  the current leading page, unless the reply itself supplies the updated leading
+  Response. Validation failures, rejected commits, Close, calculations, and link
+  returns do not refresh. The loader is a pure navigation Request, constructible
+  from both the leading Response and every listed editor, with no editable input,
+  confirmation, or subscription; admit navigation by identity rather than stale
+  revision. Its leading Response is installed even without NextRequest. Apply
+  commit refresh before arranging the continuation by its own relationship;
+  load its leading page if needed, and use a full page for terminal Responses
+  or unassociated editors. Ordinary failures retain the valid editor or commit
+  reply and report the error. See [panes](../reference/presentation.md#master-detail-panes).
+  `split` nests at most three levels and renders as `rows` on
   phones unless a phone rule asks for it. There is no `stepper`: Studio
   rejects it and clients draw `rows`. Sequential screens are a
   [workflow](../reference/protocols.md#workflow-interactions), where the
