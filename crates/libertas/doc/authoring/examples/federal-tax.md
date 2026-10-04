@@ -84,7 +84,9 @@ real prerequisites still decide which pages are offered. Opening a page leaves
 unfinished sections unfinished. Continue and each editor's submission retain
 their separate responsibilities.
 
-Search uses actual topic links, including the folded All topics catalog.
+Search uses actual topic links and the same eligible destinations as Go to;
+there is no repeated All topics catalog. A matched Go to destination opens
+directly without reopening its chooser.
 Descriptions recognize formal references and common names; the shared page
 prompt also recognizes bare identifiers case-insensitively and prioritizes exact
 matches. For example, Section 199A, `199a`, Form 8995, `8995`, Form 8995-A,
@@ -111,8 +113,9 @@ In a full-page workflow, **Previous step** reopens the declared previous page.
 On a tablet or desktop, the Income, Adjustments, Itemized deductions and
 Credits hubs use two panels, and the
 [pane contract](../reference/presentation.md#master-detail-panes) gives the
-left panel all navigation: select a topic there, including one in the All
-topics catalog, to open it on the right; use **Save and continue** to submit
+left panel all navigation: select one of its section topics to open it on the
+right; Go to and Search use the leading page's context and ordinary action
+routing. Use **Save and continue** to submit
 the right-panel edit, or **Close editor** to dismiss it without submission.
 The right panel offers Close on every page it shows, never Back, Cancel or
 Previous step. The left panel's Continue and Review actions, and links outside

@@ -2306,12 +2306,11 @@ retain the current permitted selection. Text filtering only changes visibility;
 it neither changes allowed sets nor makes a previously ineligible leaf selectable.
 
 For hierarchical navigation, a group's overview must be an explicit destination
-leaf; its expand/collapse header is not an action. The same App-owned destination
-definitions can supply the navigation request's hierarchy and the information
-hub's bound links. [AI Search](#candidate-discovery-and-assembly-before-ai) continues
-to select actual offered, fully constructed invocations: the chooser hierarchy
-does not generate speculative AI candidates. Its protocol and selection engine
-need no change for this pattern when those bound links are supplied.
+leaf; its expand/collapse header is not an action.
+[AI Search](#candidate-discovery-and-assembly-before-ai) reuses this builder to
+construct one complete invocation for each eligible leaf of an offered action.
+The navigation hierarchy can therefore serve both Go to and Search without a
+second catalog of bound links.
 
 <a id="request-confirmation"></a>
 
@@ -2835,11 +2834,12 @@ captions, placement, and template customization.
 ## AI Navigation and AI Search
 
 **AI Navigation** and **AI Search** name the same capability: use a person’s
-text or editable voice transcript to select an existing offered link. The App
+text or editable voice transcript to select an existing offered link or action. The App
 supplies destination meaning; the client constructs and validates complete
 requests before selection; AI returns only candidate identifiers. A candidate
-is one offered invocation and binding, so two links to one Request with
-different bound topics are distinct candidates.
+is one offered invocation and binding or finite chooser leaf, so two links to
+one Request with different bound topics, or two eligible leaves of one action,
+are distinct candidates.
 
 This feature requires an implementing client and a supporting modern Hub.
 It is unavailable on legacy Hubs and on non-task pages. A resolved Union or
@@ -2907,6 +2907,14 @@ continues to control Hub tool projection; it is not this page opt-in.
    Discover its actual link occurrences and offered action-control choices.
 2. Apply the existing NextRequest, shared response ConstrainedBy, access,
    ExcludeUI, and visibility rules. Respect each action control's membership.
+   For an offered action that qualifies for the
+   [hierarchical single-field builder](#hierarchical-single-field-requests),
+   reuse that builder's current eligible leaves and construct a detached,
+   complete request for each leaf. Apply every ancestor and leaf constraint,
+   and retain its exact Union discriminants, Enumeration value, localized
+   label, descriptions and group path. An empty chooser supplies no candidate.
+   Do not enumerate raw schema choices or expand requests with other editable
+   input. This does not expand actions from an editable workflow page.
    A LinkOnly target is eligible through its actual declared link, never as
    an invented unbound action. Control-specific arrays do not restrict
    independent links; the [named-control contract](#named-action-controls)
@@ -2928,8 +2936,9 @@ continues to control Hub tool projection; it is not this page opt-in.
 Eligibility is evaluated before the AI call, including when there is only
 one candidate. A search does not follow that candidate unless it matches the
 user's intent. App-wide coverage requires the App to expose the intended
-destinations from the page offering that scope. The client does not traverse
-unoffered pages or combine all enum values into speculative links.
+destinations through links or finite chooser actions from the page offering
+that scope. The client does not traverse unoffered pages or combine raw enum
+values into speculative links.
 
 The [pane ownership contract](presentation.md#master-detail-panes)
 still applies. Search over the leading page uses its context and controls;
@@ -2998,7 +3007,10 @@ service still authorizes and validates the request.
 
 **Auto-assembly does not change auto-submission.** A request with no editable
 input follows the normal send-on-selection rule, subject to confirmation.
-Populated editable fields still require the ordinary popup/editor submission.
+Selecting a candidate for a finite chooser leaf selects that complete choice;
+it sends the already constructed request directly through the ordinary action
+path, retaining any RequestConfirmation. It does not reopen the chooser.
+Other populated editable fields still require the ordinary popup/editor submission.
 WorkflowRequest and EditRequest still open editors awaiting submission. AI
 Navigation neither submits another editor nor replaces its Next control.
 Landing forwarding and native Back keep their existing rules.
@@ -3007,7 +3019,7 @@ Landing forwarding and native Back keep their existing rules.
 
 | Area | Obligation |
 | --- | --- |
-| Planning | Associate each supported user goal with an ordinary reachable destination. Expose the links needed for the advertised search scope and make their requests constructible from real available data. A navigation request may open an editor where subsequent user input occurs. |
+| Planning | Associate each supported user goal with an ordinary reachable destination. Expose the links or eligible finite chooser actions needed for the advertised search scope and make their requests constructible from real available data. A navigation request may open an editor where subsequent user input occurs. |
 | Comments | Describe each destination's purpose, scope, consequences, and distinguishing domain vocabulary in extracted source documentation. Document bound topic choices and linked items as well as the generic request. |
 | Attributes and data | Use Link, NextRequest, applicable ConstrainedBy and ActionControl membership, and request-owned construction/confirmation declarations. Supply their actual runtime data; the AI does not create allowed sets. |
 | Prompt resources | Put shared interpretation in the Union resource and local interpretation in the page resource. Keep cross-topic guidance here and destination-specific meaning with its documented destination, with one owner for each fact. |

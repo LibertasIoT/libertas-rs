@@ -329,11 +329,14 @@ Navigation) selects one of the page's actually offered links or control
 choices from a person's text or dictation; the client builds and validates
 each candidate request first, the AI returns only candidate identifiers and
 supplies no field values, and selection then follows the ordinary link or
-action path, including confirmation and editor submission. It needs a
+action path, including confirmation and editor submission. An offered
+hierarchical chooser supplies one complete candidate per eligible leaf;
+selecting that leaf sends it directly, retaining RequestConfirmation.
+Other editable requests and destination workflow editors still await submission. It needs a
 supporting client and modern Hub, and Hub policy may disable it. A page offers
 it only when `AINavigationPrompt` names a nonempty package StringResource on
 the protocol Union, the page-defining variant, or both (Union text first). Expose the
-links the advertised scope needs, constructible from real data, and document
+links or finite chooser actions the advertised scope needs, constructible from real data, and document
 each destination's meaning and domain vocabulary; the prompt never widens
 the candidate set ([authoring obligations](../reference/protocols.md#app-and-codebot-authoring-obligations)).
 

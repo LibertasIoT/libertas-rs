@@ -8,8 +8,10 @@ One-field requests can use a [hierarchical choice popup](../reference/protocols.
 Union groups ending in Enumeration leaves, constrained independently at every
 level. Empty groups disappear recursively; expansion never selects or sends,
 and a chosen leaf retains ordinary confirmation/submission. Other inputs keep
-the full editor. Navigation is one use; AI Search still needs actual offered
-bound links and does not enumerate this hierarchy into candidates.
+the full editor. Navigation is one use;
+[AI Search](../reference/protocols.md#candidate-discovery-and-assembly-before-ai)
+reuses an offered action's eligible leaves as fully constructed candidates,
+without requiring a duplicate catalog of bound links.
 
 ## Source documentation
 
