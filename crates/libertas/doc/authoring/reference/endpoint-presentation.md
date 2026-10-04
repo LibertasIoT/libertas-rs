@@ -33,7 +33,8 @@ Other landings, such as chart and workflow landings, stay unopened until the
 endpoint is tapped and then stack above the list. A task with exactly one
 endpoint enters its landing directly, with no endpoint-list screen in the stack. Tapping its header opens a request drawer. Use the displayed
 value's legal NextRequest choices in their declared order, with existing access,
-ExcludeUI, and applicable ConstrainedBy filtering. Construct the selected request
+ExcludeUI, applicable ConstrainedBy, and [LinkOnly](protocols.md#link-only)
+filtering. Construct the selected request
 using the originating interaction's [reference context](protocols.md#interaction-reference-context).
 Show the drawer even for one choice; with
 no legal choices the header has no request action.
@@ -140,7 +141,10 @@ composer; a transitioning reply installs or updates the response destination
 as described below. Subscription updates may continue to refresh their owning
 screen underneath the composer. A [link](protocols.md#links) opens this composer;
 above a stable editor its plain reply is applied to that editor as a
-[return](protocols.md#link-return) rather than an acknowledgement.
+[return](protocols.md#link-return) rather than an acknowledgement. A composer
+never offers a workflow Back control, even when its Request declares
+`PrevRequest`; its Cancel closes it while idle
+([previous actions](protocols.md#submit-previous-actions-and-completion)).
 
 A **stable endpoint destination** is an endpoint action/data screen, or the
 request editor entered through EditRequest or WorkflowRequest. Landing entry
@@ -187,14 +191,17 @@ label and native-sized tap target. The
 [adaptive heading rule](presentation.md#protocol-page-heading-and-top-bar)
 places it in the top bar when the button fits while reserving
 `min(full title width, 8em)` for title text; otherwise it remains at the trailing
-end of the first content row. Suppress that row's redundant heading only when
+end of the first content row, unless the page's Display Template moves it into
+the [named-control region](presentation.md#named-action-controls). Suppress that row's redundant heading only when
 the full title also fits without clipping or ellipsis. Preserve description
 access and heading accessibility in the new location. A trailing master-detail
 page retains its own content heading and Actions; the leading page owns the
 shared top bar.
 
 Requests come from the displayed variant's effective `NextRequest`, preserving
-declared order and existing visibility/access, ConstrainedBy, and LinkOnly filtering. Promoting a
+declared order and existing visibility/access, ConstrainedBy, and LinkOnly filtering,
+narrowed to an explicit `Actions` array when the page supplies one; a page may
+also declare further [named action controls](protocols.md#named-action-controls). Promoting a
 child changes presentation only; request resolution still belongs
 to the enclosing protocol variant. Follow the
 [Actions selection and input rules](protocols.md#single-action-confirmation-and-input-presentation):
@@ -220,8 +227,9 @@ owner while waiting. Receipt installs or updates the single interactive
 destination with that response and exactly its declared next-request choices,
 preserving the protocol interaction chain.
 
-For a regular action above a displayed value, outside landing entry and
-SubscriptionRequest completion, a normal correlated Response with neither
+For a regular action above a displayed value, outside the reply to the landing
+entry request itself, SubscriptionRequest completion, and a master-detail
+[refresh](presentation.md#master-detail-panes), a normal correlated Response with neither
 `WorkflowRequest` nor a declared `NextRequest` is instead a
 non-transition acknowledgement. It completes the in-flight attempt but does
 not install a response destination, replace the displayed protocol value,

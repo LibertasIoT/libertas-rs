@@ -224,7 +224,7 @@ Union presentation; it needs no rule.
     },
     // Other comparison variants follow.
 }</code></pre>
-<p>The variant's first comment line appears in the choice list. Its fields are the two examples shown after selection; their labels, <strong>Without UIHeader</strong> and <strong>With UIHeader</strong>, are this comparison App's own names. The capture shows the first four choices; more are available by scrolling.</p>
+<p>The variant's first comment line appears in the choice list. Its fields are the two examples shown after selection; their labels, <strong>Without UIHeader</strong> and <strong>With UIHeader</strong>, are this comparison App's own names, kept from the retired <code>UIHeader</code> (TableHeader) attribute that Studio now rejects. The layout effect now comes only from the <code>display.json</code> rules below. The capture shows the first four choices; more are available by scrolling.</p>
 </div>
 <figure style="flex: 1 1 300px; min-width: 0; margin: 0;"><figcaption><strong>Union choice selector</strong></figcaption>
 <img src="../assets/screenshots/uiheader-choice-selector.png" style="display: block; width: 100%; height: auto; border: 1px solid GrayText; border-radius: 8px; box-sizing: border-box; margin: 12px 0; max-width: 360px;" alt="Layout comparison Union selector showing scalar parent-name, scalar field-name, struct flattening, and struct heading-hiding choices.">
@@ -317,7 +317,7 @@ The declarations are identical in each pair; only the `display.json` rule
 differs. `promote` and `flatten` change presentation; the fields and their
 encoded data hierarchy stay intact. For `promote`, `true` means
 `"use_parent_name": true`. Removing a rule removes its layout effect. See the
-[full promotion contract](../reference/presentation.md#tableheader-promoted-fields-and-union-selectors)
+[full promotion contract](../reference/presentation.md#promotion-flattening-and-union-selectors)
 and [flattening](../reference/presentation.md#flatten) for Union and List
 flattening and their combinations, and
 [labels and titles](../reference/presentation.md#labels-and-titles) for replacing a row's
@@ -562,8 +562,8 @@ for the supported fallback when a formatter lacks a unit.
 **[Explore the chart gallery](chart-gallery.md)** · Twenty 2D and twelve 3D views,
 from lines and radar to surfaces and point clouds.
 
-**Cartesian, polar, and 3D charts.** The current galleries demonstrate
-**22 2D examples and 13 3D families**, including:
+**Cartesian, polar, and 3D charts.** The chart demonstration Apps behind the
+gallery contain **22 2D examples and 13 3D examples**, including:
 
 | Family | Supported chart styles |
 | --- | --- |
@@ -649,9 +649,11 @@ Your App reads and writes these values through the Data API; the platform owns
 
 **Describe what you want. Let the CodeBot build it against the contract.**
 
-Draft prompt—replace the brackets. The contract URLs are placeholders; the
-current references are the [CodeBot kit](../codebot/index.md) and
-[App contract](../reference/app-contract.md).
+Draft prompt—replace the brackets. The CodeBot entry routes the assistant to
+the [CodeBot kit](../codebot/index.md), the
+[App contract](../reference/app-contract.md), and the language and feature
+references; [Start here](../principles.md#ask-an-ai-assistant) has the short
+form of this prompt.
 
 <pre style="white-space:pre-wrap;overflow-wrap:anywhere;padding:12px;background:Canvas;color:CanvasText;border:1px solid GrayText;border-radius:8px;font-size:0.95em;line-height:1.5;"><code style="color:inherit;background:transparent;">Build a Libertas App that [what it should accomplish].
 Use [Rust or TypeScript].
@@ -661,9 +663,8 @@ It should automatically [actions and triggers].
 It must remember [data that survives restart].
 It connects to [devices or services, or none].
 
-Read the official CodeBot kit: [OFFICIAL_CODEBOT_KIT_URL]
-Follow the App contract: [OFFICIAL_APP_CONTRACT_URL]
-Follow their links for the language and features this App needs.
+Read https://github.com/LibertasIoT/libertas-rs/blob/main/crates/libertas/CODEBOT.md
+and follow it, including its links for the language and features this App needs.
 
 Use the smallest design that remains logically complete.
 Use supported SDK APIs and annotations; do not invent missing behavior.

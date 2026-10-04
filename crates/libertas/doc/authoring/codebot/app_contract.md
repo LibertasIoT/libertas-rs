@@ -76,6 +76,20 @@ does not.
   creation prerequisite when that Endpoint occurrence is not optional. See the
   [canonical dependency check](../reference/schema.md#62-task-pre-creation-static-dependency-check).
 
+## Task versions and removal
+
+A task runs the App version selected for it: installing or upgrading an App
+never changes a task's selection, so several versions can run at once; which
+version reads data another wrote follows the
+[directional evolution rules](../reference/data-type-evolution.md). A version
+change keeps the task's arguments and enabled state, and fails, keeping the
+old version, when the arguments cannot initialize under the new one
+([selection](../reference/app-contract.md#task-version-selection)). Removing a
+task removes its data and sets to null every other task's argument bound to
+one of its Endpoints; each such task restarts when its arguments stay valid
+and is otherwise disabled, atomically
+([removal](../reference/app-contract.md#task-removal)).
+
 ## Documentation and localization
 
 Give every authored package, function, type, parameter, field, List container

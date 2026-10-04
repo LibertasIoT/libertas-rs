@@ -12,9 +12,11 @@
 - Translate package/type `DisplayName` and `Description`, field and enum `Name`
   and `Description`, package `StringResources` values, and custom
   document-property string values. This includes the standard `[DefaultText]`
-  field property and function-only `[DefaultTaskName]` property. Preserve their
-  keys and translate their values; a `DefaultText` value must remain on one
-  line.
+  field property, the function-only `[DefaultTaskName]` property, and the
+  Boolean field properties `[TrueText]` and `[FalseText]`. Preserve their keys
+  and translate their values; a `DefaultText`, `TrueText`, or `FalseText` value
+  must remain on one line, and a `TrueText` or `FalseText` value must stay
+  non-empty.
 - Apply the [user-language invariant](documentation.md#universal-user-language-invariant)
   to translated prose: use natural, idiomatic, technology-neutral wording while
   preserving every material meaning.

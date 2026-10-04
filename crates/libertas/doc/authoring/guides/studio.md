@@ -78,7 +78,7 @@ To run, debug, or deploy your TypeScript or Rust Apps to the platform, you must 
 Connecting a Hub triggers a secure QR authorization process that registers VS Code as a client without exposing raw user credentials. The extension refuses setup and recovery-state Hubs before requesting QR authorization.
 
 1. Open the **Libertas View** in the VS Code Activity Bar.
-2. In the **Hub Management** section, enter a friendly **Name** for the Hub and its **IP Address**.
+2. In the **Connect to a Commissioned Hub** section, enter a friendly **Hub Name** and the Hub's **IP Address / Host**.
 3. Click **Connect Hub**. The extension will initiate the secure client-authorization sequence:
    * Studio checks that the Hub is commissioned and ready for user login.
    * Scan the displayed one-time QR code with a Libertas mobile app already
@@ -92,8 +92,8 @@ Connecting a Hub triggers a secure QR authorization process that registers VS Co
 ### 2. Testing Hub Connection
 
 You can check if a registered Hub is online and has maintained its secure connection status:
-1. Locate the Hub in the sidebar list.
-2. Click **Test Connection** (or the test icon next to the Hub).
+1. Locate the Hub in the sidebar's **Configured Platforms** list.
+2. Click the **Test TLS Connection** icon next to the Hub.
 3. The extension performs a TLS handshake and verifies that the remote certificate fingerprint matches the recorded secure signature. A warning is shown if there is a hash mismatch (indicating the Hub was reset or there is an active man-in-the-middle event).
 
 ---
@@ -101,8 +101,8 @@ You can check if a registered Hub is online and has maintained its secure connec
 ### 3. Deleting a Hub
 
 If you no longer need to develop against a specific Hub:
-1. Find the Hub in the sidebar list.
-2. Click the **Delete** (trash) icon.
+1. Find the Hub in the sidebar's **Configured Platforms** list.
+2. Click the **Delete Hub** (trash) icon.
 3. The extension purges the Hub configuration and its corresponding cryptographic tokens from the system's VS Code Secret Storage.
 
 ---

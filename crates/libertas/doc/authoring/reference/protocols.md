@@ -393,7 +393,9 @@ the existing protocol state, its displayed data, and its next-request choices.
 Reference context follows the [current reference context rule](#interaction-reference-context);
 the acknowledgement is not installed as the displayed protocol value.
 A transient request/wait surface may complete,
-but no protocol-data destination is added or replaced.
+but no protocol-data destination is added or replaced. The reply to a
+master-detail [refresh request](presentation.md#master-detail-panes) is not
+such an acknowledgement: it re-installs the leading page it refreshes.
 
 The absence of a next state identifies an ordinary completed result without a
 separate attribute marking a result variant. Present its user-facing result
@@ -615,7 +617,8 @@ Each target is another ordinary Request with a Table payload in the same
 Endpoint protocol Union. Its NextResponse names its correlated Response variants.
 A calculation reply is plain or an Error: Studio rejects a calculation whose
 NextResponse names a variant that declares NextRequest or WorkflowRequest, or
-a Request variant, which only an EditRequest delivers. An Error variant is
+a variant that does not carry Response, such as a Request-only variant, which
+only an EditRequest delivers. An Error variant is
 admitted whatever it declares, because an Error assigns nothing and navigates
 nowhere.
 Every direct input field has CopyFrom under the
@@ -801,7 +804,8 @@ lists in a stable subscription context.
 
 Studio checks mappings in each invoking editor, including reusable types,
 field types, nullability, numeric semantics and money currency. **A
-calculation may perform any assignment that cannot trigger itself.** Studio
+calculation may perform any assignment that cannot trigger itself.** Apart
+from the protected destinations named below, Studio
 rejects only direct and indirect calculation cycles: a calculation that reads,
 directly or through other calculations, a field it writes. Reading a Table, a
 List, or a reduced projection reads its membership and the descendants its
@@ -819,15 +823,18 @@ settled value of a destination that several calculations write follows the
 order of the edits that triggered them. Designing calculation requests whose
 overlapping results agree is the App developer's responsibility.
 ReadOnly prevents user edits, not calculation assignments. Fixed destinations and Fixed descendants
-cannot be overwritten (Union discriminators remain transport metadata). Applications own meaningful default values and whether
+cannot be overwritten (Union discriminators remain transport metadata), nor can
+a [CacheIdentity](annotations.md#cacheidentity) field or data containing it,
+which stays immutable for the editor's lifetime. Applications own meaningful default values and whether
 an editable destination is appropriate for an automatically assigned result.
 
 The client checks the complete mapping before applying it atomically. A null
 result assigns null to a nullable destination. An unavailable union branch,
 null parent, or out-of-bounds array destination rejects the complete update;
 CopyTo never creates missing parents or extends arrays. A rejected update is a
-calculation failure: it is reported, it ends a waiting Submit without sending,
-and it is not sent again automatically. No unrelated field,
+calculation failure: it is reported, it is not sent again automatically, and
+Submit stays disabled until a retry settles under the
+[failure rule](#changes-resets-and-deferred-calculation). No unrelated field,
 default initialization, or navigation is changed by a successful assignment.
 An Error response applies no assignments and uses normal error presentation.
 A [link return](#link-return) applies these rules to a plain reply to a link
@@ -2082,9 +2089,11 @@ open, it opens the member's header field only while that field is unanswered.
 Neither opens the chooser of an answered Union: only a Union with no selection
 is a candidate.
 
-Studio checks field placement, effective enum/union type, root-path resolution,
-integer-list source shape, hidden source ancestry, and the calculation and
-link-return writers
+Studio checks field placement, effective enum/union type (never a Bitflags
+catalog), root-relative and parent-relative path resolution, integer-list
+source shape, hidden source ancestry, CopyFrom initialization of the source or
+its containing cookie when a WorkflowRequest opens the request, and the
+calculation and link-return writers
 of each source in every request occurrence. Runtime clients check actual cookie
 values and selection membership, and reject user edits of a source. These are
 ordinary client data constraints; the backend continues to own
@@ -2203,7 +2212,8 @@ DefaultRequest does not authorize automatic submission of an editor. Existing
 WorkflowRequest and EditRequest replies open their editor without submitting.
 
 A normal response with no visible content presents only its NextRequest
-choices; its reference context follows the
+choices, through its [named action controls](#named-action-controls) when it
+declares them; its reference context follows the
 [interaction reference context rule](#interaction-reference-context). Hidden
 fields and hidden ancestors contribute no visible content. Nil and containers
 with no visible descendants contribute none; a visible scalar or List still
@@ -2217,7 +2227,9 @@ set is empty retains its action surface with no actions.
 
 **Actions chooses a request before input determines whether to send it.** Count
 the current displayed value's eligible NextRequest choices after access,
-ExcludeUI, ConstrainedBy, and LinkOnly filtering:
+ExcludeUI, ConstrainedBy, and LinkOnly filtering, and, when the page supplies
+an explicit `Actions` array, only its members
+([named action controls](#named-action-controls)):
 
 | Eligible Actions choices | On tapping Actions |
 | --- | --- |
@@ -2341,7 +2353,8 @@ still requires confirmation.
 Outside [landing entry](#default-request-entry-and-dynamic-actions), only the
 person's choice sends a request without editable input.
 [Automatic singleton selection](#response-action-constraints) is not such a
-choice: only an accepted regular Response with no visible content and exactly
+choice: only an accepted regular Response with no visible content, no
+[named action controls](#named-action-controls), and exactly
 one eligible constrained action may automatically open that action's popup or
 editor once. A request without editable input
 that it would select stays offered as the one action until the person chooses
@@ -2383,7 +2396,9 @@ from CopyFrom: a Request whose CopyFrom resolves to a displayed value is not
 thereby offered on that value's row. Each occurrence has one target, so a row
 never opens a request chooser. The **Actions** surface keeps offering the
 displayed value's filtered NextRequest set, link targets included, except
-[link-only requests](#link-only).
+[link-only requests](#link-only) and, when the page supplies an explicit
+`Actions` array, requests outside it
+([named action controls](#named-action-controls)).
 
 **Direction by placement.** The occurrence's placement decides how the tap
 constructs its target:
@@ -2532,8 +2547,8 @@ AddressFound reply returns its `city` into the editor, which stays open.
 - in a request editor, every CopyTo of the target's plain NextResponse Response
   variants is valid against the originating request as
   [calculation CopyTo](#applying-calculation-results) is: the destination
-  exists, and type, nullability, numeric semantics, money currency, and Fixed
-  protection are compatible; it may write a calculation's destination (the
+  exists, and type, nullability, numeric semantics, money currency, Fixed
+  protection, and CacheIdentity protection are compatible; it may write a calculation's destination (the
   later assignment wins) or a [ConstrainedBy source](#calculated-allowed-sets);
   every direct payload field of such a Response has CopyTo or is Hidden
   (discriminators and Error responses are exempt);
@@ -2630,8 +2645,11 @@ The immediate stable destination produced by landing entry or its selected
 forwarding action has this flag.
 It may be SubscriptionData, a Response, or an EditRequest/WorkflowRequest editor,
 including the result of a request selected automatically or by the person from
-landing. An initial Response can be stable without NextRequest; do not suppress
-it as an acknowledgement of a previous screen. Transient cookie responses
+landing. The reply to the landing entry request itself can be stable without
+NextRequest; do not suppress it as an acknowledgement of a previous screen. A
+plain Response to a selected landing action is instead the
+[non-transition acknowledgement](#protocol-roles) and leaves the landing in
+place, under the [forwarding rule](#default-request-entry-and-dynamic-actions). Transient cookie responses
 opening an editor and transient request composers are not separate stable pages.
 The flag records this page's entry provenance, never its variant name, payload
 equality, or all variants reachable through NextResponse. It governs Back, not
@@ -2713,7 +2731,8 @@ response, if the constrained set, after access
 and visibility filtering and without [link-only requests](#link-only), contains
 exactly one action, keep the response visible when it has visible content,
 including link rows. Choosing Actions opens that request directly, without a
-chooser. Only a response with no visible content automatically selects its sole
+chooser. Only a response with no visible content and no
+[named action controls](#named-action-controls) automatically selects its sole
 action once for that accepted response, then applies the
 [single-action presentation rule](#single-action-confirmation-and-input-presentation):
 one popup-eligible field uses the existing one-field popup, and complex input
@@ -2775,7 +2794,8 @@ editor. Hidden keeps the source list out of content and editors; the marker
 creates a separate control for its choices.
 
 The App supplies each control's current membership as original protocol Union
-Request discriminants in the marked field. The field array never names a
+Request discriminants of the server schema in the marked field, read under the
+[capability prefix rule](#capability-prefixes). The field array never names a
 NextRequest position or changes order. Start with `NextRequest`, apply the
 response's existing ConstrainedBy ceiling, access and ExcludeUI restrictions,
 then intersect each control with its own array. LinkOnly requests are absent

@@ -28,7 +28,9 @@ Hubs, Apps, and tasks relate.
 | --- | --- |
 | What Libertas is; Hub, Apps, tasks, clients | [Getting started](../guides/getting-started.md), [concepts](../concepts/index.md) |
 | Installing Apps, creating and removing tasks, devices, access permissions | [Administration](../guides/administration.md), [Plaza](../guides/plaza.md) |
+| Which App version a task runs; what removing a task does to other tasks | [Task version selection](../reference/app-contract.md#task-version-selection), [task removal](../reference/app-contract.md#task-removal) |
 | Using a task's screens: requests, results, live information, navigation | [Task controls](../guides/control.md) |
+| Finding a page by typing or speaking (AI Search), two-pane screens, waiting for a reply | [AI Search](../reference/protocols.md#ai-navigation-and-ai-search), [two panes](../reference/presentation.md#master-detail-panes), [leaving while waiting](../reference/protocols.md#exit-while-pending) |
 | Charts and visual results | [Visualization](../guides/visualization.md), [chart gallery](../guides/chart-gallery.md) |
 | Languages and translated text | [Translation guide](../guides/translation.md) |
 | Something failed or stopped | [Troubleshooting](../guides/troubleshooting.md) |

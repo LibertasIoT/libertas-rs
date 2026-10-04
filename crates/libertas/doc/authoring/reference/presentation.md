@@ -696,7 +696,8 @@ into children or another page.
 The `actions` slot also accepts exactly `{ "source": "single_action" }`.
 It uses the sole offered action's localized schema variant `Name`. Count the
 final offered set after `NextRequest`, `ConstrainedBy`, access privileges, `ExcludeUI`, and
-`LinkOnly` filtering. With several choices, or a missing or blank name, the
+`LinkOnly` filtering, and an explicit `Actions` array when the page supplies
+one ([named action controls](protocols.md#named-action-controls)). With several choices, or a missing or blank name, the
 source supplies no caption, and the next source in the
 [Actions caption precedence](#named-action-controls) applies: an explicit
 Actions field name, then the localized platform Actions caption, never a raw
@@ -997,7 +998,7 @@ never override `Hidden`.
 ordinary editing control for it. It never restricts the platform or the
 application. Schema initialization (Fixed, Default, localized defaults),
 `CopyFrom` from a Response or the reference context, `EditRequest` values,
-calculation `CopyTo` results, draft restoration and the application's own
+calculation and link-return `CopyTo` results, draft restoration and the application's own
 handling of the submitted value all write a ReadOnly field exactly as they
 write an editable one. A value that must not change after initialization is
 `Fixed`, not ReadOnly. Hidden fields are ReadOnly in effect, since no editor
@@ -1460,9 +1461,13 @@ independent of the widening gate for two-panel layouts. **Actions** is the
 control for the displayed variant's eligible `NextRequest` choices, under the
 [request-selection rules](endpoint-presentation.md#protocol-transaction-stack);
 it is separate from an editor's primary Next/Submit and previous-action
-controls. Render its full localized caption (Actions by default, or the
-active page's [button label](#button-labels)) and retain the platform's normal
+controls. Render its full localized caption, resolved by the
+[Actions caption precedence](#named-action-controls) (Actions by default, or
+the active page's [button label](#button-labels)), and retain the platform's normal
 button target and spacing. The fit rules below measure that resolved caption.
+They place Actions while it keeps this default heading placement; an
+`action_controls` placement of `secondary` moves it into the
+[named-control region](#named-action-controls) instead.
 
 Measure the title and button with their actual localized text, current font,
 weight, and accessibility text size. **Fits** means the complete text renders
@@ -2248,16 +2253,13 @@ distinct from an empty List or a Table without a summary.
 When [`flatten`](#flatten) with `{ "name_row": false }` removes a struct's
 own row, the struct still assigns a dropdown owner, in this order: the row of its promoted child, which is
 the struct's surviving value row, else the row of its first visible child.
-That row carries the fold arrow and, when the struct is Foldable, collapses
-the struct's remaining rows beneath it; its own value stays editable as usual.
+When the struct is Foldable, that row carries its disclosure chevron and
+collapses the struct's remaining rows beneath it; its own value stays editable
+as usual. An unmarked struct gives that row no chevron.
 Hidden fields produce no row and are skipped; a struct that produces no rows
 folds nothing. A List member
 whose struct row is suppressed keeps its position and membership controls on
 the row that owns its dropdown.
-
-A marker that hides the dropdown icon, making a container visibly unfoldable,
-is reserved for a later revision; until then an unmarked container may still
-show an inert arrow as described above.
 
 ## Unanswered fields and null
 

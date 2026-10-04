@@ -27,9 +27,16 @@ exact callback and function signatures belong to the installed public SDK.
 - Keep one versionless protocol Union and append new cases only at the end.
   A protocol is a set of [capabilities](../reference/protocols.md#protocols-describe-capabilities):
   `ProtocolConformance` (`&`, `|`, `!`, `^` over native names) declares
-  mandatory peer capability; matching payloads stay pass-through compatible;
+  mandatory peer capability; without it every direct variant in that Union
+  context is mandatory. Matching payloads stay pass-through compatible;
   before sending an optional request, a client checks the selected server's
-  runtime variant indices.
+  runtime variant indices. A capability (the role-bearing variant) may sit at
+  a different Union depth in each peer: every role-less variant on its
+  [prefix](../reference/protocols.md#capability-prefixes) is a Union or holds
+  exactly one Union-typed field, and each capability identity occurs at most
+  once per endpoint protocol (duplicates reject the match). Only the prefix is
+  translated; integers in a payload naming protocol choices (allowed actions,
+  action-control arrays) are server-schema discriminants.
 - [`AccessPrivilege`](../reference/protocols.md#request-access) on a
   Request/SubscriptionRequest is `Read=1`, `Write=2`, or `Read,Write=3`
   (the default). Explicitly mark every mutating operation `Write`.
@@ -48,6 +55,7 @@ each are the ones Apps get wrong; the linked owners hold the rest.
 | Declaration | Reached by |
 | --- | --- |
 | `NextRequest` on the displayed Response or SubscriptionData | the **Actions** surface, in declared order |
+| [`ActionControl`](../reference/protocols.md#named-action-controls) array on that page | a named control offering its listed members of the filtered set |
 | `Link` on a displayed value's field or type (target also in that `NextRequest`) | a tap on that value's row |
 | `Link` on a request-editor field (any Request) | the row's link button |
 | `CalculationRequest` on an editor field | a change of that input; never Actions |
@@ -63,8 +71,8 @@ Visibility is not authorization; the backend re-checks access and state on
 every submission. Modifiers:
 
 - **Filter.** Response-level `ConstrainedBy("$.allowed_actions")` reads a
-  hidden non-null integer array of original Union discriminants (not
-  positions) and keeps membership only: `NextRequest` order stays, empty means
+  hidden non-null integer array of original server-schema Union
+  discriminants (not positions) and keeps membership only: `NextRequest` order stays, empty means
   no actions, duplicates add nothing, and missing/malformed/undeclared entries
   reject the update with no unrestricted fallback. Members carry explicit
   `Discriminator` 0..N−1 in pre-sorted order (gaps, duplicates, and misordering
@@ -76,6 +84,8 @@ every submission. Modifiers:
 - **Lone survivor on a regular response.** A filtered set of exactly one (not counting `LinkOnly`)
   opens automatically only for an accepted correlated Response with no visible
   content and an action needing editable input; otherwise wait for Actions. A
+  regular page declaring any `ActionControl` stays displayed and selects
+  nothing automatically. A
   subscription update re-filters and never selects
   ([action constraints](../reference/protocols.md#response-action-constraints)).
 - **`LinkOnly`** keeps a Request only on its links: Actions, menus, landings,
@@ -88,7 +98,9 @@ every submission. Modifiers:
   several choices open a chooser without sending. Merely displaying a sole
   action never sends. Mark a critical Request
   `RequestConfirmation` and the person confirms in a Send/Cancel dialog before
-  any send ([critical requests](../reference/protocols.md#request-confirmation)).
+  any send, after an editor's settled validation; a calculation request
+  ignores the marker and asks nobody
+  ([critical requests](../reference/protocols.md#request-confirmation)).
   Automatic singleton selection on a regular response never sends. One
   primitive, enum, or [hierarchical choice field](../reference/protocols.md#hierarchical-single-field-requests)
   uses the one-field popup; complex input uses the
@@ -103,9 +115,11 @@ every submission. Modifiers:
   neither, the landing lists Requests, previewing executable chart requests.
   On a protocol landing, one eligible action always forwards: no editable input
   validates and sends, input opens its popup/editor, confirmation still applies;
-  several choices wait. A data landing uses its filtered NextRequest; discovery
-  applies only with no default. Its forwarding result is the initial working
-  result and follows regular response rules; returning to a non-subscription
+  several choices wait. A data landing uses its filtered NextRequest, counting
+  the union of what its controls, Actions included, offer; discovery applies only with no default. Its
+  forwarding result is the initial working result and follows regular response
+  rules; a plain Response is an acknowledgement and never replaces the
+  landing, even a subscription landing; returning to a non-subscription
   landing repeats entry and forwarding, while returning to a retained
   subscription landing or applying updates never repeats it
   ([default entry](../reference/protocols.md#default-request-entry-and-dynamic-actions)).
@@ -115,7 +129,10 @@ every submission. Modifiers:
   without an editor ([variant identity](../reference/protocols.md#request-editor-variant-identity)).
   `PrevRequest` targets are listed in order and not filtered by
   `ConstrainedBy`: one goes directly, several open a chooser, none means no
-  workflow Back. Embedded master-detail editors suppress all of these controls
+  workflow Back. A [transient composer](../reference/endpoint-presentation.md#protocol-transaction-stack)
+  never offers workflow Back; a request that only chooses where to go (a
+  "Go to" chooser) belongs in a composer, not a workflow editor
+  ([workflows](../reference/protocols.md#workflow-interactions)). Embedded master-detail editors suppress all of these controls
   and offer Close + Next under the [pane contract](../reference/presentation.md#master-detail-panes);
   the leading pane owns navigation for the whole arrangement, and the App must
   provide all required routes there.
@@ -171,8 +188,10 @@ Consequences:
   again makes its reply obsolete, which is discarded and never queued again
   on its own; deferred requests are
   rebuilt and validated at dispatch. Submit is disabled while any calculation is
-  pending or deferred, and validates and sends once they settle; links and
-  exit stay available and discard the round; a calculation failure keeps the
+  pending or deferred, and nothing is queued to send later; once they settle
+  Submit is active again and a press validates and sends. Links, an offered
+  Prev, and exit stay available and discard the round; a link chosen meanwhile
+  is built from the values as displayed. A calculation failure keeps the
   editor open
   ([deferred calculation](../reference/protocols.md#changes-resets-and-deferred-calculation)).
   Array removal follows dependency scope, not positions: cancel removed-item
@@ -282,8 +301,10 @@ endpoint at any time; late replies are discarded, and entering again repeats
 the entry request, so admit it in every state the endpoint can be left in. A
 lost connection clears every endpoint's data; reconnecting starts from entry.
 
-- Cancel pops only the composer: nothing is sent and the screen and context
-  stay.
+- Cancel on an idle composer pops only the composer: nothing is sent and the
+  screen and context stay. A composer awaiting its reply cannot be dismissed
+  by itself; Back, close, or Cancel there leaves the endpoint
+  ([leaving while pending](../reference/protocols.md#exit-while-pending)).
 - Above a subscription landing, Back from every working result reveals the
   retained page without refresh, resubscription, or automatic forwarding;
   Back from the subscription landing exits the endpoint.
@@ -300,6 +321,21 @@ lost connection clears every endpoint's data; reconnecting starts from entry.
   ([landing and Back](../reference/protocols.md#control-endpoint-landing-and-native-back)).
   [CacheIdentity](../reference/annotations.md#cacheidentity) governs draft
   recovery; no partial request is ever sent.
+
+### AI Search
+
+[AI Search](../reference/protocols.md#ai-navigation-and-ai-search) (AI
+Navigation) selects one of the page's actually offered links or control
+choices from a person's text or dictation; the client builds and validates
+each candidate request first, the AI returns only candidate identifiers and
+supplies no field values, and selection then follows the ordinary link or
+action path, including confirmation and editor submission. It needs a
+supporting client and modern Hub, and Hub policy may disable it. A page offers
+it only when `AINavigationPrompt` names a nonempty package StringResource on
+the protocol Union, the page-defining variant, or both (Union text first). Expose the
+links the advertised scope needs, constructible from real data, and document
+each destination's meaning and domain vocabulary; the prompt never widens
+the candidate set ([authoring obligations](../reference/protocols.md#app-and-codebot-authoring-obligations)).
 
 ## Persistent data schemas
 

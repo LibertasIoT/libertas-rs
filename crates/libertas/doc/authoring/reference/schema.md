@@ -667,8 +667,13 @@ resolve declarations while serialized references keep their actual owner.
 ## 4. Attribute model
 
 All attributes use the same `{ Name, Value }` representation. Scope and host type
-determine their meaning. The tables below list attributes emitted or synthesized
-by the current parsers and shared validator.
+determine their meaning. The tables below list the data-model attributes
+emitted or synthesized by the current parsers and shared validator. Interaction
+attributes owned by another contract (`DefaultRequest`, `LinkOnly`,
+`ConstrainedBy`, `ActionControl`, `AppendTo`, `AppendIndex`, `CacheIdentity`,
+`AINavigationPrompt`, `LLMDocTrans`, and `LLMDocField`) are listed with their
+owners in the [source annotation reference](annotations.md); Studio rejects any
+attribute name that neither lists.
 
 ### 4.1 Package attributes
 
@@ -687,6 +692,7 @@ by the current parsers and shared validator.
 | `Permissions` | On a function, comma-delimited permissions resolved from a source constant. Source order is preserved and every permission must have a same-key, non-empty reason in the package document's `StringResources`. |
 | `AccessHost` | One or more comma-delimited network names required by the function's task process. Normal entries are DNS hostnames; `{network_access_local}` and `{network_access_external}` are reserved broad grants. Every entry is a package `StringResources` key with a non-empty localized access explanation. See [App network access](network-access.md). |
 | `Singleton` | Exact marker value `true`. At most one task for this App function may exist on a Hub. |
+| `DataErrorStatus` | Exact marker value `true`, valid only on a function. It opts the function's task into checked Data API status returns; omission keeps Hub-owned termination on a data failure. See the [Data API failure contract](protocols.md#explicit-error-status-opt-in). |
 | `ValidationRules` | Pure boolean expressions evaluated against one synthetic Table containing all function arguments. Each expression is followed by `:`, a quoted package `StringResources` error-message key, and `;`. |
 
 ### 4.3 Value, constraint, and presentation attributes
@@ -704,7 +710,7 @@ by the current parsers and shared validator.
 | `SizeMin`, `SizeMax` | Inclusive size bounds for List element count, String UTF-16 code-unit length, or ordinary Bytes byte count. [MIME-aware Bytes](#mime-aware-bytes) use content length only when media is defined. Nullable null is governed separately by Nullable. Table is not a valid host. |
 | `Unique` | Requires a scalar value to be unique within the requested number of ancestor-list scopes. The no-argument default level is `99`. |
 | `Unordered` | Declares list ordering semantically irrelevant to management/UI behavior. |
-| `ReadOnly` | Value is displayed but not user-editable. Initialization, CopyFrom, EditRequest, calculation CopyTo and draft restoration still write it; only `Fixed` protects a value. See the [ReadOnly rule](presentation.md#common-field-metadata). |
+| `ReadOnly` | Value is displayed but not user-editable. Initialization, CopyFrom, EditRequest, calculation or link-return CopyTo and draft restoration still write it; only `Fixed` protects a value. See the [ReadOnly rule](presentation.md#common-field-metadata). |
 | `Hidden` | Value is hidden from ordinary editors. On a chart carrier table, composition, or chart-bearing Union variant wrapper, it also marks direct non-chart fields as preserved transaction context that renderers exclude from chart projection. |
 | `SuppressLabel` | Parser result only; compiled into the Display Template. Presentation marker suppressing the visual row label of a scalar, Table, or Union; on a List of Tables it suppresses only List-contributed member names and positions ([label-free value rows](presentation.md#suppresslabel-label-free-value-rows)). |
 | `Link` | One non-empty Request variant native name of the same Endpoint protocol Union, never a list, on any field or on a Table, Union, or Enumeration type declaration; the field's target wins over its type's. Tapping the displayed node opens that Request ([links](protocols.md#links), [rendering](presentation.md#link-rendering)). |
@@ -1435,9 +1441,9 @@ defines the universal client control vocabulary.
 | `WorkflowRequest` | Response semi-role; see the [WorkflowRequest definition](protocols.md#workflowrequest-semi-role). |
 | `PrevRequest` | Request-only ordered list of distinct Request targets; workflow Back constructs the selected action from the current editor. Controls are suppressed in embedded trailing panes under the [pane contract](presentation.md#master-detail-panes). |
 | `NextRequest`, `NextResponse` | NextRequest names state-machine actions. On requests NextResponse names allowed server replies; on SubscriptionData it declares directional compatible updates. See the workflow contract for editor transitions and completion. |
-| `ProtocolConformance` | Management-tooling expression over Union variant native names. Parsers accept it on a Union declaration or a Union-typed variant; when used in an endpoint protocol, it declares requirements for the opposite endpoint at that Union level. |
+| `ProtocolConformance` | Management-tooling expression over Union variant native names. Studio accepts it on a Union declaration or a Union-typed variant; when used in an endpoint protocol, it declares requirements for the opposite endpoint at that Union level. |
 | `BaseObjects` | Comma-delimited Libertas Schema Paths defining the objects to which an endpoint instance is bound. |
-| `LibertasData` | Marks a persistent data union, either from source or synthesized from `FunctionDataSchema`. |
+| `LibertasData` | Validator-generated marker on a persistent data union, synthesized from `FunctionDataSchema`; there is no source marker. |
 
 An Error-marked correlated Response completes the current request attempt
 without participating in the protocol state transition. The client must preserve the current
@@ -1475,7 +1481,7 @@ These correlated-response rules apply under the
 | Attribute | Meaning |
 | --- | --- |
 | `ForeignTypeSchema` | Direct official type FQN declared on a published compatible type. Runtime consumers merge official attributes into a transient copy and preserve explicit compatible overrides. |
-| `FullyQualifiedName` | Parser/native package lookup metadata for externally declared types. |
+| `FullyQualifiedName` | Transient parser metadata identifying an externally declared type in the expanded compiler graph. Studio rewrites references to the owner's FQN and removes the attribute, with the external definitions, before publication. |
 
 ## 5. Composite-type semantics
 
@@ -1847,13 +1853,14 @@ enforces those and, among others, the following:
 - non-empty `BaseObjects` on built-in endpoints only;
 - `Unique` only on non-composite hosts with integer level at least one;
 - exact `DateOnly=true` placement on an integer Number, valid `yyyyMMdd`
-  `Default`/`Fixed` values, and exclusion of `TimeInterval` and `EnumSource`;
+  `Default`/`Fixed` values, and the
+  [exclusions of numeric semantic attributes](#numeric-semantic-exclusions);
 - exact `Bitflags=true` Enumeration catalogs, explicit unique single-bit
   member values with the zero exception, integer host/reference/width checks,
   declared-bit `Default`/`Fixed` masks, and conflicting presentation metadata;
 - `Format` multiplicity, effective Number/DateOnly/DateTime/TimeOnly placement,
   the host-specific portable Unicode LDML grammar, and ordinary-Number
-  exclusion of `TimeInterval` and `EnumSource`;
+  exclusion of `TimeInterval`, `EnumSource`, and `Bitflags`;
 - `EnumSource` host type, path syntax/resolution, and list target;
 - `FormattedText`'s exact marker and Bytes host, mandatory static ReadOnly,
   and runtime-use restrictions under the
@@ -1965,8 +1972,9 @@ semantics:
 | --- | --- | --- |
 | `[DefaultText]` | Field document for a schema field whose effective type is `String`, or for a built-in `Endpoint` field carrying `EndpointServer` | One-line localized default text for that field. Unlike the schema `Default` value, this document value may differ by locale. |
 | `[DefaultTaskName]` | Function document only | Localizable default task name for that function. It is distinct from the function document's stable native `Name` and from its localized `DisplayName`. |
+| `[TrueText]`, `[FalseText]` | Field document for a field whose effective type is `Boolean` | One non-empty localized line labelling `true` or `false`; either selects an explicit two-choice control. See [standard properties](documentation.md#standard-properties). |
 
-Both standard properties are flattened into their owning document objects in
+All standard properties are flattened into their owning document objects in
 the same way as every other custom property, and their values are translated.
 `DefaultText` must not be placed on a package, function, type, enum member, or
 any other field type. `DefaultTaskName` must not be placed on a package, type,

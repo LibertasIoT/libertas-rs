@@ -122,9 +122,7 @@ The common `loadType` byte is:
 Studio currently exposes `LOAD` and `LOAD_NON` in both editors. Decoders retain
 the protocol's `LOAD_ANY` value.
 
-`LOAD` indicates that the device is action as a server, otherwise it is a client.
-Currently on the GUI only "LOAD" is enabled and it can't be changed, because the
-task itself can be a client, there is no good reason to emulate a client device.
+`LOAD` indicates that the device acts as a server; otherwise it is a client.
 
 Cluster access is a bit mask:
 
@@ -289,6 +287,6 @@ attribute name; it is not tagged inside the binary payload.
 ## Excluded: runtime field value
 
 The `DeviceType` and `VirtualDevice` attributes contain only descriptor
-metadata. They never contain the selected or allocated 32-bit Libertas object
+metadata. They never contain the selected or allocated Libertas object
 ID carried by the field at runtime. Runtime value serialization is therefore
 outside the attribute encoding specified by this document.

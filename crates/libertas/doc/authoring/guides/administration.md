@@ -12,13 +12,15 @@ Controls available to you depend on your account's effective permissions.
 2. [Interface Overview](#interface-overview)
 3. [My Hub Tab](#1-my-hub-tab)
 4. [Devices Tab](#2-devices-tab)
-5. [Tasks Tab](#3-tasks-tab)
-6. [Groups Tab](#4-groups-tab)
-7. [Libertas Plaza Tab](#5-libertas-plaza-tab)
-8. [Security Tab (Users & Groups)](#6-security-tab-users--groups)
-9. [Access Control List (ACL) Tab](#7-access-control-list-acl-tab)
-10. [AI Connectors Tab](#8-ai-connectors-tab)
-11. [Troubleshooting & Best Practices](#troubleshooting--best-practices)
+5. [HVAC Tab](#hvac-tab)
+6. [Tasks Tab](#3-tasks-tab)
+7. [Task Data Tab](#task-data-tab)
+8. [Groups Tab](#4-groups-tab)
+9. [Libertas Plaza Tab](#5-libertas-plaza-tab)
+10. [Security Tab (Users & Groups)](#6-security-tab-users--groups)
+11. [Access Control Tab](#7-access-control-list-acl-tab)
+12. [AI / LLM Tab](#8-ai-connectors-tab)
+13. [Troubleshooting & Best Practices](#troubleshooting--best-practices)
 
 ---
 
@@ -37,7 +39,9 @@ To open the Admin Panel in your active VSCode workspace:
 
 ## Interface Overview
 The Admin Panel features a management layout with:
-- **Left/Top Navigation sidebar** for selecting the active management category.
+- **Left/Top Navigation sidebar** for selecting the active management category:
+  **My Hub**, **Devices**, **HVAC**, **Tasks**, **Task Data**, **Groups**,
+  **Libertas Plaza**, **Security**, **Access Control**, and **AI / LLM**.
 - **Dynamic cards** presenting metrics, statuses, and action logs.
 - **Searchable list views** with real-time query filtering.
 - **Tree-view selector dropdowns and modal search choosers** for hierarchical entities.
@@ -48,15 +52,18 @@ The Admin Panel features a management layout with:
 The **My Hub** tab is the landing page and provides hardware status, operating system stats, and basic control operations for the connected Hub.
 
 ### Information Sections
-- **Hub Information**: Details the Hub's custom friendly name, IP address on the network, Client ID, active User ID, Hub Type (**Local Hub** or **Cloud Hub**), and runtime Platform (e.g., Libertas OS).
-- **Hub Settings** and **Advanced** (super users): **Connection Settings** and **Reconfigure Thread** configure a Local Hub's home network and Thread radio, so the panel omits them for a Cloud Hub.
-- **Firmware & Runtime Details**: Displays the kernel version, active firmware version, and the internal IP address.
-- **Operations & Management**:
-  - **Reboot Hub (Soft)**: Reboots the Libertas software runtime daemon without power cycling the device.
-  - **Reboot Hub (Hard)**: Initiates a complete operating system reboot on the hub hardware.
-  - **Halt Hub (Shutdown)**: Shuts down the hub processor safely. Use before disconnecting power.
-  - **Reset Hub (Setup State)**: Resets the hub configuration back to factory setup states.
+- **Hub Information**: Details the Hub's custom friendly name, IP address on the network, Client ID, active User ID and User Name, Hub Type (**Local Hub** or **Cloud Hub**), and runtime Platform (e.g., Libertas OS).
+- **Firmware & Runtime Details**: Displays the kernel version, active firmware version, and the Hub's local IP address.
+- **Hub Settings** (super users): **Connection Settings** (Local Hub only), **Location & Time Zone**, and **HVAC Systems**, which opens the HVAC tab.
+- **Advanced** (super users): **Reconfigure Thread** (Local Hub only), **Hub Configuration**, **Developer Access**, and **Reset Hub**, which returns the Hub to its setup state.
+- **System** (super users):
+  - **Check for Upgrades**: Looks for a newer Hub release.
+  - **Restart**: Restarts the Libertas software runtime without power cycling the device.
+  - **Force Restart**: Reboots the Hub's operating system.
+  - **Shut Down**: Shuts down the Hub safely. Use before disconnecting power.
   - **Refresh Data**: Reloads configurations, device trees, and task tables.
+- Other users see a **Management** card that offers only **Refresh Data**; Hub
+  settings and system operations require a super user.
 
 > [!WARNING]
 > **Reset Hub** will erase current local settings and user configurations. Only trigger this operation if you intend to re-provision the hub.
@@ -66,13 +73,23 @@ The **My Hub** tab is the landing page and provides hardware status, operating s
 ## 2. Devices Tab
 The **Devices** tab shows physical radio transceivers, network cameras, and IoT devices registered with the hub.
 
-### Device Categories
-- **Zigbee Devices**: Displays connected Zigbee endpoints (e.g., smart bulbs, motion sensors, relays). Shows the friendly name/SKU, the IEEE MAC address, short 16-bit address, and connection state (Online/Offline).
-- **Matter Devices**: Displays connected Thread or Wi-Fi Matter devices. Shows Node IDs and statuses.
-- **ONVIF Cameras**: Lists network-connected cameras. Shows IP address, camera model/data, and state.
+All devices appear in one **Configured Radio & Media Devices** list. A badge
+on each row identifies its kind:
+- **Zigbee** devices (e.g., smart bulbs, motion sensors, relays) show the friendly name/SKU, the IEEE MAC address, short 16-bit address, and connection state (**Online** or **Offline**).
+- **Matter** devices show their Node ID.
+- **ONVIF Camera** rows show the camera's IP address.
 
 ### Actions
-- **Remove**: De-registers the physical device from the hub controller network.
+- **Remove**: After confirmation, de-registers the physical device from the Hub.
+
+---
+
+<a id="hvac-tab"></a>
+
+## HVAC Tab
+The **HVAC** tab lists the Hub's configured HVAC systems with their heating and
+cooling types and stages. Super users and users with the Add/Remove Devices
+privilege can add, edit, and remove systems.
 
 ---
 
@@ -87,13 +104,34 @@ Tasks are virtual running programs compiled from installed platform apps. This t
 - Creating a task requires the access described in
   [App access control](#7-access-control-list-acl-tab). Seeing an App in the
   catalog alone does not authorize task creation.
-- **Task Cards**: Shows developer metadata, package name, executing function, and unique Task ID.
+- **Task Cards**: Show the Task ID, developer, package, executing function,
+  and a status badge: **Active**, **Stopped**, or **Inactive**.
 - **Active Task Settings**:
-  - **Version Selector**: Dynamically upgrades or downgrades the task's script package version via a dropdown.
-  - **Toggle Slider**: Toggle the running task's status state (Enabled/Disabled).
+  - **Version dropdown** (**Version** *x*): Offers the task's current App
+    version and the version installed on the Hub. Choosing the other one,
+    after confirmation, moves the task to it; installing or upgrading an App
+    never changes a task's version by itself. See
+    [task version selection](../reference/app-contract.md#task-version-selection).
+  - **Enable/Disable slider** and the **Stop** / **Start** button: The button
+    reads Stop while the task is enabled and Start while it is disabled; both
+    send the same enable or disable request.
   - **Edit**: Edit virtual endpoints, virtual device names, or configuration parameters.
-  - **Stop / Start**: Directly control execution without removing task definitions.
-  - **Remove**: Destroys the virtual task instance.
+  - **Remove**: After confirmation, stops and removes the task and its
+    persistent data. See [task removal](../reference/app-contract.md#task-removal)
+    for the effect on dependent tasks.
+- A task that stops after a failed data read or write shows **Stopped**. The
+  Hub keeps its enabled setting, so the slider still shows it enabled and the
+  button reads **Stop**, but never restarts it automatically. After correcting
+  the cause, choose **Stop** and then **Start** to start it again. See the
+  [Data API failure contract](../reference/protocols.md#persistence-failure-and-the-no-status-api).
+
+---
+
+<a id="task-data-tab"></a>
+
+## Task Data Tab
+The **Task Data Explorer** surveys an App task's stored data. Choose the
+**App task**, search record names, and open a record to inspect it.
 
 ---
 
@@ -167,10 +205,10 @@ Groups group users together to inherit roles and access permissions.
 ---
 
 ## 7. Access Control List (ACL) Tab
-The **ACL** tab allows fine-grained security policies by restricting access to specific objects (Devices, Tasks, Apps, and other Users).
+The **Access Control** tab allows fine-grained security policies by restricting access to specific objects (Devices, Tasks, Apps, and other Users).
 
 The App catalog includes an App when the user has any effective permission on
-it. **Configure** is specifically required before a user with the global
+it. **Configure** (shown as **Config**) is specifically required before a user with the global
 **Add/Remove Tasks** privilege may create a task using that App. Catalog
 visibility does not authorize task creation. When an existing task is retargeted
 to another App, that new App also requires Configure access.
@@ -180,7 +218,7 @@ to another App, that new App also requires Configure access.
    - Select a target User or Group using the dropdown or search dialog chooser.
    - Shows all resource object permissions assigned to them.
    - Includes quick filtering input to search current access paths.
-   - **Add Object Permission**: Define access permissions (Allow, Deny, etc.) to target devices, apps, or tasks.
+   - **Add Object Permission**: Grant **Read**, **Write**, **Config**, or **Remove** access to target devices, apps, or tasks. A super user automatically has Config and Remove, but Read and Write must still be granted.
 
 2. **By Object**
    - Select the target resource category: **Devices**, **Apps**, **Tasks**, or **User / Group (Target)**.
@@ -195,15 +233,17 @@ to another App, that new App also requires Configure access.
 ---
 
 ## 8. AI Connectors Tab
-The **AI** tab configures the LLM engines driving the Hub's natural language agent features.
+The **AI / LLM** tab (**AI & LLM Connectors**) configures the OpenAI or Gemini
+connections used by the Hub's AI features.
 
 ### Features
-- **Add Connector**: Create an LLM service connector definition.
-- **Connector Configuration**:
-  - **Model ID**: Specifies the target model.
-  - **Owner**: Identifies the system user that owns the api integrations.
-  - **Configuration Snippet**: JSON editor block specifying API keys, base endpoints, temperature, and custom parameters.
-- **Actions**: Edit connector configurations or Delete connector keys safely.
+- **Add LLM Connector** opens a form with:
+  - **Display Name**: The connector's name.
+  - **Owner User**: The Hub user who owns the connector.
+  - **Model ID / Provider**: A preset model or a custom model ID.
+  - **API Key**: The provider credential, entered in its own field.
+  - **Configuration (JSON)**: Additional provider parameters.
+- **Actions**: Edit or delete a connector.
 
 ---
 
@@ -211,7 +251,7 @@ The **AI** tab configures the LLM engines driving the Hub's natural language age
 
 ### The Admin Panel is Blank or Displays "Loading configurations..."
 1. Check that Libertas Studio is active and the intended Hub is selected.
-2. Use **Test Connection** in Hub Management and verify the address and network.
+2. Use the Hub's **Test TLS Connection** icon in the Studio sidebar and verify the address and network.
 3. If authorization has expired or been revoked, reconnect through Studio's QR
    authorization flow with an authenticated mobile app. Do not manually edit
    credentials. If the Hub was reset, commission it in the mobile app first.

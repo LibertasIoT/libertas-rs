@@ -10,16 +10,17 @@ Studio or the Hub.
 
 Read [Getting started](getting-started.md) first if the platform is new to you.
 Then choose a workflow below. The App-development tutorial walks through a
-garden controller, from source descriptions to live interaction, and uses a
-tax interview to introduce workflows.
+synthetic garden showcase, from source descriptions to live interaction. The
+[federal tax example](../examples/federal-tax.md) shows a complete workflow
+interview.
 
 | Guide | What it helps you understand |
 | --- | --- |
 | [Getting started](getting-started.md) | The role of Studio, the Hub, clients, Apps, and tasks. |
 | [Using Studio](studio.md) | Connecting to a Hub, working with projects, validation, and deployment. |
-| [Developing Apps](developing-apps.md) | A worked tutorial covering configuration, protocols, reference contexts, live updates, persistence, and workflows. |
+| [Developing Apps](developing-apps.md) | A worked tutorial covering configuration, screen layout, protocols, reference contexts, live updates, localization, charts, and persistent data. |
 | [Administration](administration.md) | Installed Apps, task creation, devices, and access permissions. |
-| [Task controls](control.md) | Requests, results, live information, and navigation. |
+| [Task controls](control.md) | Requests, confirmations, results, live information, and navigation. |
 | [Charts and visual results](visualization.md) | Reading previews, opening full views, and understanding typed data. |
 | [Chart gallery](chart-gallery.md) | Twenty 2D and twelve 3D examples, from trends and polar charts to surfaces and point clouds. |
 | [Translation](translation.md) | Source text, locale selection, translation handoff, import, and persistence. |

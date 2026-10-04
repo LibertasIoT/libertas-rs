@@ -42,26 +42,31 @@ answers.
 
 The sections, in the order a filer meets them:
 
-1. **About this return** — tax year, filing status and the basic choices that
-   shape everything after.
-2. **About the filers** — the taxpayer and spouse: birth dates, residency,
-   disability and the facts behind dependency and credits.
+1. **Your 2026 return** — return identity, filing status and the basic
+   questions that shape everything after.
+2. **About you** and, for a joint return, **About your spouse** — identity,
+   age, residency and dependency information.
 3. **Children and people you support** — each dependent, with the tests that
    decide who may claim them and which credits they qualify for.
-4. **Income documents** — each W-2, 1099, K-1, retirement, farm, business or
-   other income record, entered as the document presents it.
-5. **Adjustments to income** — IRA, HSA, self-employment, student loan and
+4. **Your 2026 at a glance** — a checklist choosing the income, deduction,
+   credit and other tax situations in the return.
+5. **Income** — each W-2, 1099, K-1, retirement, farm, business or other
+   income record, entered as the document presents it.
+6. **Adjustments to income** — IRA, HSA, self-employment, student loan and
    the other Schedule 1 adjustments.
-6. **Deductions** — the standard deduction or itemized deductions, with their
+7. **Deductions** — the standard deduction or itemized deductions, with their
    limits and carryovers.
-7. **Credits** — child, dependent care, education, retirement savings, energy,
+8. **Credits** — child, dependent care, education, retirement savings, energy,
    vehicle, foreign tax and business credits.
-8. **Federal payments** — withholding, estimated payments and refundable
-   credits.
-9. **Check remaining situations** — the less common situations, so an ordinary
-   filer is not asked about them earlier.
-10. **Review your federal estimate** — the on-screen Form 1040, the amount owed
-    or refunded, and the list of anything unsupported or still unanswered.
+9. **Other taxes** — alternative minimum tax, net investment income tax,
+   additional Medicare tax and additional retirement or account taxes.
+10. **Federal payments** — withholding, estimated payments and underpayment
+    information.
+11. **Anything else?** — the less common whole-return situations, so an
+    ordinary filer is not asked about them earlier.
+12. **Review** (*Review your federal estimate*) — the on-screen Form 1040, the
+    amount owed or refunded, and the list of anything unsupported or still
+    unanswered.
 
 Each section hub offers its own **Continue** action while walkthrough steps
 remain. It records completion of that section and opens the next applicable
@@ -102,13 +107,18 @@ The final confirmation uses **Finish review** and **Return to review**. These
 captions describe the controls; they do not file
 a return. Clients that do not support button captions keep their system labels.
 
-In a full-page workflow, **Previous step** reopens the declared previous page. For the
-two-panel Income layout, the [pane contract](../reference/presentation.md#master-detail-panes)
-requires the left panel to own navigation: select a topic there
-to edit it, use **Save and continue** to submit the right-panel edit, or **Close editor** to dismiss
-it without submission. The right panel must suppress Go back. The left
-panel's Continue and Review actions, and links outside the detail nodes,
-leave the two-panel arrangement; they do not submit the right-panel editor.
+In a full-page workflow, **Previous step** reopens the declared previous page.
+On a tablet or desktop, the Income, Adjustments, Itemized deductions and
+Credits hubs use two panels, and the
+[pane contract](../reference/presentation.md#master-detail-panes) gives the
+left panel all navigation: select a topic there, including one in the All
+topics catalog, to open it on the right; use **Save and continue** to submit
+the right-panel edit, or **Close editor** to dismiss it without submission.
+The right panel offers Close on every page it shows, never Back, Cancel or
+Previous step. The left panel's Continue and Review actions, and links outside
+the detail nodes such as the previous-section link, replace both panels; they
+do not submit the right-panel editor. While either panel waits for a reply,
+neither panel can send another request.
 The [heading contract](../reference/presentation.md#protocol-page-heading-and-top-bar)
 also assigns the shared top-bar title and Actions to the left page. It requires
 the full title to remain in content whenever the top-bar title is shortened;
@@ -125,7 +135,7 @@ One example per area. Each is a synthetic case the App's own tests reproduce.
 **A combined ordinary return.** A filer with W-2 wages, an IRA contribution,
 FLSA overtime, a vehicle-interest deduction and education expenses reaches an
 adjusted gross income of $72,500, taxable income of $49,400, income tax before
-credits of $5,680, final tax of $4,180 and a refund of $3,320.
+credits of $5,683, final tax of $4,183 and a refund of $3,317.
 
 **Tips and overtime (Schedule 1-A).** A sole proprietor with a $10,000 profit
 that includes $10,000 of qualified customer tips deducts $9,293 of tips after
@@ -181,24 +191,25 @@ unsupported. The lists below name forms; the interview asks in plain language
 and maps the answers to them.
 
 **Calculated:** Form 1040 with Schedules 3, A, C, D, EIC, H, R and 8812;
-income documents W-2, W-2G, 1098-E, 1098-T, 1099-R, 1099-SA and 1099-B with
-Form 8949; and Forms 2439, 2441, 2555, 4136, 4137, 4952, 5695, 7203, 8396,
-8582, 8606, 8615, 8834, 8839, 8853, 8859, 8863, 8880, 8889, 8936 and 8959.
+income documents W-2, W-2G, 1098-E, 1098-T, 1099-OID, 1099-R, 1099-SA and
+1099-B with Form 8949; Form 2210 underpayment penalties, including the
+annualized-income method, and the next-year Form 1040-ES estimated-tax
+computation; and Forms 2439, 2441, 2555, 4136, 4137, 4952, 5695, 6252, 7203,
+8379, 8396, 8582, 8606, 8615, 8829 (including the actual-expense method),
+8834, 8839, 8853, 8859, 8862, 8863, 8880, 8881, 8889, 8915-F, 8936 and 8959.
 
 **Calculated for the common situations, with named exceptions:** Schedules 1,
 2, B, E (page 1), F, J and SE; income documents 1099-INT, 1099-DIV, 1099-G,
 1099-K, 1099-NEC, 1099-MISC, 1099-Q and 1098; Schedules K-1 from partnerships,
 S corporations and estates or trusts; Forms 1116, 3800, 4562, 4684, 4797,
-5329, 6198, 6251, 7206, 8283, 8801, 8911, 8958, 8960, 8962, 8995 and 8995-A,
-and Form 982 debt cancellation. The interview names the exception when one
+5329, 6198, 6251, 7206, 8283, 8801, 8911, 8941, 8958, 8960, 8962, 8995 and
+8995-A; Form 982 debt cancellation; and the Form 8938 filing-requirement check. The interview names the exception when one
 applies.
 
-**Not yet calculated:** Form 2210 underpayment penalties and the next-year
-estimated-tax computation; Forms 1099-OID, 2106, 3903, 4972, 8814, 8815,
-8829 (the simplified home-office method is calculated on Schedule C), 8862,
-8332 and 2120; Forms 4835, 6252, 6781, 8824, 8915-F, 8938, 8379, 8857 and the
-Schedules K-3; and the small-employer, investment, housing and alternative-fuel
-credits (Forms 3468, 4255, 8586, 8881, 8910, 8941, 8994). Nonresident returns
+**Not yet calculated:** Forms 2106, 3903, 4972, 8814, 8815, 8332 and 2120;
+Forms 4835, 6781, 8824, 8857 and the Schedules K-3; and the investment,
+housing, alternative-vehicle and paid-leave credits (Forms 3468, 4255, 8586,
+8910 and 8994). Nonresident returns
 (Form 1040-NR) and foreign partnership reporting (Form 8865) are outside the
 prototype's scope.
 

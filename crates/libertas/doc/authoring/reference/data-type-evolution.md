@@ -42,7 +42,8 @@ variants at the end of the existing declaration. A newer App version may add:
 The new type becomes a new variant of the same stable Union. For every
 previously published variant:
 
-- preserve its declaration position and discriminator or fixed value;
+- preserve its declaration position and `Discriminator` (a variant's `Fixed`
+  constrains its payload and never identifies the variant);
 - preserve its native variant name;
 - preserve its payload's wire shape and meaning; and
 - preserve its protocol roles and other compatibility-relevant contract.

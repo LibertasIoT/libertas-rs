@@ -512,6 +512,9 @@ Rust:
 //! Inspection score recorder
 //! Records inspection scores and remembers them when the recorder starts again.
 
+use libertas::*;
+use libertas_macros::*;
+
 /// Inspection choices
 /// Identifies the inspection whose scores the recorder saves.
 #[derive(Clone, Debug, PartialEq, LibertasExport, LibertasAvroDecode)]

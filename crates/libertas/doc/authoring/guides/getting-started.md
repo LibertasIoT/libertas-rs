@@ -10,8 +10,9 @@ and language toolchain.
 
 **The Hub** runs Apps and their configured tasks. **Studio** is the VS Code
 extension for working with App projects, validation, deployment, and
-administration. **Android and iOS clients** let people administer the Hub and
-use task controls and results, subject to their permissions.
+administration; its **Libertas: Open Control Panel** command also operates
+tasks. **Android and iOS clients** let people administer the Hub and use task
+controls and results. Every client is subject to the account's permissions.
 
 An **App package** contains reusable functionality. A **function** is an
 entry point for a task. A **task** supplies the settings for one running use

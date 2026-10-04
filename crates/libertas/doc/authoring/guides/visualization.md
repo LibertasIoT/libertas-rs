@@ -21,8 +21,10 @@ labels and descriptions. Choose the simplest chart that makes the comparison
 clear. Check empty results, missing values, different locales, and a small
 screen as well as the normal case.
 
-The detailed 2D and 3D contracts belong in the
-[shared reference](../reference/index.md). Illustrated walkthroughs and sample
-datasets will be developed in the [example catalog](../examples/index.md).
+The detailed contracts are the [2D chart reference](../reference/charts/2d.md)
+and the [3D chart reference](../reference/charts/3d.md). The
+[chart gallery](chart-gallery.md) shows captured examples, and
+[Developing Apps](developing-apps.md#charts-in-2d-and-3d) shows a localized
+chart with its source.
 
 [All human guides](index.md)

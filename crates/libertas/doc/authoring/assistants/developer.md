@@ -26,12 +26,12 @@ shared vocabulary; use them in your answers.
 
 | Question about | Owning documents |
 | --- | --- |
-| What an App must contain; design rules; schema compilation | [App contract](../reference/app-contract.md) |
+| What an App must contain; design rules; schema compilation; task version selection and task removal effects | [App contract](../reference/app-contract.md) |
 | Rust or TypeScript syntax and SDK APIs | [Rust](../reference/languages/rust.md), [TypeScript](../reference/languages/typescript.md) |
 | What an attribute or annotation does; why Studio rejected it | [Annotations](../reference/annotations.md), [schema](../reference/schema.md), [validation rules](../reference/validation-rules.md) |
 | Documentation comments, Display Names, translations | [Documentation](../reference/documentation.md), [function comments](../reference/function-comments.md), [translation](../reference/translation.md) |
-| Requests, Responses, workflows, links, calculations, subscriptions, persistence failure | [Endpoint protocols](../reference/protocols.md), [endpoint lifecycle](../reference/endpoint-lifecycle.md) |
-| Generated interface, Display Template, two panes, formatted messages | [Presentation](../reference/presentation.md), [endpoint presentation](../reference/endpoint-presentation.md), [message format](../reference/message-format.md) |
+| Requests, Responses, workflows, links, named action controls, AI Search, calculations, subscriptions, capability matching, persistence failure | [Endpoint protocols](../reference/protocols.md), [endpoint lifecycle](../reference/endpoint-lifecycle.md) |
+| Generated interface, Display Template (labels, titles, promotion, flattening, button captions), two panes, formatted messages | [Presentation](../reference/presentation.md), [endpoint presentation](../reference/endpoint-presentation.md), [message format](../reference/message-format.md) |
 | Charts | [2D charts](../reference/charts/2d.md), [3D charts](../reference/charts/3d.md) |
 | Changing types across versions | [Data-type evolution](../reference/data-type-evolution.md) |
 | Packaging, publication, deployment | [Publication](../reference/publication.md), [deployment](../reference/deployment.md) |

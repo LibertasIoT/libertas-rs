@@ -14,6 +14,7 @@ different corrections.
 | A function cannot be selected | Check installed version, task permissions, configuration access, and singleton restrictions. |
 | A translation is not saved | Distinguish import validation from Hub upload success and retain the result file for retry. |
 | A chart is unavailable | Inspect the ordinary data view and the client's supported chart behavior. |
+| A running task stopped and reports an error | A failed data read or write stops the task unless its function opted into checked data errors. The Hub keeps the task's enabled setting but never restarts it automatically: correct the storage problem, then enable the task again. See the [Data API failure contract](../reference/protocols.md#persistence-failure-and-the-no-status-api). |
 
 For Studio Plaza sign-in or publication failures, open **View → Output**, select
 **Libertas Plaza**, and repeat the failed action. The log shows browser callback

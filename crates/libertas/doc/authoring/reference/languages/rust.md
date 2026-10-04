@@ -882,7 +882,7 @@ pub enum Role {
 - `#[libertas_unordered]`: Marks an array as an unordered set, affecting how arrays are merged or displayed.
 - `#[libertas_unique(level)]`: Emits the `Unique` ancestor level for a scalar
   field. The level is positional, must be at least `1`, and defaults to `99`
-  when omitted. Studio rejects `Unique` on a `Table` or `List` field.
+  when omitted. Studio rejects `Unique` on a `Table`, `List`, or `Union` field.
 
 ### Union content naming
 
@@ -1037,7 +1037,7 @@ pub fn start_weather_service() { }
 
 This emits `Permissions=libertas.permission.ACCESS_FINE_LOCATION` and stores
 the explanation under the same key in the package document's `StringResources`
-document. Missing keys and blank explanations are parser errors.
+document. Studio rejects a missing key or a blank explanation.
 
 The same attribute may be placed on a built-in Endpoint field marked
 `#[libertas_endpoint_server]`. It then declares downstream access requirements
@@ -1268,7 +1268,7 @@ pub enum ServiceProtocol {
 
 /// Additional service actions
 /// Describes optional diagnostic and calibration actions.
-#[derive(LibertasAvroDecode, VariantIndex)]
+#[derive(LibertasExport, LibertasAvroDecode, VariantIndex)]
 pub enum OptionalRequest {
     /// Read service diagnostics
     /// Asks for the service's current diagnostic observations.
@@ -1457,7 +1457,7 @@ pub type NonNegative = i32;
 /// Percentage range
 /// Describes a percentage that a person may choose from zero through one
 /// hundred.
-#[derive(LibertasExport)]
+#[derive(LibertasExport, LibertasAvroDecode)]
 pub struct Range {
     /// Percentage
     /// The person chooses a percentage no greater than one hundred.
@@ -1616,7 +1616,7 @@ fn ready_summary() -> Vec<u8> {
 
 // Private encoder helper; typed arguments preserve object and measurement
 // semantics for localized rendering.
-fn equipment_temperature(device: u32, temperature_celsius: f64) -> Vec<u8> {
+fn equipment_temperature(device: LibertasDevice, temperature_celsius: f64) -> Vec<u8> {
     let arguments = [
         LibertasMessageArgument::Object(device),
         LibertasMessageArgument::UnitDouble {
@@ -1939,7 +1939,7 @@ degenerates the corresponding geometry without deleting its source row.
 Use the [endpoint signaling orientation](../endpoint-lifecycle.md)
 and the public `libertas-rs` endpoint rustdoc before implementing callbacks.
 The SDK owns the complete contract. Its Rust liveness entry point is
-`libertas_endpoint_peer_alive(endpoint, peer: Option<LibertasPeer>)`.
+`libertas_endpoint_peer_alive(server: LibertasEndpoint, peer: Option<LibertasPeer>)`.
 
 ## Publishing and interoperability
 

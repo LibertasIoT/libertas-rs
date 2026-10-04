@@ -505,7 +505,7 @@ Choose a concise domain name that is immediately useful but remains suitable as
 an editable initial value; never copy a native identifier or invent personal
 details merely to satisfy this requirement.
 
-Neither standard property substitutes for the owner's ordinary label and
+No standard property substitutes for the owner's ordinary label and
 description.
 
 Persisted or user-assigned text has absolute priority and is immutable to
@@ -578,7 +578,8 @@ and `StringResources` values.
 
 Do not translate native names, structural keys, numeric document IDs, extension
 names, resource keys, or LMF1 structure. Preserve deliberately empty generated
-text. `[DefaultText]` remains one line in every locale. See the
+text. `[DefaultText]`, `[TrueText]`, and `[FalseText]` remain one line in every
+locale. See the
 [schema document translation guide](../guides/translation.md)
 for the complete translation workflow.
 

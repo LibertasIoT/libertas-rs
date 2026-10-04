@@ -378,7 +378,7 @@ pub const PROTOCOL_STRINGS: &[(&str, &str)] = &[
 
 /// Room condition
 /// Describes the latest reported condition in one room.
-#[derive(LibertasExport, LibertasAvroEncode)]
+#[derive(LibertasExport, LibertasAvroDecode, LibertasAvroEncode)]
 pub struct RoomState {
     /// Availability summary
     /// Tells occupants whether the room condition report is ready.
@@ -393,7 +393,7 @@ pub struct RoomState {
     pub status: Vec<u8>,
 }
 
-fn encode_room_state(room: u32, temperature_celsius: f64) -> RoomState {
+fn encode_room_state(room: LibertasDevice, temperature_celsius: f64) -> RoomState {
     let status_arguments = [
         LibertasMessageArgument::Object(room),
         LibertasMessageArgument::UnitDouble {

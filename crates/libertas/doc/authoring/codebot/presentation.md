@@ -29,7 +29,9 @@ a package StringResources key or use `null` to restore the platform caption;
 slots cascade independently and never inherit into another page. `go_back`
 and `next` require Request variants. Only `actions` also accepts
 `{"source":"single_action"}`: use the sole final eligible action's localized
-variant Name, otherwise the platform caption. Exclude LinkOnly from that
+variant Name; with several choices or a missing or blank name it supplies
+nothing and the Actions caption precedence continues (an explicit Actions
+field name, then the platform caption). Exclude LinkOnly from that
 count. Let the task change its offered request through `ConstrainedBy`;
 the [section-hub pattern](../reference/presentation.md#task-controlled-section-hub-action)
 keeps Continue navigation separate from editor Save and continue submission.
@@ -38,6 +40,14 @@ conditions, switches, field sources, and pseudo-states are not. Captions change
 only existing controls: preserve Next submission, PrevRequest behavior,
 Actions eligibility/choosers, local Close, native Back, and embedded Go Back
 suppression. Use truthful captions for all states of the selected page.
+Controls declared by the [`ActionControl`](../reference/presentation.md#named-action-controls)
+schema attribute need no template: each shows its field's localized name in a
+secondary row below the heading. An `action_controls` member on a whole
+Response or SubscriptionData rule, keyed by a declared control name or
+`Actions`, may set `label` (a key, `{ "field": "path" }` String or ReadOnly
+FormattedText, or `null`), `placement` (`secondary` or `header`), `emphasis`,
+and `density`; it cannot invent a control. For Actions,
+`action_controls.Actions.label` precedes `button_labels.actions`.
 
 Every package has one mandatory [Display Template](../reference/presentation.md#display-template),
 the sole runtime owner of how values are arranged and styled; it is not schema
@@ -73,7 +83,11 @@ Write each rule as four relations:
   compact`) and otherwise render as `rows`. `master-detail` takes `detail`, an array of
   selectors (`…[]` for a List's members, otherwise one node) reached through
   struct fields only; every detail node needs a `Link` and opens in the
-  trailing pane, and any other link or action replaces both panes. An embedded
+  trailing pane, and any other link or action replaces both panes. Every
+  trailing page shows one Close (sends nothing, keeps the leading page) and no
+  Back of its own. The two panes have one pending operation: while any reply is
+  awaited, every sending control in both panes is disabled (calculations still
+  run). An embedded
   workflow editor offers Close + Next and suppresses every `PrevRequest`
   control; the leading pane owns navigation for the whole arrangement and the
   App must provide all required routes there. Open a flow requiring
@@ -85,7 +99,13 @@ Write each rule as four relations:
   replaced the leading page; `refresh` must be a pure navigation Request with
   no editable input, never a save
   ([panes](../reference/presentation.md#master-detail-panes)), so admit
-  navigation requests by identity, not by revision. `split` nests at most three levels and renders as `rows` on
+  navigation requests by identity, not by revision. A refresh reply of the
+  leading page's variant re-installs it even without NextRequest. A new page
+  from the trailing pane stays there only when a detail node's link request
+  completely matches it (reply variant in that request's NextResponse, every
+  request field present under the same name and value); otherwise it replaces
+  both panes, so name link-request fields consistently across the pages that
+  follow. `split` nests at most three levels and renders as `rows` on
   phones unless a phone rule asks for it. There is no `stepper`: Studio
   rejects it and clients draw `rows`. Sequential screens are a
   [workflow](../reference/protocols.md#workflow-interactions), where the
@@ -136,7 +156,8 @@ Write each rule as four relations:
   on the title row ([combinations](../reference/presentation.md#labels-and-titles)).
 - **What it promotes:** [`promote`](../reference/presentation.md#tableheader-promoted-fields-and-union-selectors)
   is valid only on a rule selecting a field of a struct (`^<TopicRow>.status`):
-  that field's value goes on the owning row, labelled by the owner's displayed
+  the first visible promoted field in schema order (others stay ordinary
+  children) puts its value on the owning row, labelled by the owner's displayed
   name (its `label`, when set), or by the field's own name with
   `{ "use_parent_name": false }`; `false` turns it off. Studio rejects it on a
   type, a List member, a Union branch, a function parameter, or a Response.
