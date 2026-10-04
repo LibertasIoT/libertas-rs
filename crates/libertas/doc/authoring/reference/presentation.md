@@ -486,8 +486,12 @@ endpoint's one working surface, and interaction stays strictly ordered:
   working surface accepts no operation: the leading pane shows loading and its
   rows cannot be selected, and the trailing pane's editor accepts no edit,
   link, document import, or Submit until the refresh reply.
-- A refresh reply of the leading page's variant replaces the leading page. Any
-  other reply is installed as the working surface, as it is on a phone. An
+- A refresh reply of the leading page's variant replaces the leading page,
+  also when that variant declares neither NextRequest nor WorkflowRequest: a
+  refresh re-installs the page it refreshes with current data, so the
+  [non-transition acknowledgement](protocols.md#protocol-roles) rule does not
+  apply to it. Any other reply is installed as the working surface, as it is
+  on a phone. An
   Error reply leaves the previous leading page in place and is reported by the
   standard error procedure.
 - **A new page from the trailing pane.** When any operation in the trailing
@@ -692,9 +696,12 @@ into children or another page.
 The `actions` slot also accepts exactly `{ "source": "single_action" }`.
 It uses the sole offered action's localized schema variant `Name`. Count the
 final offered set after `NextRequest`, `ConstrainedBy`, access privileges, `ExcludeUI`, and
-`LinkOnly` filtering. With several choices, or a missing or blank name, use
-the localized platform Actions caption, never a raw native name or payload
-type name; with no choices, retain the existing hidden control. This source
+`LinkOnly` filtering. With several choices, or a missing or blank name, the
+source supplies no caption, and the next source in the
+[Actions caption precedence](#named-action-controls) applies: an explicit
+Actions field name, then the localized platform Actions caption, never a raw
+native name or payload type name. With no choices, retain the existing hidden
+control. This source
 uses the action's owning document, not the
 template author's resources or a display title. No other slot accepts it.
 An explicit `null` resets this source just like a resource override.

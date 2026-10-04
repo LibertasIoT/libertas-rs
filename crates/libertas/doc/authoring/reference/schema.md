@@ -1628,15 +1628,16 @@ context is mandatory (equivalent to joining its variant names with `&`). A
 malformed explicit expression is incompatible; management tooling must fail
 closed rather than falling back to the default.
 
-Name presence is not sufficient by itself. Corresponding root variants must
+Name presence is not sufficient by itself. Corresponding capabilities must
 have pass-through-compatible payload layouts: positional Table fields and
 overlapping nested Union slots retain the same names, order, effective types,
-nullability, numeric representation, and enumeration values. Root Union
-variants may be reordered because the client task host remaps the first Avro
-discriminator by variant name. Nested discriminators are not remapped; an
-optional nested branch is safe only when appended beyond the smaller Union, so
-the smaller receiver rejects that out-of-range index. The task-host translator
-does not deserialize the payload. Each receiving App's decoder remains
+nullability, numeric representation, and enumeration values. The client task
+host rewrites only the
+[capability prefix](protocols.md#capability-prefixes), so a capability may sit
+at a different Union depth or position in each peer. Discriminators inside a
+payload are not remapped; an optional nested branch there is safe only when
+appended beyond the smaller Union, so the smaller receiver rejects that
+out-of-range index. The task-host translator does not deserialize the payload. Each receiving App's decoder remains
 responsible for payload validation.
 
 Every task editor uses the same filtered candidate sets for manual selection
