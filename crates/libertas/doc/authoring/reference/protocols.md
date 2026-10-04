@@ -2842,8 +2842,10 @@ one Request with different bound topics, or two eligible leaves of one action,
 are distinct candidates.
 
 This feature requires an implementing client and a supporting modern Hub.
-It is unavailable on legacy Hubs and on non-task pages. A resolved Union or
-page prompt opts the owning task page in; Hub policy may disable it. Search
+It is unavailable on legacy Hubs and on non-task pages. An offered `GoTo`
+action control enables Search on its owning task page, using the same currently
+eligible choices. App guidance is optional. A resolved Union or page prompt
+also opts a task page into Search when it has no Go to control. Hub policy may disable it. Search
 and task-scoped Assistant are independent features. A navigation prompt does
 not grant access or enable tool execution.
 
@@ -2884,7 +2886,12 @@ in that order, and concatenate their texts with a blank line. Both
 declarations contribute. Page guidance adds local meaning and can refine
 common selection preferences; it does not erase the Union guidance. An
 absent declaration contributes nothing. Either declaration suffices to opt
-the page into AI Navigation; with neither, the page does not offer it.
+the page into AI Navigation. An offered `GoTo` control also enables it with
+neither declaration; the platform uses the ordinary destination labels,
+descriptions and current eligible choices. With no offered Go to and neither
+declaration, the page does not offer it. A control with no eligible choices does
+not establish availability. Detect the case-sensitive control name `GoTo`,
+independently of its localized or template caption and placement.
 
 This is an additive rule, not ordinary nearest-attribute replacement. Keep the
 two declaration locations through resolution. Reuse the normal package and
@@ -3022,7 +3029,7 @@ Landing forwarding and native Back keep their existing rules.
 | Planning | Associate each supported user goal with an ordinary reachable destination. Expose the links or eligible finite chooser actions needed for the advertised search scope and make their requests constructible from real available data. A navigation request may open an editor where subsequent user input occurs. |
 | Comments | Describe each destination's purpose, scope, consequences, and distinguishing domain vocabulary in extracted source documentation. Document bound topic choices and linked items as well as the generic request. |
 | Attributes and data | Use Link, NextRequest, applicable ConstrainedBy and ActionControl membership, and request-owned construction/confirmation declarations. Supply their actual runtime data; the AI does not create allowed sets. |
-| Prompt resources | Put shared interpretation in the Union resource and local interpretation in the page resource. Keep cross-topic guidance here and destination-specific meaning with its documented destination, with one owner for each fact. |
+| Prompt resources | Guidance is optional for an offered GoTo control. When needed, put shared interpretation in the Union resource and local interpretation in the page resource. Keep cross-topic guidance here and destination-specific meaning with its documented destination, with one owner for each fact. |
 | Review | Verify representative formal references, abbreviations, and everyday descriptions against the context the client will actually supply. Check unsupported and ambiguous queries as well as successful selections. |
 
 Follow the existing [source-documentation contract](documentation.md#domain-references-and-discoverability).

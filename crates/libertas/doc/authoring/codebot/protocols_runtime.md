@@ -333,8 +333,9 @@ action path, including confirmation and editor submission. An offered
 hierarchical chooser supplies one complete candidate per eligible leaf;
 selecting that leaf sends it directly, retaining RequestConfirmation.
 Other editable requests and destination workflow editors still await submission. It needs a
-supporting client and modern Hub, and Hub policy may disable it. A page offers
-it only when `AINavigationPrompt` names a nonempty package StringResource on
+supporting client and modern Hub, and Hub policy may disable it. An offered
+`GoTo` action control enables Search with optional App guidance. A page may also
+opt in when `AINavigationPrompt` names a nonempty package StringResource on
 the protocol Union, the page-defining variant, or both (Union text first). Expose the
 links or finite chooser actions the advertised scope needs, constructible from real data, and document
 each destination's meaning and domain vocabulary; the prompt never widens
