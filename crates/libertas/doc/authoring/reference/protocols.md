@@ -1210,9 +1210,15 @@ unless its transport breaks or times out. Every connection is a new
 connection: when the session is lost, the data of every endpoint in it is
 cleared, including surfaces, reference contexts, snapshots, and pending
 operations and calculations, and after reconnecting an endpoint starts again
-from its entry request as when first entered. The client stays in the task:
-with several endpoints it shows the endpoint list, and with one endpoint that
-endpoint's entry, each loaded again after reconnecting. Leaving abandons the endpoint's
+from its entry request when the person opens it again. In mobile Control, connection loss returns
+to the task's endpoint list when that root remains a list. If the task root
+automatically enters a landing, including a task with one endpoint, the client
+exits the task to its parent Control screen. Reconnection does not reopen that
+task or endpoint; a retained endpoint list may reload its inline default
+subscriptions. Every attempt to open a task or an endpoint from its task root
+first checks that task's Hub connection. If it is unavailable, the client
+reports an error and stays on the current screen. An endpoint protocol Error
+preserves the current screen and displays the error. Leaving abandons the endpoint's
 surfaces with their pending operations and calculations and queues the
 release of its explicit subscriptions; a reply that arrives afterwards is
 discarded, and nothing the backend already received is retracted. Entering

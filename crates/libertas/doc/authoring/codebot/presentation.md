@@ -44,17 +44,20 @@ Actions eligibility/choosers, local Close, native Back, and embedded Go Back
 suppression. Use truthful captions for all states of the selected page.
 Controls declared by the [`ActionControl`](../reference/presentation.md#named-action-controls)
 schema attribute need no template: each shows its field's localized name with
-secondary emphasis. After Actions placement, their complete header-eligible
-group joins the top bar only if the full title and group fit; otherwise they
-stay in a wrapping secondary row below the heading, never beside its content
-title. Actions uses prominent filled styling and is last wherever it shares
-an action row. Re-layout restores controls when space returns and preserves
-interaction state. An `action_controls` member on a whole
+secondary emphasis. With any visible eligible optional control, keep all
+buttons together: their complete group joins the top bar only if the full
+title and group fit; otherwise all buttons occupy a new wrapping row below
+the heading. Custom buttons never join the content title row. Actions uses
+prominent filled styling and is last in the group. With no optional control,
+Actions keeps its independent heading placement, even with a custom caption.
+Re-layout restores controls when space returns and preserves interaction state.
+An `action_controls` member on a whole
 Response or SubscriptionData rule, keyed by a declared control name or
 `Actions`, may set `label` (a key, `{ "field": "path" }` String or ReadOnly
 FormattedText, or `null`), `placement` (`secondary` or `header`), `emphasis`,
 and `density`; it cannot invent a control. Omitted placement and `header` use
-adaptive placement; `secondary` pins the control below the heading. Authored
+adaptive placement; `secondary` pins the complete visible group below the
+heading when optional controls are present, or Actions alone otherwise. Authored
 style overrides remain supported. Trailing-pane named controls stay local
 below their heading. For Actions,
 `action_controls.Actions.label` precedes `button_labels.actions`.

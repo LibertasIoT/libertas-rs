@@ -299,7 +299,9 @@ SubscriptionData. A pending Request is never abandoned on its own: dismissing
 anything that awaits a reply leaves the endpoint. A person may leave an
 endpoint at any time; late replies are discarded, and entering again repeats
 the entry request, so admit it in every state the endpoint can be left in. A
-lost connection clears every endpoint's data; reconnecting starts from entry.
+lost connection clears every endpoint's data and returns to a stable task list
+or parent Control screen. Opening a task or endpoint requires its Hub connection;
+reconnection alone never reopens a landing. See the same human-task contract.
 
 - Cancel on an idle composer pops only the composer: nothing is sent and the
   screen and context stay. A composer awaiting its reply cannot be dismissed

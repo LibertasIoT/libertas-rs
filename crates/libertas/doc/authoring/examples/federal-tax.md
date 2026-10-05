@@ -22,9 +22,9 @@ and electronic submission are not part of the prototype.
   uses the [draft 2026 EIC Table](https://www.irs.gov/pub/irs-dft/p1040--dft.pdf).
   Until the final 2026 forms and tables are published, the result is an
   estimate, not a filing-ready return.
-- **Refuses rather than guesses.** A situation the App does not calculate is
-  reported as unsupported with the reason. It never silently contributes zero
-  tax or a partial amount.
+- **Never guesses silently.** Every assumption, omission and refusal is shown
+  with its reason; nothing silently contributes zero tax or a partial amount.
+  See [Unknown and unsupported answers](#unknown-and-unsupported-answers).
 
 ## How the interview works
 
@@ -65,8 +65,8 @@ The sections, in the order a filer meets them:
 11. **Anything else?** — the less common whole-return situations, so an
     ordinary filer is not asked about them earlier.
 12. **Review** (*Review your federal estimate*) — the on-screen Form 1040, the
-    amount owed or refunded, and the list of anything unsupported or still
-    unanswered.
+    amount owed or refunded, the assumptions and left-out items, and anything
+    outside the App's scope.
 
 Each section hub offers its own **Continue** action while walkthrough steps
 remain. It records completion of that section and opens the next applicable
@@ -138,6 +138,32 @@ the editor open with the
 problem shown. Two people opening the same return see the same accepted
 answers, and an older editor cannot overwrite a newer accepted page.
 
+## Unknown and unsupported answers
+
+Questions answered only with Yes or No are required two-way choices with
+nothing preselected. Where either answer can raise tax, the help says how to
+find the answer, and both answers are calculated. Answering No never stops the estimate: the benefit it would
+have unlocked is simply not claimed, or the added tax it would have avoided
+applies.
+
+**Not sure** is offered only where a person may genuinely not know, such as
+whether a business is a specified service trade. It takes the same cautious
+path as No, and Review adds one sentence naming the assumption, for example
+that alimony you received is taxable and that your tax may be lower if it
+does not qualify.
+
+When an answer shows that one item is outside what the App calculates (an
+income record, carryover or deduction with special treatment, or incomplete
+records), that item is left out and Review shows a notice for it saying
+whether your tax may be higher or lower. The rest of the return is still
+estimated.
+
+The estimate is withheld, with the reason, only when the return owes an added
+tax the App cannot compute, or when the return as a whole is outside what the
+App calculates, such as a part-year or dual-status return. A required question
+can never be left unanswered: a page cannot be saved until every required
+answer is given.
+
 ## Worked examples
 
 One example per area. Each is a synthetic case the App's own tests reproduce.
@@ -196,8 +222,8 @@ produces no taxable amount and identifies the cost still unrecovered.
 ## Coverage
 
 The App targets the forms and schedules a broad consumer federal return uses.
-It calculates the common ones completely and reports the others as
-unsupported. The lists below name forms; the interview asks in plain language
+It calculates the common ones completely; the others are left out with a
+notice or, where that would misstate the return, reported as not calculated. The lists below name forms; the interview asks in plain language
 and maps the answers to them.
 
 **Calculated:** Form 1040 with Schedules 3, A, C, D, EIC, H, R and 8812;

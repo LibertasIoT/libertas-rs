@@ -378,7 +378,7 @@ export type ConnectionProblem = typeof ConnectionProblemValues;
 
 ### Discriminated Unions (Union Types)
 
-Unlike Rust where union types are declared as enums with payloads, in TypeScript you use Discriminated Unions. **Note: The discriminator field used to distinguish between variants MUST be typed as a Libertas enumeration (such as a standard TS enum or const object enum).**
+Unlike Rust where union types are declared as enums with payloads, in TypeScript you use Discriminated Unions. **Note: The discriminator field used to distinguish between variants must be the variant's first field and must have a numeric type: a member of a numeric TS enum or const object enum, or a numeric literal. A string discriminator is rejected.**
 
 When modeling discriminated unions for protocol or data schemas, you can define variants as either separate named interfaces or anonymous inline type literals. The UI handles anonymous inline literals `{ type, payload }` seamlessly, providing the exact same input form as if you had used a named interface, recursively flattening fields directly under the variant.
 

@@ -450,7 +450,7 @@ navigation, or disconnect, or a change to a relevant value while it is pending
 (for example an arriving calculation result), makes its reply stale. Only the matching
 pending reply can change the editor.
 
-AI Import is blocking. While its transformation is pending, the client shows a
+Like Submit, AI Import is disabled while any calculation is pending or deferred and becomes available when the calculations settle, so no calculation result can arrive during a transformation and make its reply stale. AI Import is blocking. While its transformation is pending, the client shows a
 busy overlay over the whole editor with a **Cancel** action; the editor and its
 actions accept no input, so no edit can make the pending reply stale and no
 second transformation or Submit can start. The busy state ends, and the editor

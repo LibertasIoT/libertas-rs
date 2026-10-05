@@ -477,8 +477,9 @@ editing Requests, not Response variants or navigation Requests that lead to them
   not submit or save the edit. A flow requiring a previous action that depends
   on the editing context must remain a full-page flow.
 - **One pending operation for both panes.** While an operation awaits its
-  reply, request-sending controls in both panes are disabled. Auxiliary
-  calculations retain their ordinary ownership. During a leading-page load
+  reply, request-sending controls in both panes are disabled, and so is the
+  trailing pane's Close, because the pending reply may place a page in that
+  pane. Auxiliary calculations retain their ordinary ownership. During a leading-page load
   or refresh the working surface accepts no edit, link, import, Submit, or
   Close; it shows loading until the reply. Native Back follows the leaving
   rule. All replies remain owned by their ordinary pending operations.
@@ -751,26 +752,31 @@ and normal-weight caption. Controls share normal platform sizing, padding and
 corner treatment; emphasis never reduces their touch targets. Authored emphasis
 and density tokens retain their ordinary overrides.
 
-Named controls use their field declaration order. By default they join Actions
-in the top bar only when the full title and the complete eligible named-control
-group fit, after reserving navigation, system controls and Actions. Actions is
-always last in a shared action row, at the logical trailing end (right in a
-left-to-right layout). Promotion never shortens a full title, displaces Actions,
-or creates a repeated content heading. Decide Actions placement first under the
-[heading rule](#protocol-page-heading-and-top-bar), then measure named controls
-in the remaining space. Move all header-eligible named controls together; do
-not promote a smaller subset. With no eligible Actions, apply the same full-title
-and complete-group fit test to the named controls alone.
+When at least one optional named control is visible and eligible, keep all
+visible page controls, including Actions when eligible, together as one group.
+Named controls use field declaration order; Actions is always last, at the
+logical trailing end (right in a left-to-right layout). Put the group in the
+top bar only when the full title and complete group fit after native navigation
+and system controls reserve their space. Never promote a smaller subset or
+shorten a full title to admit buttons. With no eligible Actions, measure the
+named controls alone by the same rule.
 
-Named controls that stay in content occupy one secondary region immediately
-below the page heading and above content, leading aligned with full captions.
-They never join the first content title row, even when Actions moves there.
-They wrap as space requires; an individually oversized caption wraps within
-its button and grows its height. No eligible choices hide that control and
-release its space; an empty secondary region takes no space. A template may
-keep a named control in this region or move Actions there, after the named
-controls. In master-detail, the leading page owns global controls;
-trailing Response controls stay in their pane. An embedded Request editor keeps
+When the group cannot fit, put every button on a new secondary row below the
+heading and above content, leading aligned with full captions. Neither Actions
+nor a custom button then shares the content title row. Show the full title in
+the top bar when it fits there alone; otherwise retain the full, wrapping
+content heading. Suppress a repeated content heading, but retain its other
+controls and values. The secondary row wraps as space requires, preserving
+order; an individually oversized caption wraps inside its button and grows
+its height. Actions retains its prominent styling.
+
+With no visible eligible optional named control, Actions keeps the independent
+[heading rule](#protocol-page-heading-and-top-bar), including placement beside
+the content title. A custom Actions caption does not make it an optional named
+control. An empty eligible set hides its control and releases its space; an
+empty secondary region takes no space. In master-detail, the leading page owns
+global controls; trailing Response controls stay together below their local
+heading when any optional control is visible. An embedded Request editor keeps
 Close and Next, with no response controls.
 
 On a whole Response or SubscriptionData protocol-page rule, `action_controls`
@@ -789,15 +795,14 @@ conditions; data conditions, switches, and pseudo-states cannot set them.
 }
 ```
 
-`placement` is `secondary` or `header`. For named controls, omission and
-`header` both request the adaptive top-bar group placement above; `secondary`
-keeps that control below the heading and excludes it from the header-eligible
-group. A multiline caption or a button too tall for the native top bar makes
-the group remain in the secondary region. For Actions, omission and `header`
-retain its independent heading rule; `secondary` moves it into the secondary
-region as its last control. A trailing pane does not get another screen
-toolbar: its named controls stay below its local heading, while Actions retains
-its local heading placement. Styling never changes eligibility or invocation.
+`placement` is `secondary` or `header`. Omission and `header` request adaptive
+placement. With any visible eligible optional named control, a `secondary`
+placement on any visible control keeps the complete group below the heading.
+A multiline caption or a button too tall for the native top bar likewise keeps
+the complete group below. With Actions alone, `secondary` pins it to that
+region; omission and `header` retain its independent heading rule. A trailing
+pane does not get another screen toolbar. Styling never changes eligibility
+or invocation.
 
 `label` accepts a package StringResources key, `{ "field": "path" }`, or
 `null` to restore the default caption. The field form uses the existing
@@ -1509,10 +1514,12 @@ no eligible action, omit Actions and apply the full-title fit test alone.
 Place the heading's Actions control in one of these two locations, never
 both. If Actions cannot fit beside the content title, wrap it beneath the
 title within the heading area, before the separate named-control region.
-Keep its full caption and prominent treatment in either location. After this
-decision, optional [named controls](#named-action-controls) may join the top
-bar only when the full title and their complete group also fit. Named controls
-never cause Actions or a previously full title to move. Suppressing the
+Keep its full caption and prominent treatment in either location. This
+independent Actions rule applies only when no optional
+[named control](#named-action-controls) is visible and eligible. With one or
+more, place the complete button group under the named-control rule: full title
+and all buttons in the top bar when they fit, otherwise all buttons on a new
+row below the heading. Suppressing the
 heading removes only its redundant title presentation:
 retain any Union selector, promoted value, other row control, and requested
 inline description in the content, with their ordinary behavior. Content
