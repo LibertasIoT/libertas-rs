@@ -32,11 +32,15 @@ At every design stage (types, pages, rules, messages and tests):
   only the person's own records hold is not an import target; its description
   says where to find it. A new field on an importing page is classified when
   it is added.
-- Every topic, section or destination is reachable through a declared link
-  whose localized name and description carry the identifiers and common names
-  a person would type or say, so [AI Search](protocols.md#ai-navigation-and-ai-search)
-  can select it. Extend the page's `AINavigationPrompt` guidance when new
-  identifiers or ranking needs arise.
+- [AI Search](protocols.md#ai-navigation-and-ai-search) selects among a page's
+  offered links. Links usually differ by the destination their Request
+  carries: an Enumeration (or Union) field that `CopyFrom` fills from the
+  tapped row or the response. That member is what search matches, so every
+  destination member's localized name and description carry the identifiers
+  and common names a person would type or say, and each link binds its
+  destination through `CopyFrom` so it is a distinct candidate. Extend the
+  page's `AINavigationPrompt` guidance when new identifiers or ranking needs
+  arise.
 
 ## Application model
 

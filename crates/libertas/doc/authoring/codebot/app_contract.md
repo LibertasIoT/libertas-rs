@@ -29,10 +29,11 @@ pages, rules, messages, tests), not after the design is done
   printed on that document is an import target, also inside conditional
   sections. Values only the person's own records hold are not; their
   descriptions say where to find them.
-- Every topic or destination is a declared link whose localized name and
-  description carry the identifiers and common names a person would type or
-  say, so [AI Search](../reference/protocols.md#ai-navigation-and-ai-search)
-  can select it; extend the page's `AINavigationPrompt` guidance when needed.
+- [AI Search](../reference/protocols.md#ai-navigation-and-ai-search) matches
+  the destination a link's Request carries, usually an Enumeration field filled
+  by `CopyFrom` from the row or response. Document every destination member's
+  name and description with the identifiers and common names people type or
+  say, and bind it through `CopyFrom`; extend `AINavigationPrompt` when needed.
 
 ## Application model
 
@@ -142,6 +143,6 @@ For Data API failure handling, follow the compact
 
 Typecheck the library, validate the generated schema, inspect its default
 document, confirm each document-sourced page declares import and each
-destination is described for AI Search, confirm exact-name exports and intentional wire changes, and report
+destination member is documented for AI Search, confirm exact-name exports and intentional wire changes, and report
 permissions/dependencies. Never hand-edit generated schema, documents,
 dependency lists, manifests, or release versions.
