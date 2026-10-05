@@ -726,6 +726,7 @@ attribute name that neither lists.
 | `PhysicalUnit` | One canonical CLDR core unit identifier on a `Number`, including generated compounds such as `millimeter-per-day`. It preserves the raw unit without changing serialization; a client localizes the unit when its ICU implementation supports it. |
 | `FormattedText` | Marker value `true` on an effective `Bytes` host; serialization is unchanged. Follow the [formatted-output contract](presentation.md#static-read-only-placement-and-request-values) for mandatory static ReadOnly, permitted request initialization, and runtime-use restrictions, and [LMF1](message-format.md) for the canonical tuple. |
 | `MimeTypes` | Comma-delimited exact media types or ranges on an effective `Bytes` host. It restricts the value domain and uses the [LMB1 MIME-aware Bytes encoding](#mime-aware-bytes). It cannot coexist with `FormattedText` or occur within a `CacheIdentity` field. |
+| `ProtocolVariant` | One protocol variant native name on an ordinary Enumeration member; see [enum/protocol associations](#enumeration-protocol-associations). |
 | `EnumSource` | One Libertas Schema Path to a `List`; an unsigned integer host stores the selected item's zero-based index. |
 | `Chart` | One primitive mark (`point`, `line`, `area`, `bar`, `rect`, `rule`, `arc`, `text`, `polygon`) or composition (`layer`, `hconcat`, `vconcat`) token on a response/subscription-data payload. A primitive may use a carrier Table with exactly one non-hidden List of rows; compositions and single-chart Union wrappers may contain additional direct non-chart fields only when those fields carry `Hidden=true`. |
 | `ChartChannel` | Canonically ordered comma-delimited visual roles on a direct scalar field of a chart row. |
@@ -1510,9 +1511,48 @@ member name or fixed numeric value and normalizes it to the selected member's
 numeric value. This semantic validation and normalization is centralized;
 individual language parsers must not duplicate it.
 
+<a id="enumeration-protocol-associations"></a>
+
+**Enumeration protocol associations.** `ProtocolVariant` on an ordinary
+Enumeration member names exactly one variant native name in the Endpoint
+protocol whose value tree consumes that Enumeration. For example,
+`@LibertasProtocolVariant("EditWages")` or
+`#[libertas_protocol_variant("EditWages")]` on the `Wages` enum member
+associates the value `Topic.Wages` with that protocol variant. This is typed
+schema metadata, independent of localized text, enum order, `Link`, and the
+Display Template. It changes neither numeric encoding nor protocol roles,
+request construction, allowed replies, or navigation.
+
+Studio validates placement on an ordinary enum member, the single non-empty
+name, and the target against every consuming Endpoint protocol. Bitflags
+members, fields, types, functions, and packages cannot carry it. A standalone
+published enum may declare the association before a consuming protocol is
+available; that consumer supplies the target-validation context.
+
+Several enum members may name the same protocol variant. Clients first search
+the current editing Request's typed value tree for enums whose declarations
+contain that association, including Hidden fields. If present, their selected
+marked members identify the values to match in each eligible linked occurrence
+of the leading page. Match the same resolved enum declaration and selected
+member through its declared numeric value, independently of field names or
+positions. For example, `TaxSection.Wages` and `TaxSection.Retirement` can both
+name `SaveIncomes`: its `topic: TaxSection` value identifies the active income
+row. An absent, invalid, or unmarked value in such a Request enum matches no
+row; never replace it with the first choice. If the Request contains no enum
+whose declaration associates with its variant, the association to the Request
+variant alone may identify a unique linked occurrence. Both forms use the actual
+editing Request, including direct WorkflowRequest and EditRequest entry. Exactly one matching linked occurrence is highlighted; no match,
+unmapped or invalid enum values, or multiple matching occurrences clear the
+selection. Recompute against every loaded or refreshed leading page, so
+reordering never retains an old position. Hidden identity fields may identify
+a visible linked occurrence, but hidden nodes and their descendants never
+become visible or selectable. The [pane contract](presentation.md#master-detail-panes)
+owns eligible linked occurrences and placement: association affects optional
+highlighting, never pane membership or whether an editor remains usable.
+
 ### 5.4 Unions
 
-A `Union` contains variants in wire order. An internally discriminated union uses:
+A `Union` contains variants in wire order. Enum values may name one of its protocol variants through an [enum/protocol association](#enumeration-protocol-associations). An internally discriminated union uses:
 
 - `UnionTagName` on the union;
 - a numeric discriminator field as the first field of each variant;
@@ -1564,6 +1604,8 @@ for the authoring and review rules.
 ## 6. Endpoint protocols and persistent data
 
 ### 6.1 Endpoint protocol validation
+
+[Enum/protocol associations](#enumeration-protocol-associations) are checked against each consuming protocol alongside its variant graph.
 
 Every `ProtocolSchema` target must resolve in the expanded compiler graph and be a `Union`. Validation adds
 `LibertasProtocol=true`. Each reachable protocol union variant must then satisfy

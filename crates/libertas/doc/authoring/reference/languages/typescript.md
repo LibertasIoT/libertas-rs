@@ -278,6 +278,8 @@ To represent a closed set of numeric constant choices, you have three options. A
 2. **Const Object Enum**: Use a read-only `as const` object. Because TypeScript separates its value and type spaces, you must also export a corresponding type alias to use the object's values as a type annotation.
 3. **Const Enum File**: Place a `@LibertasConstEnum` JSDoc tag at the very top of a file. Every `const` variable declaration within that file will automatically be parsed as an independent choice for that enumeration. This is particularly useful for aggregating sets of disparate constants into a single logical Enum type.
 
+An enum member can carry `/** @LibertasProtocolVariant("EditWages") */` to declare an [enum/protocol association](../schema.md#enumeration-protocol-associations). Put the comment on the standard enum member, const-object property, or exported constant statement, respectively.
+
 #### Code examples
 
 The first two excerpts are alternative declarations in an already documented

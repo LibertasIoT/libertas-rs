@@ -338,7 +338,7 @@ Rust enums are highly flexible in Libertas and can be interpreted in two distinc
 
 #### Enumerations (no payloads)
 
-Standard Rust enums without payloads will present to the user as a simple dropdown or selection list.
+Standard Rust enums without payloads will present to the user as a simple dropdown or selection list. A member can carry `#[libertas_protocol_variant("EditWages")]` under `#[derive(LibertasExport)]` to declare an [enum/protocol association](../schema.md#enumeration-protocol-associations).
 
 #### Union types (with payloads)
 

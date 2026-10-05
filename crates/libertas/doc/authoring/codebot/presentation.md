@@ -98,7 +98,7 @@ Write each rule as four relations:
   Initial loading constructs the pure loader from that complete editor without
   changing its interaction reference context. Optional `detail` selectors name
   visible linked nodes reached through struct fields (`…[]` for List members)
-  for highlighting; missing or ambiguous rows never prevent panes. The leading
+  for highlighting through an [enum/protocol association](../reference/schema.md#enumeration-protocol-associations); missing or ambiguous rows never prevent panes. The leading
   pane owns complete navigation, and the App supplies all required routes there.
   An embedded editor shows Close + Next and no Go back or `PrevRequest` control.
   Close sends nothing and keeps the leading page; Next validates and submits.

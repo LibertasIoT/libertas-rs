@@ -216,6 +216,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     || attr.path().is_ident("libertas_inline_choices")
                     || attr.path().is_ident("libertas_link")
                     || attr.path().is_ident("libertas_link_only")
+                    || attr.path().is_ident("libertas_protocol_variant")
                     || attr.path().is_ident("libertas_request_confirmation")
                     || attr.path().is_ident("libertas_llm_doc_trans")
                     || attr.path().is_ident("libertas_llm_doc_field")
@@ -627,6 +628,8 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_unique,
     libertas_next_request,
     libertas_next_response,
+    // Associates an ordinary enum member with one endpoint protocol variant.
+    libertas_protocol_variant,
     libertas_cache_identity,
     libertas_protocol_conformance,
     libertas_chart,

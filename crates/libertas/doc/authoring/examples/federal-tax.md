@@ -117,6 +117,13 @@ left panel all navigation: select one of its section topics to open it on the
 right; Go to and Search use the leading page's context and ordinary action
 routing. Use **Save and continue** to submit
 the right-panel edit, or **Close editor** to dismiss it without submission.
+The hidden `TaxSection` in each topic row carries an
+[enum/protocol association](../reference/schema.md#enumeration-protocol-associations).
+Income topics share the `SaveIncomes` editor; its selected `topic` value
+identifies the matching left-panel row, including direct entry and reordering.
+The template's `detail` selector names only topic-list members, so the summary
+link cannot duplicate a topic's match. A `^<ReviewItem>:selected` style uses
+primary emphasis and color, overriding the muted appearance of unfinished topics.
 The right panel offers Close on every page it shows, never Back, Cancel or
 Previous step. The left panel's Continue and Review actions, and links outside
 the detail nodes such as the previous-section link, replace both panels; they

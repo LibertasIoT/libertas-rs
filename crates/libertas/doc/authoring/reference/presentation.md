@@ -444,8 +444,13 @@ editing Requests, not Response variants or navigation Requests that lead to them
   server-supplied interaction reference context unchanged. The reply must supply
   the declared leading Response before the editor is embedded; a same-named
   Response already on screen is not evidence that it is the right section or
-  record. This supports entry into any section, including direct entry with no
-  previous leading page. It never submits the editing Request automatically.
+  record. Resolve placement before rendering the editor: during this load keep
+  an existing leading page in its current layout, or show the ordinary loading
+  surface when no page is present. Render the editor directly in its resolved
+  pane, without first showing it on the whole working surface. The same order
+  applies when navigation chooses another editor while the leading pane is
+  already visible. This supports entry into any section, including direct entry
+  with no previous leading page. It never submits the editing Request automatically.
   On failure, report the ordinary error and keep the editor usable as a full
   page. A stale or duplicate reply cannot replace another editor.
 - **Navigation ownership.** Both panes belong to the endpoint's one working
@@ -505,11 +510,17 @@ editing Requests, not Response variants or navigation Requests that lead to them
   ending in `[]` selects List members; another entry selects one node. Paths
   traverse struct fields only, never another List or Union. Selected nodes
   and their ancestors must be visible, and each node must carry a Link with
-  NextResponse. A client may highlight a uniquely known linked occurrence.
-  On direct entry there may be no selected row. Missing, ambiguous, or changed
-  rows clear highlighting and never determine pane membership or require a
-  full-page fallback. Clients do not compare every link-request field with the
-  editor to infer this relationship.
+  NextResponse. Highlighting uses the schema's explicit
+  [enum/protocol association](schema.md#enumeration-protocol-associations),
+  matching marked enum values in the current editing Request and linked row,
+  including shared Request variants and direct entry. The matching node exposes
+  the [`:selected` pseudo-state](#display-template-conditions); the template
+  supplies its visible style, for example `"style": { "emphasis": "primary",
+  "color": "primary" }`. Restrict `detail` to the intended navigation rows:
+  including a summary link that repeats a topic creates an ambiguous match.
+  Missing or ambiguous matches clear highlighting and never
+  determine pane membership or require a full-page fallback. Clients do not
+  compare link-request fields or choose the first row to infer selection.
 - **Crossing the widening gate.** Narrowing shows the current editor as a full
   page above its leading page, with ordinary Back, Go back, and Cancel controls.
   This change sends no editing Request. Widening evaluates the current editing
@@ -2190,6 +2201,8 @@ device. The marker changes presentation only, never data, encoding, or paths.
 A client without inline support keeps the choice selector.
 
 ## Link rendering
+
+A linked row may be highlighted through its [enum/protocol association](schema.md#enumeration-protocol-associations); the [pane contract](#master-detail-panes) owns that use.
 
 A [link](protocols.md#links) adds an affordance to its row. It never removes
 the row's label or value and never replaces the value with a button. Whether

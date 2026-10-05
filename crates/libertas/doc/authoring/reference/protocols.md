@@ -1004,6 +1004,8 @@ resumes from its own saved, valid data.
 
 ### Entering and continuing a workflow
 
+A resolved editing Request can identify its leading-page row through an [enum/protocol association](schema.md#enumeration-protocol-associations), including direct entry; see [master-detail panes](presentation.md#master-detail-panes).
+
 The server has two ways to open the next editor:
 
 - **EditRequest:** a server-to-client opcode carrying one complete, structurally
@@ -2378,6 +2380,8 @@ continue to require their existing explicit editor submission.
 
 ### Links
 
+Optional linked-row highlighting uses [enum/protocol associations](schema.md#enumeration-protocol-associations); a Link still owns invocation and the [pane contract](presentation.md#master-detail-panes) owns placement.
+
 A **link** makes a displayed node open one Request of the same protocol when
 the user taps it. `@LibertasLink("OpenTopic")` and
 `#[libertas_link("OpenTopic")]` emit `{"Name":"Link","Value":"OpenTopic"}`.
@@ -2840,6 +2844,8 @@ requests before selection; AI returns only candidate identifiers. A candidate
 is one offered invocation and binding or finite chooser leaf, so two links to
 one Request with different bound topics, or two eligible leaves of one action,
 are distinct candidates.
+
+After an editor opens, its optional leading-row selection follows the [enum/protocol association](schema.md#enumeration-protocol-associations), independently of the navigation entry path.
 
 This feature requires an implementing client and a supporting modern Hub.
 It is unavailable on legacy Hubs and on non-task pages. An offered `GoTo`
