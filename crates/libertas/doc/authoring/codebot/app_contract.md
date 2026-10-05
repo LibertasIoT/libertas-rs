@@ -18,6 +18,22 @@ Deploy only when the user requests it. The MCP deployment tools require an
 exact Hub choice and report the result through a job; follow the
 [MCP deployment contract](../reference/deployment.md#mcp-deployment).
 
+## AI access in every design step
+
+Consider AI document import and AI Search at every design stage (types,
+pages, rules, messages, tests), not after the design is done
+([owner](../reference/app-contract.md#ai-access-in-every-design-step)):
+
+- A page whose values come from a document declares
+  [document import](../reference/llm-document-transformation.md); every field
+  printed on that document is an import target, also inside conditional
+  sections. Values only the person's own records hold are not; their
+  descriptions say where to find them.
+- Every topic or destination is a declared link whose localized name and
+  description carry the identifiers and common names a person would type or
+  say, so [AI Search](../reference/protocols.md#ai-navigation-and-ai-search)
+  can select it; extend the page's `AINavigationPrompt` guidance when needed.
+
 ## Application model
 
 - Public functions are task entry points; their arguments are configuration.
@@ -125,6 +141,7 @@ For Data API failure handling, follow the compact
 ## Completion checklist
 
 Typecheck the library, validate the generated schema, inspect its default
-document, confirm exact-name exports and intentional wire changes, and report
+document, confirm each document-sourced page declares import and each
+destination is described for AI Search, confirm exact-name exports and intentional wire changes, and report
 permissions/dependencies. Never hand-edit generated schema, documents,
 dependency lists, manifests, or release versions.

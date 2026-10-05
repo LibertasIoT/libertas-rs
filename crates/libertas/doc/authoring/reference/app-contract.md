@@ -19,6 +19,25 @@ and a third-party `Enable` action, the App follows ordinary startup logic; it mu
 storage-failure recovery system. Follow the
 [Data API responsibility boundary](protocols.md#persistence-failure-and-the-no-status-api).
 
+## AI access in every design step
+
+An App's data and interactions serve people, other software and AI from one
+description, so AI access is part of the design rather than an addition to it.
+At every design stage (types, pages, rules, messages and tests):
+
+- A page whose values come from a document declares
+  [document import](llm-document-transformation.md). Every field whose value is
+  printed on that document or its attached statements is an import target,
+  including fields in sections that appear only conditionally. A value that
+  only the person's own records hold is not an import target; its description
+  says where to find it. A new field on an importing page is classified when
+  it is added.
+- Every topic, section or destination is reachable through a declared link
+  whose localized name and description carry the identifiers and common names
+  a person would type or say, so [AI Search](protocols.md#ai-navigation-and-ai-search)
+  can select it. Extend the page's `AINavigationPrompt` guidance when new
+  identifiers or ranking needs arise.
+
 ## Application model
 
 A Libertas App is self-describing source code. Public functions define task
