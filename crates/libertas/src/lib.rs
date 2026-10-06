@@ -36,29 +36,30 @@ mod notification;
 pub use avro::{AvroDecode, AvroEncode, NotBytesDecode, NotBytesEncode};
 pub use data::{
     DataError, libertas_data_try_get_indexed_names, libertas_data_try_get_single_names,
-    libertas_data_try_indexed_store_exists,
-    libertas_data_try_open_indexed, libertas_data_try_read_indexed,
-    libertas_data_try_read_indexed_range, libertas_data_try_read_single,
-    libertas_data_try_remove_indexed, libertas_data_try_remove_indexed_name,
-    libertas_data_try_remove_indexed_records, libertas_data_try_remove_single,
-    libertas_data_try_write_indexed, libertas_data_try_write_single,
+    libertas_data_try_indexed_store_exists, libertas_data_try_open_indexed,
+    libertas_data_try_read_indexed, libertas_data_try_read_indexed_range,
+    libertas_data_try_read_single, libertas_data_try_remove_indexed,
+    libertas_data_try_remove_indexed_name, libertas_data_try_remove_indexed_records,
+    libertas_data_try_remove_single, libertas_data_try_write_indexed,
+    libertas_data_try_write_single,
 };
 pub use data::{
     DataName, IndexDirection, IndexedData, IndexedDataStat, libertas_data_get_indexed_names,
-    libertas_data_get_single_names, libertas_data_indexed_store_exists,
-    libertas_data_open_indexed, libertas_data_read_indexed,
-    libertas_data_read_indexed_range, libertas_data_read_single, libertas_data_remove_indexed,
-    libertas_data_remove_indexed_name, libertas_data_remove_indexed_records,
-    libertas_data_remove_single, libertas_data_write_indexed, libertas_data_write_single,
+    libertas_data_get_single_names, libertas_data_indexed_store_exists, libertas_data_open_indexed,
+    libertas_data_read_indexed, libertas_data_read_indexed_range, libertas_data_read_single,
+    libertas_data_remove_indexed, libertas_data_remove_indexed_name,
+    libertas_data_remove_indexed_records, libertas_data_remove_single, libertas_data_write_indexed,
+    libertas_data_write_single,
 };
 pub use libertas_utils::{InlineByteBuffer, STACK_BUF_SIZE};
 pub use log::{LogLevel, libertas_log};
-pub use mime_bytes::{MimeBytes, decode_mime_bytes, encode_mime_bytes,
-    is_exact_mime_type, mime_type_matches_filter};
+pub use mime_bytes::{
+    MimeBytes, decode_mime_bytes, encode_mime_bytes, is_exact_mime_type, mime_type_matches_filter,
+};
 pub use notification::{
     LibertasFormattedTextArgument, LibertasMessageArgument, LibertasMessageArgumentDecode,
-    NotificationImportance,
-    libertas_formatted_text, libertas_notification_send, libertas_notification_send_literal,
+    NotificationImportance, libertas_formatted_text, libertas_notification_send,
+    libertas_notification_send_literal,
 };
 
 use alloc::{boxed::Box, rc::Rc, slice, vec::Vec};
