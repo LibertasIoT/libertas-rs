@@ -18,6 +18,13 @@ Deploy only when the user requests it. The MCP deployment tools require an
 exact Hub choice and report the result through a job; follow the
 [MCP deployment contract](../reference/deployment.md#mcp-deployment).
 
+## Ask once, directly
+
+No gate questions: never add a Boolean or "something applies" switch that only
+reveals a follow-up asking the same thing. Ask the detailed question directly,
+with "None of these", an empty List, or a data-carrying Union
+([owner](../reference/app-contract.md#ask-once-directly)).
+
 ## AI access in every design step
 
 Consider AI document import and AI Search at every design stage (types,

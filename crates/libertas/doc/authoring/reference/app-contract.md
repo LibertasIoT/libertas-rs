@@ -19,6 +19,17 @@ and a third-party `Enable` action, the App follows ordinary startup logic; it mu
 storage-failure recovery system. Follow the
 [Data API responsibility boundary](protocols.md#persistence-failure-and-the-no-status-api).
 
+## Ask once, directly
+
+A question exists only to collect a fact. Do not add a Boolean, Yes/No or
+"something else applies" switch whose only effect is to reveal a follow-up
+asking the same thing in detail: the person answers twice, the App needs extra
+navigation and state, and the stored switch can disagree with the real answer.
+Ask the detailed question itself: a Bitflags or Enumeration list with a "None
+of these" member, a List that may be empty, or a required Union whose variants
+carry their own data. Keep a separate question only when its answer decides
+something the detailed answer cannot.
+
 ## AI access in every design step
 
 An App's data and interactions serve people, other software and AI from one
