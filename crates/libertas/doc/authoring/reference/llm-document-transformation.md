@@ -432,15 +432,16 @@ type.
 ## Client workflow
 
 The **AI Import** action (Chinese: **AI导入**) first offers **Take a picture**
-when the effective MIME filter accepts camera JPEG and a camera is available,
+using ordinary camera capture when the effective MIME filter accepts camera JPEG
+and a camera is available,
 and **Open a file**. Each action selects one file by default, or up to eight in
 user-selected order when enabled. Captured photos use the same preparation and
 validation as selected image files. Clients decode and orient selected images,
 flatten transparency on white, and JPEG-encode them at no more than
-**1,000,000 content bytes each**. If a readable image cannot fit, the client reports an input
-error. Downsampling keeps at least 2200 pixels on the longest side when the
-source has that resolution, and JPEG quality stays at or above 70; a smaller
-source is never upscaled. PDF bytes remain unchanged. Clients check the combined LMB1 limit of
+**3,000,000 content bytes each**. Image preparation must keep reducing an
+oversized image's dimensions until its JPEG fits. JPEG quality stays at or above
+70, and the source is never upscaled. An image that cannot be decoded or encoded reports an input
+error. PDF bytes remain unchanged. Clients check the combined LMB1 limit of
 8 MiB before sending.
 
 The client uses a session-unique unsigned 64-bit transaction ID. A pending

@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "sdkVersion": "0.3.0",
-  "sourceRevision": "38cf6eb9eb39dbefe013a6b8d17a087c49c13fc8",
+  "sourceRevision": "cf88019bd079e0eda26496d5f3390da7a357d07d",
   "sourceDirty": false,
-  "sourceContentSha256": "bac1ad65ad6c6687affe92e9d9e3462f7d204f37086fb021f52c0748099a4b15",
+  "sourceContentSha256": "5a0af5648f4c7a5fa95b1068c56aeccf79f577da12e3e2e57c0e1bfd10ef3837",
   "entryContentSha256": "80ab16c55edbd462203d27da61a74cb78bb16639929bbb9e82729e07142646b0",
   "assistantEntryContentSha256": {
     "DEVELOPER-ASSISTANT.md": "9a09109e51a166e03a9bb0cf218d12754a2ade05ee35fc17452186e47e7bf97b",
@@ -124,7 +124,7 @@
     "reference/index.md": "c26a2fb48a028d15324d04f40df78bda749401af6fd981ebca92e4a4cab551eb",
     "reference/languages/rust.md": "35c8cfb365e69604b01a7f1f80daafbd8e62737662e97223077d7f5389e22149",
     "reference/languages/typescript.md": "454ecf39639a6bb19e0057c5edd210a32d44076be1c3f9add645324eaffd0d74",
-    "reference/llm-document-transformation.md": "2a83f0d911f9eb3b7f65e55d074f11244b85b6f18b059e274fe716688e4952cd",
+    "reference/llm-document-transformation.md": "0d67eb47e914a5da3f49102a1701ff451b50e3b68e0ee14d188653aeaf5e308a",
     "reference/matter/descriptors.md": "022db244539a2eb080aa08055aaafd3675c4aefaffa5f5360d531ac9d8069c52",
     "reference/matter/status.md": "aefabe9e3d7cef25f0fdf010b9bc7793b6038b26c75bc44393dc2794b53fb791",
     "reference/message-format.md": "f642a062fc43d23a07a5423868553e46128216207fa9d9130b75779b6ec7cae5",
