@@ -31,7 +31,11 @@ At every design stage (types, pages, rules, messages and tests):
   including fields in sections that appear only conditionally. A value that
   only the person's own records hold is not an import target; its description
   says where to find it. A new field on an importing page is classified when
-  it is added.
+  it is added. Nothing an import can set may hold data only the
+  person supplies: a composite on an import path is not Nullable, because a
+  null result replaces it, and a Union whose variant the import chooses
+  carries only document values, because a variant change discards the old
+  payload; keep person-supplied values in a record the import does not select.
 - [AI Search](protocols.md#ai-navigation-and-ai-search) selects among a page's
   offered links. Links usually differ by the destination their Request
   carries: an Enumeration (or Union) field that `CopyFrom` fills from the
