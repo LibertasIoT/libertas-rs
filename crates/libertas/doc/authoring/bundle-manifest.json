@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "sdkVersion": "0.3.0",
-  "sourceRevision": "69ddd9fcadeb952e28aaa55e0c291fff2d1f04d3",
+  "sourceRevision": "ebc9c48f7bf582761f49eea5d8f4414f86d3e043",
   "sourceDirty": false,
-  "sourceContentSha256": "5fadc45f9616c13bf1daf703e733b9cde1d3fff6474bfd1e273dffea324e4183",
+  "sourceContentSha256": "b622a802036c8f6249f9f961068f0fddfba0d22c93a30d1fdf04a75ddafd1d91",
   "entryContentSha256": "80ab16c55edbd462203d27da61a74cb78bb16639929bbb9e82729e07142646b0",
   "assistantEntryContentSha256": {
     "DEVELOPER-ASSISTANT.md": "9a09109e51a166e03a9bb0cf218d12754a2ade05ee35fc17452186e47e7bf97b",
@@ -105,7 +105,7 @@
     "guides/index.md": "ded42978e7118ac6bacc95971186c57ddc6bd1f7111a3c2769b22c6437ec06d6",
     "guides/plaza.md": "7f970d6f489edcc205022f3a854f4c9bee71cd71e483bf244ca52118bd8aacff",
     "guides/studio.md": "72e3cf4e5d4c21f3fbd77448040709098423cf4d870dc0ecaaa91f8d76b80c2f",
-    "guides/translation.md": "635d47af6d4d8e3dd916a2f8897b8e260e7863d873912dc401485dc236faa838",
+    "guides/translation.md": "17078d07aebc87aecdc7190e40997d98cbd2fb9dfa4b34216834446cb460abbe",
     "guides/troubleshooting.md": "1fa22ef76d182b5c5d24a8477202c3493eb726f8f3797bc5e58fe8e0987666b7",
     "guides/visualization.md": "500c64e37cc74052964951b22880b864448da7ab405911b4e6212b4dd15bc697",
     "index.md": "e6a565a65fce82f5e63ab44d09f408d13bf2926b761cf1f3894be5ebda4b9420",

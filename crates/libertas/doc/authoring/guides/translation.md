@@ -181,7 +181,7 @@ incremental translations in the same way.
 | Service | Account and billing | Model | Batches at once | Batch time limit |
 | --- | --- | --- | --- | --- |
 | **Claude Code** | The Claude Code account signed in on this computer | Claude Opus 5.5 | 1 | 10 minutes |
-| **Codex** | The Codex account signed in with ChatGPT | GPT-5.6 Sol, medium reasoning | 1 | 3 minutes |
+| **Codex** | The Codex account signed in with ChatGPT | GPT-6.1 Sol, medium reasoning | 1 | 3 minutes |
 | **Claude API** | An Anthropic API key, billed as API usage | Claude Opus 5.5 | 4 | 10 minutes |
 
 **Claude Code** runs the `claude` command installed on this computer. Install
