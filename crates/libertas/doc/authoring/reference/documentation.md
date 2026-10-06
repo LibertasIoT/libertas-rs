@@ -455,8 +455,9 @@ table.
 `[TrueText]` and `[FalseText]` are optional localized Boolean field labels.
 Each supplied value is one non-empty line. They label `true` and `false`
 respectively; omitted labels use localized Yes and No. Either property selects
-an explicit two-choice control. Labels do not supply defaults, change Boolean
-values, or cause submission. Use ordinary document localization and fallback.
+an [explicit choice control](presentation.md#boolean-answer-controls). Labels do
+not supply defaults, change Boolean values, or cause submission. Use ordinary
+document localization and fallback.
 
 ```rust
 /// Accept this invitation?

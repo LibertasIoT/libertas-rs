@@ -178,7 +178,7 @@ Studio, see [the Studio MCP live-preview guide](../guides/studio.md#live-preview
       "right_pane": ["EditWages", "EditInterest"],
       "detail": ["^<Hub.told>", "^<Hub.topics>[]"], "refresh": "OpenHub" },
     { "select": "^<Review.return_lines>", "when": { "form": "desktop" }, "layout": "table",
-      "columns": ["form_line", "amount"] },
+      "columns": [{ "value": "label", "header": "RETURN_LINE" }, "amount"] },
     { "select": "^<IncomeDocumentItem>", "layout": "card", "when": { "form": "phone" } },
     { "select": "^<Answer>", "inline": true },
     { "select": "^<Business.expenses>", "fold": { "initially_open": false } },
@@ -392,7 +392,7 @@ client that meets it draws `rows` under the forward-tolerant rule.
 | `rows` | Any node | The default: one row per child. |
 | `form-grid` | Table | Fields flow in declaration order into `columns` (1 to 4) per row, each as label and value. A field's `span` token takes more columns. `columns: 1` is the label-and-value form. |
 | `card` | Table or List member | A bordered block titled by the node's header text. |
-| `table` | List of Tables with scalar fields | One row per member; `columns` names the member fields shown, in order; an optional `sort` names one of them and orders the rows ascending by it for display only, never changing the List. Applies only while the [widening gate](#display-template-conditions) holds; otherwise `rows`. |
+| `table` | List of Tables | One row per member; `columns` lists the columns shown, in order (see **Table columns** below), each a scalar value below the member with an optional header; an optional `sort` names one column's `value` and orders the rows ascending by it for display only, never changing the List. Applies only while the [widening gate](#display-template-conditions) holds; otherwise `rows`. |
 | `tabs` | Union, or Table with `sections` | One tab per Union branch or section. |
 | `master-detail` | Response | `right_pane` lists the editing Request variants that belong beside this leading Response; declaring it implies this layout. Required `refresh` loads and refreshes the leading page. Optional `detail` selectors name linked nodes eligible for selection highlighting; a selector ending in `[]` names List members. Membership depends on the current editing Request, including an editor opened directly through Go to or AI Search. Applies only while the widening gate holds; otherwise `rows`. See [master-detail panes](#master-detail-panes). |
 | `accordion` | Table or List | Folding sections with the [folding](#folding-structs-and-unions) behavior and `initially_open`. |
@@ -404,6 +404,35 @@ text. They keep both beside one another when their widths and the platform's
 label-value gap fit the available row width; otherwise the value goes below
 the label. The available width belongs to the actual pane or `form-grid` cell.
 This client-owned arrangement needs no additional template rule.
+
+**Table columns.** Each `columns` entry is `{ "value": path, "header": text }`,
+with `header` optional; a bare path string is shorthand for
+`{ "value": path }`:
+
+```json
+"columns": [
+  { "value": "label", "header": "RETURN_LINE" },
+  "amount",
+  { "value": "explanation", "header": { "field": "explanation_heading" } }
+]
+```
+
+- `value` is a [Libertas Schema Path](schema.md#libertas-schema-path) of field
+  native names relative to the member, through struct fields only, never
+  through a List or a Union, as a [`label` source](#labels-and-titles) is. It
+  ends at a scalar field (not a Table, List, or Union); a FormattedText field
+  is a scalar. No two columns share a `value`.
+- A Hidden field remains a valid `value` source, as it is for `label` and
+  `title`: the column shows its value read-only, while the field still has no
+  row of its own. Hidden stays a schema attribute that the template never sets
+  or overrides.
+- `header` is a package [`StringResources`](#string-resources-and-formatted-output)
+  key, or `{ "field": "path" }` read, like a `label`, through struct fields
+  only below the struct that holds the List, ending at a String or
+  FormattedText field that may be Hidden. The field form is invalid where the
+  List has no holding struct or is reached only through a Union. Without a
+  header, or when its text is null, unanswered, or empty, the column is headed
+  by the value field's localized display name.
 
 <a id="master-detail-panes"></a>
 
@@ -927,8 +956,11 @@ template unless:
   ReadOnly and is filled by Fixed, Default, or a `CopyFrom` alternative that
   the selected Response and every listed editing Request supply, and which is neither a
   `SubscriptionRequest` nor marked `RequestConfirmation`, and a rule with
-  `refresh` selects a Response that does not carry `SubscriptionData`; `table` columns and `sort` name scalar fields of the member
-  type; `sections`, `regions`, and `fields` name direct children; a section's
+  `refresh` selects a Response that does not carry `SubscriptionData`; every `table` column is a string or an object with `value` and optional
+  `header` only, its `value` resolves as a [table column](#display-template-catalog) path to a
+  scalar field of the member type, Hidden allowed, no `value` repeats, a
+  `header` names a package `StringResources` key or resolves as a column
+  header field, and `sort` names one column's `value`; `sections`, `regions`, and `fields` name direct children; a section's
   `title` and a fixed `label` or `title` name a package `StringResources` key;
   and splits nest at most three levels;
 - every `{ "field": "path" }` of a `label` or `title` resolves below the
@@ -2174,10 +2206,15 @@ manually invent a locale entry or restructure a generated `.doc.json` file.
 
 Required Booleans without a default are explicit, initially unselected choices.
 A non-nullable Boolean with an explicit Default permits a switch only when no
-custom labels exist. Editable nullable Booleans offer true, false, and a clearing
-choice captioned with `NullText` or localized None.
-Use localized [TrueText and FalseText document properties](documentation.md#standard-properties)
-for labels such as Accept and Decline. Display labels never change wire values.
+custom labels exist. In an editor, nullable Booleans use one inline radio group
+for true, false, and explicit null. All three choices remain visible when null is
+selected; choosing the null option stores actual null. Use localized
+[TrueText, FalseText, and NullText document properties](documentation.md#standard-properties)
+for their captions, with localized Yes, No, and None when omitted. Display labels
+never change wire values. Android and iOS arrange short captions horizontally
+when they fit and stack the choices vertically for longer captions or larger
+accessibility text. ReadOnly and Fixed keep the current selection visible and
+disable editing.
 
 ## Inline choices
 
@@ -2308,8 +2345,9 @@ Readonly fields without a value show “Not set.” Boolean choices retain their
 unselected Yes/No controls. These labels are localized, with English fallbacks.
 
 An explicit nullable null is shown inside an outlined capsule using the field
-document's `NullText`, or localized “None” when omitted. Its clearing choice uses
-the same caption. A literal string containing that caption keeps ordinary text styling. Empty strings, false,
+document's `NullText`, or localized “None” when omitted; [Boolean answer controls](#boolean-answer-controls)
+show the selected null choice instead. Its clearing choice uses the same caption.
+A literal string containing that caption keeps ordinary text styling. Empty strings, false,
 zero, and selected Nil union branches retain their normal value presentation.
 Placeholders never change stored data or trigger errors merely by appearing;
 failed submission uses the usual field validation feedback.
