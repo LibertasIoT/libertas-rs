@@ -375,11 +375,11 @@ Source documentation creates the default-locale package document:
 - the first documentation line is the display name;
 - remaining ordinary lines are the description;
 - custom properties use `[PropertyName]` followed by their value;
-- `[DefaultText]` is one-line localized default text and belongs only to a
-  `String` field or an `Endpoint` server field; unlike the schema `Default`
-  value, it may differ by locale;
-- `[DefaultTaskName]` is a localizable default task name and belongs only to a
-  function document;
+- `[DefaultText]` supplies a non-empty, one-line localized initial String value,
+  Endpoint server name, or function task name; unlike schema `Default`, it may
+  differ by locale; omit it when it exactly matches the ordinary fallback;
+- `[NullText]` supplies a non-empty, one-line localized caption for explicit null
+  on a nullable field; omission uses localized None;
 - persisted or user-assigned text, including an empty string, is immutable to
   programmatic defaulting; these defaults apply only while creating a value
   for which no persisted value exists;

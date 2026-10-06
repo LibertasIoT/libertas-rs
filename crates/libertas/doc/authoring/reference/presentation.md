@@ -54,13 +54,11 @@ belong to the item. Plain code comments are ignored by document extraction.
 Codebots always author at least one natural label line and one complete
 description line for every authored node. Put custom `[PropertyName]` blocks
 after that ordinary text and before the first TypeScript `@Libertas...` tag.
-They also provide a useful localized `[DefaultText]` for every authored Endpoint
-server and `[DefaultTaskName]` for every authored App function, giving each new
-endpoint or task a sensible editable name without asking the person to invent
-one. A function uses `[DefaultTaskName]`, not `[DefaultText]`.
-The full standard and custom extension contract, including `[DefaultText]`,
-`[DefaultTaskName]`, reserved names, List ownership, localization, and
-user-friendly values, is in the
+Use `[DefaultText]` when a useful initial String value, Endpoint server name,
+or function task name differs from its ordinary localized fallback. Use
+`[NullText]` when explicit nullable null needs a different caption. The full
+standard and custom property contract, including reserved names, List
+ownership, localization and initialization, is in the
 [schema documentation invariants](documentation.md#custom-document-properties).
 
 ## AI tool-call descriptions
@@ -2175,7 +2173,9 @@ manually invent a locale entry or restructure a generated `.doc.json` file.
 ## Boolean answer controls
 
 Required Booleans without a default are explicit, initially unselected choices.
-An explicit Boolean Default permits a switch only when no custom labels exist.
+A non-nullable Boolean with an explicit Default permits a switch only when no
+custom labels exist. Editable nullable Booleans offer true, false, and a clearing
+choice captioned with `NullText` or localized None.
 Use localized [TrueText and FalseText document properties](documentation.md#standard-properties)
 for labels such as Accept and Decline. Display labels never change wire values.
 
@@ -2307,8 +2307,9 @@ for temporal input, and “Set up…” for a container needing initialization.
 Readonly fields without a value show “Not set.” Boolean choices retain their
 unselected Yes/No controls. These labels are localized, with English fallbacks.
 
-A valid nullable value is shown as “None” inside an outlined capsule. A literal
-string containing “None” keeps ordinary text styling. Empty strings, false,
+An explicit nullable null is shown inside an outlined capsule using the field
+document's `NullText`, or localized “None” when omitted. Its clearing choice uses
+the same caption. A literal string containing that caption keeps ordinary text styling. Empty strings, false,
 zero, and selected Nil union branches retain their normal value presentation.
 Placeholders never change stored data or trigger errors merely by appearing;
 failed submission uses the usual field validation feedback.

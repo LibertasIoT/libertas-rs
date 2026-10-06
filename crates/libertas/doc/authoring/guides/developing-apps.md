@@ -143,7 +143,7 @@ pub struct Configuration {
 /// Choose an example zone name and daily watering limit to explore the generated
 /// configuration form. This demonstration does not water a garden or control
 /// equipment. Developed by Example Developer (example_developer).
-/// [DefaultTaskName]
+/// [DefaultText]
 /// Garden settings preview
 #[libertas_export]
 pub fn showcase(

@@ -2013,16 +2013,16 @@ semantics:
 
 | Document property | Valid owner | Meaning |
 | --- | --- | --- |
-| `[DefaultText]` | Field document for a schema field whose effective type is `String`, or for a built-in `Endpoint` field carrying `EndpointServer` | One-line localized default text for that field. Unlike the schema `Default` value, this document value may differ by locale. |
-| `[DefaultTaskName]` | Function document only | Localizable default task name for that function. It is distinct from the function document's stable native `Name` and from its localized `DisplayName`. |
-| `[TrueText]`, `[FalseText]` | Field document for a field whose effective type is `Boolean` | One non-empty localized line labelling `true` or `false`; either selects an explicit two-choice control. See [standard properties](documentation.md#standard-properties). |
+| `[DefaultText]` | Function document, effective `String` field, or built-in `Endpoint` field carrying `EndpointServer` | One non-empty localized line of initial task name or field text. Unlike schema `Default`, it may differ by locale. |
+| `[TrueText]`, `[FalseText]` | Field document for an effective `Boolean` field | One non-empty localized line labelling `true` or `false`; either selects explicit choices. |
+| `[NullText]` | Field document for an effectively nullable field | One non-empty localized line labelling explicit null, including the clearing choice; omission uses localized None. |
 
-All standard properties are flattened into their owning document objects in
-the same way as every other custom property, and their values are translated.
-`DefaultText` must not be placed on a package, function, type, enum member, or
-any other field type. `DefaultTaskName` must not be placed on a package, type,
-field, or enum member. A `DefaultText` value contains no carriage return or
-newline after the parser's normal leading/trailing whitespace removal.
+All standard properties are flattened into their owning document objects and
+translated like other custom properties. They are invalid on other owners;
+values contain no carriage return or newline after normal parser whitespace
+removal. Omit a property when its intended text exactly matches the ordinary
+localized fallback. See [standard properties](documentation.md#standard-properties)
+for authoring, initialization, and the distinction between null and other values.
 
 Client initialization order is normative. Persisted or user-assigned text has
 absolute priority and cannot be changed programmatically by default
@@ -2033,7 +2033,7 @@ presentation value. Where the [shared copy rules](#shared-copyfrom-and-copyto-ru
 leave that node to ordinary initialization, an applicable schema `Fixed`/`Default` value wins,
 localized `DefaultText` is the next fallback, and the ordinary empty or
 localized field-label fallback is last. For a new blank task name, localized
-`DefaultTaskName` wins, followed by the localized function `DisplayName`, then
+`DefaultText` wins, followed by the localized function `DisplayName`, then
 the native function name.
 
 For example, a function and one of its `String` parameters may produce:
@@ -2043,7 +2043,7 @@ For example, a function and one of its `String` parameters may produce:
   "Name": "configure",
   "DisplayName": "Configure watering",
   "Description": "Lets the user choose a watering schedule and affected area.",
-  "DefaultTaskName": "Back garden watering",
+  "DefaultText": "Back garden watering",
   "List": [
     {
       "Type": 0,
@@ -2071,7 +2071,7 @@ Important distinctions:
   not translated.
 - `DisplayName`, `Description`, `FieldDocumentJson.Name`, enum member `Name`, and
   package `StringResources` values are localized. All custom-property string
-  values are localized too, including `DefaultText` and `DefaultTaskName`.
+  values are localized too, including `DefaultText`, `TrueText`, `FalseText`, and `NullText`.
 - `FieldDocumentJson.Type` is named historically; it stores the schema node's
   numeric `ID`, not its runtime `Type` string.
 - Only enumeration field documents have `Enum`.

@@ -122,14 +122,13 @@ plus complete description. Follow the
 [schema documentation invariants](documentation_invariants.md) and the separate
 [function-comment invariants](function_comment_invariants.md).
 
-`[DefaultText]` is localized initial text for a String or server Endpoint;
-`[DefaultTaskName]` is a localized initial task name on a function. They apply
-only when no persisted value exists; an empty saved value remains saved.
-Codebots must provide `DefaultText` for every authored server Endpoint and
-`DefaultTaskName` for every authored App function so people receive a sensible,
-editable name instead of having to name each new endpoint or task themselves.
-Do not put `DefaultText` on a function; `DefaultTaskName` is its supported
-property.
+`[DefaultText]` supplies localized initial text for a String or server Endpoint,
+or the initial task name on a function. It applies only when no persisted value
+exists; an empty saved value remains saved. `[NullText]` captions explicit null
+on a nullable field; omission uses localized None. Omit a property when its
+intended text exactly matches the ordinary localized fallback. The
+[standard-property contract](../reference/documentation.md#standard-properties)
+owns placement, values, and initialization order.
 
 `StringResources` is one package-owned catalog. Preserve LMF1 structure in
 translation. `FormattedText` and `DataName` are canonical byte blobs, never

@@ -11,12 +11,9 @@
   keys, or schema IDs.
 - Translate package/type `DisplayName` and `Description`, field and enum `Name`
   and `Description`, package `StringResources` values, and custom
-  document-property string values. This includes the standard `[DefaultText]`
-  field property, the function-only `[DefaultTaskName]` property, and the
-  Boolean field properties `[TrueText]` and `[FalseText]`. Preserve their keys
-  and translate their values; a `DefaultText`, `TrueText`, or `FalseText` value
-  must remain on one line, and a `TrueText` or `FalseText` value must stay
-  non-empty.
+  document-property string values. This includes `[DefaultText]` on fields and
+  functions, Boolean `[TrueText]`/`[FalseText]`, and nullable-field `[NullText]`.
+  Preserve their keys and translate their values as non-empty single lines.
 - Apply the [user-language invariant](documentation.md#universal-user-language-invariant)
   to translated prose: use natural, idiomatic, technology-neutral wording while
   preserving every material meaning.

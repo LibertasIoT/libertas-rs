@@ -98,23 +98,20 @@ including `Locale`, `Types`, `Name`, or `Type`, is also reserved.
 ### Standard properties
 
 <!-- LIBERTAS_DOCUMENT_EXTENSION_INVENTORY_START -->
-- `[DefaultText]`: only an effective `String` field or `EndpointServer` field;
-  exactly one localized line of safe initial content, never a placeholder,
-  identifier, resource key, or schema `Default`. It emits no `Default`.
-- `[DefaultTaskName]`: only a function; a short localized noun phrase suitable
-  as one task's initial name, distinct from package/function/native names,
-  description, and attribution.
-- `[TrueText]` and `[FalseText]`: optional, non-empty single-line labels on Boolean fields. Either selects explicit choices; an explicit Boolean Default permits a switch only without custom labels.
+- `[DefaultText]`: initial task name on a function, or initial text on an effective
+  `String` or `EndpointServer` field; one non-empty localized line of safe content.
+  It emits no schema `Default` and never replaces persisted/user-assigned text,
+  including a saved empty string.
+- `[TrueText]` and `[FalseText]`: optional, non-empty single-line labels on Boolean
+  fields. Either selects explicit choices; only non-nullable Booleans with an
+  explicit Default and no custom labels may use a switch.
+- `[NullText]`: optional, non-empty single-line caption for explicit null on a
+  nullable field, including its clearing choice; omission uses localized None.
 <!-- LIBERTAS_DOCUMENT_EXTENSION_INVENTORY_END -->
 
-Neither replaces ordinary documentation. Both apply only when no persisted or
-user-assigned text exists; a saved empty string remains persisted text.
-
-Codebots must give every authored Endpoint server a useful localized
-`[DefaultText]` and every authored App function a useful localized
-`[DefaultTaskName]`. Functions do not use `[DefaultText]`. These values are
-concise, editable initial names that spare people from routine naming; they are
-never native identifiers, placeholders, or fabricated personal details.
+These properties never replace ordinary labels/descriptions. Omit a property
+whose intended text exactly matches its ordinary localized fallback. Initial
+names remain concise, editable and truthful; never invent personal details.
 
 ## StringResources prose
 
@@ -137,8 +134,8 @@ apostrophe escape; objects and Enumerations remain typed arguments.
   value; synchronize labels/descriptions with behavior.
 - Keep engineering notes outside localized documentation; verify property
   ownership, resource keys, reasons, and messages.
-- Verify every authored Endpoint server has `DefaultText` and every authored App
-  function has `DefaultTaskName`, with a useful localized initial name.
+- Verify defaults are useful, truthful, and differ from ordinary fallbacks;
+  optional null captions describe explicit null without changing its value.
 - Inspect the generated default document; run native checking and Studio
   validation; confirm wrapped descriptions contain spaces while intentional
   paragraphs contain one LF; fix reported source and never generated JSON.

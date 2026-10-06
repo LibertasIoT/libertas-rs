@@ -85,8 +85,11 @@ and name who performs each action.
    - `DisplayName`, `Description`, `List`, `StringResources`, `Strings`, `Enum`, and `DocumentVersion` are reserved. `Strings` is prohibited and is not a document field. A structural key at that location, such as `Name`, `Type`, `Locale`, or `Types`, is also unavailable.
    - With an array `----` divider, properties above the divider belong to the array and properties below it belong to each element.
    - Display names and descriptions are always present in generated documents. The JSON structure permits an empty value only so generated, legacy, or incomplete nodes can be represented; a codebot-authored schema node must always provide both a non-empty natural label and description. Every document uses format version `0.0.2` and one top-level package `StringResources` map. Per-function/per-type `Strings` fields do not exist.
-   - `[DefaultText]` is one-line localized default text on a `String` field or an `Endpoint` server field. Unlike the schema `Default` value, it may differ by locale.
-   - `[DefaultTaskName]` is a localizable default task name and is valid only in a function's documentation. It does not replace the function's stable native `Name` or localized `DisplayName`.
+   - `[DefaultText]` supplies localized initial text for an effective `String` or
+     Endpoint server field, or the initial task name on a function. Omit it
+     when it exactly matches the ordinary localized fallback.
+   - `[NullText]` supplies a localized caption for explicit null on a nullable
+     field; omission uses localized None. Standard values are non-empty lines.
    - Put every ordinary label/description line and extension block before the
      first `@Libertas...` tag. Document extraction stops at that tag.
    - The complete user-language, standard-extension, reserved-name, List-side,
@@ -104,7 +107,7 @@ and name who performs each action.
  * Configure watering
  * The watering controller follows the user's schedule and lets the user adjust
  * each area's watering. Developed by Example Developer (example_developer).
- * [DefaultTaskName]
+ * [DefaultText]
  * Back garden watering
  */
 export function configure(

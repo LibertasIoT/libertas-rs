@@ -348,7 +348,7 @@ export interface RoomSettings {
  * temperature leaves the grower's preferred range. The grower can change that
  * range and the fan behavior at any time. Developed by Example Developer
  * (example_developer).
- * [DefaultTaskName]
+ * [DefaultText]
  * Seedling room care
  */
 export function careForRoom(
@@ -396,7 +396,7 @@ pub struct RoomSettings {
 /// temperature leaves the grower's preferred range. The grower can change that
 /// range and the fan behavior at any time. Developed by Example Developer
 /// (example_developer).
-/// [DefaultTaskName]
+/// [DefaultText]
 /// Seedling room care
 #[libertas_export]
 pub fn care_for_room(
@@ -471,39 +471,43 @@ pub accept_invitation: bool,
 Without a schema Default, a required Boolean starts unanswered. Both choices
 are unselected; the editor holds an undefined value and refuses submission until
 one is chosen. It never encodes undefined as false or null. A nullable Boolean's
-explicit null remains distinct from the true/false choices and follows ordinary
-nullable-field controls. CopyFrom and EditRequest preserve supplied values.
+explicit null remains distinct from the true/false choices; editable nullable
+Booleans always offer a third clearing choice. Its caption uses `NullText` or
+localized None. CopyFrom and EditRequest preserve supplied values.
 
-A Boolean uses an on/off switch only when it has an explicit Boolean Default
-and neither custom label is supplied. Otherwise it uses the two-choice control,
+A non-nullable Boolean uses an on/off switch only when it has an explicit
+Boolean Default and neither custom label is supplied. Otherwise it uses the two-choice control,
 including when a default preselects an answer. This decision follows metadata,
 not whether the user has already answered. Fixed and ReadOnly retain their
 existing restrictions on editing; no new schema attribute or opcode is added.
 
 
-`[DefaultText]` is valid only on a field whose effective schema type is
-`String`, or on a built-in Endpoint field that carries `EndpointServer`. Its
-value is exactly one localized line of real, safe initial content suitable for
-that locale and context. It is not a placeholder instruction, sentinel,
-resource key, source identifier, or schema `Default`. It does not emit or
-replace the `Default` schema attribute. Omit it when no truthful general value
-exists; never fabricate identity, clinical, financial, security, or other
-user-specific content.
+`[DefaultText]` supplies one non-empty localized line of initial text on an
+effective `String` field, an `EndpointServer` field, or a function. On a
+function it is the initial task name. It is real, safe content suitable for
+the locale and context, never a placeholder instruction, sentinel, resource
+key, source identifier, or schema `Default`. It does not emit or replace the
+`Default` schema attribute. Omit it when the ordinary fallback already gives
+exactly the intended value, or no truthful general value exists. Never
+fabricate user-specific identity, clinical, financial, or security content.
 
-`[DefaultTaskName]` is valid only on a function document. Its value is a short,
-localized noun phrase suitable as the initial name of one configured task, such
-as “Back garden watering.” It is distinct from the stable native function name,
-the function display name, package name, description, and developer
-attribution. Omit it when no broadly useful initial name can be stated
-truthfully.
+`[NullText]` supplies one non-empty localized line for the explicit null of a
+nullable field, including its clearing choice. Omission uses localized None.
+It changes only the caption: it neither supplies a value nor labels false,
+zero, a present empty string or collection, an unanswered required field, or
+a selected Nil Union branch.
 
-Codebots must save people from naming routine generated objects themselves:
-add a useful localized `[DefaultText]` to every authored Endpoint server field
-and a useful localized `[DefaultTaskName]` to every authored App function. Use
-the supported property for each owner—a function does not use `[DefaultText]`.
-Choose a concise domain name that is immediately useful but remains suitable as
-an editable initial value; never copy a native identifier or invent personal
-details merely to satisfy this requirement.
+```rust
+/// Delivery confirmed?
+/// Leave this unanswered until delivery is confirmed or declined.
+/// [NullText]
+/// Awaiting confirmation
+pub delivery_confirmed: Option<bool>,
+```
+
+Choose concise, useful, editable initial names for tasks and Endpoint servers.
+Their ordinary localized labels already provide naming fallbacks; declare
+`DefaultText` only when the intended initial name differs from that fallback.
 
 No standard property substitutes for the owner's ordinary label and
 description.
@@ -519,7 +523,7 @@ value left to ordinary initialization by the
 an applicable schema `Fixed`/`Default` value has first initialization
 priority, localized `DefaultText` is next, and the ordinary empty or localized
 field-label fallback is last. For a new blank task name, localized
-`DefaultTaskName` has first initialization priority, then the localized
+`DefaultText` has first initialization priority, then the localized
 function `DisplayName`, then the native function name.
 
 ## StringResources prose
@@ -595,9 +599,8 @@ for the complete translation workflow.
 4. Apply the separate function-comment discovery and attribution checklist to
    every public function.
 5. Add only documented custom properties, on the correct owner and List side.
-   In particular, give every authored Endpoint server a useful `[DefaultText]`
-   and every authored App function a useful `[DefaultTaskName]` so a newly
-   created endpoint or task already has a sensible editable name.
+   Add `DefaultText` only when a useful initial value differs from the ordinary
+   fallback. Add `NullText` only when explicit null needs different wording.
 6. Write complete, specific default-locale `StringResources` values and verify
    every referenced permission or host reason exists.
 7. Generate and inspect the default document. Confirm ownership, flattening,
@@ -625,11 +628,12 @@ for the complete translation workflow.
 - Hidden and interaction-context values have truthful, non-secret domain
   descriptions.
 - Every custom property is defined by a consuming contract, placed on the right
-  owner, and follows the same prose rules. `DefaultText` and `DefaultTaskName`
-  are legal, localized, and do not replace ordinary documentation.
-- Every authored Endpoint server has a useful localized `DefaultText`, and every
-  authored App function has a useful localized `DefaultTaskName`; neither is a
-  native identifier, placeholder, or fabricated personal value.
+  owner, and follows the same prose rules. `DefaultText`, `TrueText`,
+  `FalseText`, and `NullText` values are non-empty single lines. Omit properties
+  whose intended text exactly matches the ordinary localized fallback; never
+  fabricate personal or sensitive content to fill a default.
+- Initial task and Endpoint server names are useful and editable; provide
+  `DefaultText` only when the ordinary localized naming fallback differs.
 - `StringResources` messages and reasons are truthful, specific, complete, and
   preserve LMF1 semantics.
 - Every function separately passes the function-comment completeness,
