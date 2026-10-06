@@ -549,6 +549,13 @@ section, and unlisted children go to the last section. Each section shows its
 listed fields in the listed order, followed by any unlisted children in
 declaration order.
 
+On Android and iOS, each tab's direct children start at normal page or pane
+padding, with indentation measured relative to that tab's content. This applies
+to both Table sections and Union branches, including nested tabs. Nested
+structs, Lists, and Unions within a tab retain their ordinary indentation and
+`flatten` rules. The tab owner's row keeps its surrounding placement; entering
+a tab changes only the content's visual indentation, not its value ancestry.
+
 `split` is the one composable layout. Each region has a positive `ratio`, the
 direct children it holds as `fields`, optional `style`, and its own nested
 layout: `rows` (the default), `card`, `form-grid` with its `columns`, or
@@ -1521,9 +1528,9 @@ more, place the complete button group under the named-control rule: full title
 and all buttons in the top bar when they fit, otherwise all buttons on a new
 row below the heading. Suppressing the
 heading removes only its redundant title presentation:
-retain any Union selector, promoted value, other row control, and requested
-inline description in the content, with their ordinary behavior. Content
-retains the root alignment and normal page padding above even when its
+retain any Union selector, promoted value, other row control, validation
+message, and requested inline description in the content, with their ordinary
+behavior. Content retains the root alignment and normal page padding above even when its
 heading moves to the top bar.
 
 **Description and accessibility.** A top-bar title supports the same long
