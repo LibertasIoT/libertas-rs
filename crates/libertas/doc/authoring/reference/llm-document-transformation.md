@@ -8,11 +8,14 @@ Control session that submitted it. The response repeats the caller's unsigned
 64-bit transaction ID, so a client can match concurrent requests without using
 the text conversation history.
 
-Clients offer the action on every modern Hub and hide it on legacy Hubs. A Hub
-must handle the document transformation messages and have an OpenAI or Gemini
-connector whose selected model accepts the supplied documents and structured
-output schema. A modern Hub without the handler cannot complete the request;
-the client reports a timeout if no response arrives.
+Clients offer the action on modern Hubs and hide it on legacy Hubs. The
+[Control AI availability rule](protocols.md#ai-navigation-and-ai-search)
+applies before choosing documents or transmitting a transformation: an
+unavailable action reports an immediate error. The Hub must handle the document
+transformation messages and have an OpenAI or Gemini connector whose selected
+model accepts the supplied documents and structured output schema. Available
+AI does not guarantee those request-specific capabilities; ordinary errors and
+timeouts still apply after a request is sent.
 
 ## Request
 

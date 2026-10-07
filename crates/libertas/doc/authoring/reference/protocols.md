@@ -2847,6 +2847,23 @@ captions, placement, and template customization.
 
 ## AI Navigation and AI Search
 
+Control AI requires a signed-in user with a configured, supported and enabled
+language-model connector assigned to that user. Administrative admission is
+not required. Clients treat AI as unavailable on each new connection until the
+Hub reports availability for that session, and follow changes to the user's
+connector, configuration and login permission. Availability describes usable
+configuration; provider connection failures still appear as ordinary request
+errors.
+
+This session requirement applies to Assistant messages, tool-catalog queries,
+AI Navigation and [AI Import](llm-document-transformation.md). Automatic
+tool-catalog loading waits while AI is unavailable. Schema-eligible controls
+may remain visible; activating an unavailable AI feature reports an immediate
+error and sends no AI request. Reconnecting requires a fresh availability
+report. While AI is unavailable, clients do not apply AI replies to the working
+page or editor. Page eligibility and operation-specific permissions remain
+separate requirements.
+
 **AI Navigation** and **AI Search** name the same capability: use a person’s
 text or editable voice transcript to select an existing offered link or action. The App
 supplies destination meaning; the client constructs and validates complete
