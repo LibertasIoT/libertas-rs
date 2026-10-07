@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "sdkVersion": "0.3.0",
-  "sourceRevision": "69822512f6eca0890aeb89a96f8085c1825c50cc",
+  "sourceRevision": "ae35631e1dff87278deb4fd6da4a8ab40c3b9e4f",
   "sourceDirty": false,
-  "sourceContentSha256": "02001fe90a0f85b7d068d9e0831f2bc8640eb7e28ac0dcddb6a26ffc25c50c43",
+  "sourceContentSha256": "5ff3236d3769128aa071c057b3280b69b2b6c12c1172774d154564fefa2c06c1",
   "entryContentSha256": "80ab16c55edbd462203d27da61a74cb78bb16639929bbb9e82729e07142646b0",
   "assistantEntryContentSha256": {
     "DEVELOPER-ASSISTANT.md": "9a09109e51a166e03a9bb0cf218d12754a2ade05ee35fc17452186e47e7bf97b",
@@ -97,7 +97,7 @@
     "examples/federal-tax.md": "8ccab7b18da7018db3d94b65b967195f2b03b27624ebe36602403695d3734ba6",
     "examples/index.md": "4724ddb28d4825ef2445c69d3aa8b236ecae29135d51e204eb8af8267662693b",
     "examples/weather-sprinkler.md": "da3ed4d657b3a36c77b62ce0ded59f888df1397c6f24637743f650196cdd22ef",
-    "guides/administration.md": "ed0577a264b2b3de1f52fa7067ba884d49651ff6f7fb1558163f643ad3379239",
+    "guides/administration.md": "cf39ab8df77fef737dc75a39dcdbc15fa72388374bd5a0099777466c273f59e2",
     "guides/chart-gallery.md": "e85f87672d076d4112658128b676cf9fe2ced690fd67711ee1cec4e5eb91b7a5",
     "guides/control.md": "c49c511c9bee20a49f1dd77a65f00d287e0ebb65b38a6c91be8d1b8351629317",
     "guides/developing-apps.md": "b8c40c176fc46d69b9246d2a9d3036ef738fda1d8adec1ac74c594316664a5a8",

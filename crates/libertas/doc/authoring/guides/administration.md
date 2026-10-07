@@ -192,7 +192,18 @@ Use **Search Plaza** and the version-appropriate action described in the
 The **Security** tab administers user authentication, administrative privileges, active sessions, and group hierarchies.
 
 ### System Users
-Displays a list of registered users.
+Displays the registered users your administrative permissions allow you to see.
+When the Hub has more than 1,024 nongroup accounts without administrative
+admission, its initial user list omits all such accounts. The count covers the
+whole Hub, including accounts outside your visible list. At 1,024 or fewer,
+the initial list uses the ordinary permission rules.
+
+Administrative admission requires effective **Login Allowed** and either
+**Allow Administration** or **Super**. Groups and accounts with this admission
+remain eligible for the initial list under your existing permissions. The
+threshold affects only that initial list: group memberships, permission
+records, explicit user operations and live updates retain their ordinary rules.
+
 - **User Privileges Reference**:
   Each user or group can be assigned specific privilege bits that determine their access permissions. When a user belongs to one or more groups, they automatically inherit the privileges of those groups.
 
