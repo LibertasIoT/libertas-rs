@@ -2,7 +2,7 @@
 
 **A guided tax interview with source-based calculations and on-screen results.**
 
-The `libertas-tax` prototype collects household information, income,
+The [libertas-tax prototype](https://github.com/LibertasIoT/libertas-tax) collects household information, income,
 deductions, credits, and payments, then calculates a U.S. federal tax year 2026
 estimate. It uses synthetic data and does not file a return. Printable forms
 and electronic submission are not part of the prototype.

@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "sdkVersion": "0.3.0",
-  "sourceRevision": "0f270613a97a59f2aa3c162578839cdb7d15ef01",
+  "sourceRevision": "d84b28c6907a7dd6950b3dac6f507f5233c5c9c0",
   "sourceDirty": false,
-  "sourceContentSha256": "25fe18ebe10d4f28d7484a6ee6786f39b6dcb70fad344f33337979ccaf72fbf7",
+  "sourceContentSha256": "87cd17ac143055bd0b04064321961013b5e3b97b95898de5866e7390970f83d3",
   "entryContentSha256": "80ab16c55edbd462203d27da61a74cb78bb16639929bbb9e82729e07142646b0",
   "assistantEntryContentSha256": {
     "DEVELOPER-ASSISTANT.md": "9a09109e51a166e03a9bb0cf218d12754a2ade05ee35fc17452186e47e7bf97b",
@@ -94,7 +94,7 @@
     "codebot/validation_rules.md": "4b64c1593f1437aee3fc0139d345d50d935a4b9122a1bdae403ed14d700a1782",
     "concepts/index.md": "3430a0c4ddefac7a1477ac926f989722d54fc1eace1a9ac0fabdd329477d89da",
     "examples/app-recipes.md": "8e10dda5b8044fa9fbd8857d328aceecd1f5249b9922f708cd6f4ca7c94e86c2",
-    "examples/federal-tax.md": "c43270bc2eb52f83ac80df041998ca048a1be6361e811d487e30e2488aad9122",
+    "examples/federal-tax.md": "8ccab7b18da7018db3d94b65b967195f2b03b27624ebe36602403695d3734ba6",
     "examples/index.md": "4724ddb28d4825ef2445c69d3aa8b236ecae29135d51e204eb8af8267662693b",
     "examples/weather-sprinkler.md": "da3ed4d657b3a36c77b62ce0ded59f888df1397c6f24637743f650196cdd22ef",
     "guides/administration.md": "ed0577a264b2b3de1f52fa7067ba884d49651ff6f7fb1558163f643ad3379239",
