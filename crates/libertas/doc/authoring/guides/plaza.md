@@ -7,7 +7,9 @@ release. Those operations have separate prerequisites and permissions.
 
 ## Browse installed Apps and search Plaza
 
-Open Plaza for the intended Hub, then choose **Installed** or **Search Plaza**.
+Open Plaza for the intended Hub through its Admin entry, then choose **Installed**
+or **Search Plaza**. [Plaza access](../reference/deployment.md#plaza-installation-access)
+states the administrative and App permissions needed for Hub-assisted operations.
 Installed packages are sorted by developer. A package with one public function
 appears as that function; a package with multiple functions has a package root
 and function children. TypesOnly packages remain visible in the App catalog.

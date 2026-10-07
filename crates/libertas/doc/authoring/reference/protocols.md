@@ -572,6 +572,14 @@ developer must mark a mutating operation `Write`; otherwise a read-only user is
 allowed to issue it. Clients may hide a disallowed action, but the Hub remains
 authoritative.
 
+The Hub checks native client requests and AI tool invocations against the
+authenticated user's current endpoint read/write grants and the submitted
+Request's `AccessPrivilege`. Every applicable Request variant selected in a
+nested payload must independently accept at least one of those grants. Listing
+an action in an assistant's tool catalog confers no authority: each invocation
+is checked again, including after a permission change. A tool offered for a
+superseded task deployment cannot invoke its replacement deployment.
+
 This is unrelated to task-process `Permissions`, which grant access to platform
 resources during task configuration.
 

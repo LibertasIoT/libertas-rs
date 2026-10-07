@@ -35,6 +35,25 @@ To open the Admin Panel in your active VSCode workspace:
 > [!NOTE]
 > Ensure the Hub is reachable and your Studio client is authorized. Studio does not commission a new or reset Hub; use the mobile app for that first.
 
+### Administrative access
+
+**Allow Administration** permits an administrative connection; each operation
+still requires its own permissions. Clients save the Hub's effective permission
+flags and refresh them when the connected Hub reports a change or a new session
+starts. The Hub remains authoritative for every operation.
+
+If saved permissions deny administration, tapping the mobile admin icon or
+opening Studio's Admin Panel opens Control. This connection refreshes the
+saved permissions. If administration has since been granted, a later admin
+action opens Admin using the updated flags. Use an administrative connection
+for [Hub-assisted Plaza operations](../reference/deployment.md#plaza-installation-access).
+
+On Android and iOS, saving a Control layout to a modern Hub and browsing its
+full icon catalog also require **Allow Administration**. Without it, you can
+read your assigned layouts, edit layouts locally, and download the icons
+assigned to your visible devices, tasks, and layouts. Permission changes apply
+while connected.
+
 ---
 
 ## Interface Overview

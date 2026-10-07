@@ -1,6 +1,5 @@
 # Deployment dependency contract
 
-
 The language parsers cannot assign dependency versions. In particular, the new
 version of a local dependency in the same deployment batch is unknown until that
 dependency has successfully deployed. Studio therefore constructs
@@ -46,6 +45,16 @@ dependency has successfully deployed. Studio therefore constructs
 If any deployment or read-back fails, Studio stops before submitting its
 dependents. It never predicts the Hub version, and `0.0.0.0` is not a valid
 dependency entry.
+
+## Plaza installation access
+
+Hub-assisted Plaza search, installation-state queries, and App installation or
+upgrade require an authenticated administrative connection. Control connections
+cannot perform these operations, even when the account has creation or
+configuration permission. Administrative access grants admission only: reading
+an installed App's installation state also requires read or configuration
+permission on that App; installing a new App requires permission to add Apps;
+and upgrading an installed App requires configuration permission on that App.
 
 ## Display Template preflight and synchronization
 
