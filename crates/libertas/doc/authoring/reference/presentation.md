@@ -551,7 +551,8 @@ editing Requests, not Response variants or navigation Requests that lead to them
   compare link-request fields or choose the first row to infer selection.
 - **Crossing the widening gate.** Narrowing shows the current editor as a full
   page above its leading page, with ordinary Back, Go back, and Cancel controls.
-  This change sends no editing Request. Widening evaluates the current editing
+  Native Back follows the [startup-type comparison](protocols.md#control-endpoint-landing-and-native-back)
+  after resizing too. This change sends no editing Request. Widening evaluates the current editing
   Request's relationship again and embeds it, restoring Close and suppressing
   Go back. If its leading page has not yet been loaded, perform the initial
   load described above. A pending operation retains ownership through resizing;

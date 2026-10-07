@@ -2203,13 +2203,15 @@ landing-forwarding step; it follows the regular response and editor rules. A
 plain Response, with neither NextRequest nor WorkflowRequest, is the
 [non-transition acknowledgement](#protocol-roles) and never replaces the
 landing, including a subscription landing. The
-result is a direct consequence of landing whether its action was selected
-automatically or by the person. For example, entry can send Enter, receive a
-landing offering only OpenInterview, send OpenInterview, and open its returned
-editor with that designation; the editor still waits for submission. The
-designation alone never authorizes following its own NextRequest. Returning to a non-subscription
-landing repeats entry and forwarding; returning to a retained subscription
-landing preserves its page without forwarding again. Rendering, subscription updates, and
+first stable result of this navigation supplies the startup message type under
+[landing and Back](#control-endpoint-landing-and-native-back), whether the action
+was selected automatically or by the person. For example, entry can send Enter,
+receive a landing offering only OpenInterview, send OpenInterview, and resolve
+its reply into an editing Request. That Request variant is the startup type,
+and the editor waits for submission. Remembering the type never authorizes
+following its NextRequest. Returning to a non-subscription landing repeats
+entry and forwarding; returning to a retained subscription landing preserves
+its page without forwarding again. Rendering, subscription updates, and
 auxiliary traffic do not repeat forwarding; initial default subscription data
 is used for forwarding only as part of an explicit endpoint entry, never merely
 because inline data appeared in the endpoint list.
@@ -2648,61 +2650,55 @@ Non-subscription landing entry has **no reference context** from the abandoned
 page; never construct it from that page's response or cookie. A working
 subscription cannot overwrite the retained default subscription's snapshot.
 
-For a non-subscription landing, each stable page remembers whether it is the
-**direct consequence of landing**.
-The immediate stable destination produced by landing entry or its selected
-forwarding action has this flag.
-It may be SubscriptionData, a Response, or an EditRequest/WorkflowRequest editor,
-including the result of a request selected automatically or by the person from
-landing. The reply to the landing entry request itself can be stable without
-NextRequest; do not suppress it as an acknowledgement of a previous screen. A
-plain Response to a selected landing action is instead the
-[non-transition acknowledgement](#protocol-roles) and leaves the landing in
-place, under the [forwarding rule](#default-request-entry-and-dynamic-actions). Transient cookie responses
-opening an editor and transient request composers are not separate stable pages.
-The flag records this page's entry provenance, never its variant name, payload
-equality, or all variants reachable through NextResponse. It governs Back, not
-automatic selection of the page's NextRequest.
+The first time a person navigates from landing by choosing an action, remember
+its first **stable startup message type** for that endpoint entry. Automatic
+selection of the only qualified landing action follows the same rule. The
+landing response itself does not set this type. A stable message is a displayed
+Response without WorkflowRequest, or an editing Request, including an editor
+installed by EditRequest or resolved from WorkflowRequest. A WorkflowRequest
+cookie response is transient: record the resulting Request variant, not the
+cookie variant. An ordinary transient composer and an out-of-band Error or
+acknowledgement do not install a stable message.
 
-After the landing entry or forwarding result, subsequent navigation or
-submission results replace the current working page
-and **clear the flag**, even when the new page has the same variant or values.
-An initial stable editor is replaced on the same terms as an initial displayed
-Response. Later replacements keep the flag clear; clients keep no history of
-intermediate pages. Field edits, calculations, same-subscription updates,
-redraws, and acknowledgements that do not replace the page preserve its flag.
+The stored type identifies the protocol variant, independently of its payload,
+page instance, or navigation provenance. Keep it through field edits,
+calculations, subscription updates, redraws, later message replacements, and
+returns to landing. Record it only once in that endpoint entry; leaving the
+endpoint ends its lifetime. Clients keep no history of intermediate messages.
 
-An explicitly selected subscription request installs its completing Response
-as the first state of its own SubscriptionData snapshot, whether or not it
-declares NextRequest; that reply is not an acknowledgement. Its page gets the
-flag only when the request was selected as landing entry. A failure or Error
-preserves the originating page and its flag, under the ordinary retry rules.
+The reply to landing entry itself can be displayed without NextRequest; do not
+suppress it as an acknowledgement of a previous screen. A plain Response to a
+selected landing action remains the
+[non-transition acknowledgement](#protocol-roles) and leaves landing in place,
+under the [forwarding rule](#default-request-entry-and-dynamic-actions). An
+explicitly selected SubscriptionRequest installs its completing Response as
+the first state of its own SubscriptionData snapshot, whether or not it
+declares NextRequest; that reply is stable rather than an acknowledgement.
+A failure or Error preserves the originating page and the remembered startup
+type under ordinary retry rules.
 
 For native Back in a **stable Control endpoint destination**:
 
-- Above a subscription landing, abandon the working interaction and reveal
-  the retained subscription page, even from the first working result. Preserve
-  its live data, reference context, layout, and scroll position; do not rerun
-  entry, refresh, resubscribe, or repeat automatic forwarding on this return.
-- From a subscription landing itself, or from a non-subscription landing or
-  page whose direct-consequence flag is set, exit that endpoint: return to the
-  endpoint list for a multi-endpoint task, or exit the task for a single-endpoint
-  task. Do not rerun landing entry before exiting.
-- From a non-subscription page whose flag is clear, abandon the working interaction and
-  return to the independently defined landing. Remove intervening endpoint
-  pages, refresh landing as the working page and run its normal automatic entry
-  and forwarding without the abandoned reference context, and mark
-  any new immediate stable result as directly produced by landing. The next
-  Back from that result exits the endpoint.
-- From the endpoint list itself, exit the task.
+- If the current stable message type equals the startup stable message type,
+  exit that endpoint immediately: return to the endpoint list for a
+  multi-endpoint task, or exit the task for a single-endpoint task. The same
+  type exits even after later navigation or with a changed payload; a second
+  Back is not needed.
+- If the types differ, abandon the working interaction and try to return to
+  the independently defined landing. For a subscription landing, reveal the
+  retained live page with its reference context, layout, and scroll position,
+  without refreshing, resubscribing, or repeating automatic forwarding. For
+  a non-subscription landing, remove intervening endpoint pages, refresh
+  landing as the working page with no reference context from the abandoned
+  page, and run normal automatic entry and forwarding again. Preserve the
+  originally remembered startup type. If the landing is unavailable, exit
+  the endpoint.
+- From landing itself, or before a startup stable message has been installed,
+  exit the endpoint. From the endpoint list itself, exit the task.
 
-Non-subscription return reruns landing entry and its automatic forwarding rules;
-subscription return reveals the retained page. The selected landing action's
-result follows ordinary response presentation; a plain Response is a
-[non-transition acknowledgement](#protocol-roles). Its direct-consequence flag
-controls Back only for non-subscription entry; a subscription landing always
-receives Back from the working page above it. Other endpoints and their default
-subscriptions retain their own ownership.
+The selected landing action's result follows ordinary response presentation;
+remembering its type affects Back only, never automatic action selection.
+Other endpoints and their default subscriptions retain their own ownership.
 
 These rules apply to the Back button and system back navigation alike. A
 [transient request composer](endpoint-presentation.md#protocol-transaction-stack)
@@ -2755,7 +2751,7 @@ exactly one: automatic selection happens only for an accepted correlated
 Response without visible content, because auxiliary traffic never navigates.
 Use the visible-content definition under [default entry](#default-request-entry-and-dynamic-actions);
 the initial working result after a landing action follows this same rule even
-when its Back flag is set; the landing action source uses its forwarding rule.
+when its type is the startup stable message type; the landing action source uses its forwarding rule.
 Without ConstrainedBy, NextRequest
 remains static. Missing, malformed, out-of-range, or undeclared entries refuse
 the whole reply or update before it takes effect: the prior surface, its

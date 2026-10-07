@@ -307,17 +307,16 @@ reconnection alone never reopens a landing. See the same human-task contract.
   screen and context stay. A composer awaiting its reply cannot be dismissed
   by itself; Back, close, or Cancel there leaves the endpoint
   ([leaving while pending](../reference/protocols.md#exit-while-pending)).
-- Above a subscription landing, Back from every working result reveals the
-  retained page without refresh, resubscription, or automatic forwarding;
-  Back from the subscription landing exits the endpoint.
-- For non-subscription entry, the first stable result records direct provenance;
-  every subsequent stable replacement clears it, even with the same variant.
-  Updates preserving the page preserve it. Native Back from landing or its
-  direct result exits the endpoint (the list, or out of a single-endpoint task).
-  Otherwise Back refreshes landing as the working page with no abandoned
-  context and reruns its automatic entry rules; its new immediate result has
-  the flag set. The endpoint's landing definition never comes from a working
-  result. Inline default subscription data keeps its existing list location.
+- The first stable message reached by a landing action, manually chosen or
+  automatically selected, sets the endpoint entry's startup variant. Landing
+  responses do not set it; a WorkflowRequest cookie resolves to its Request
+  editor's variant. Keep this type across replacements and landing returns.
+  Native Back from the same stable variant exits immediately, even with changed
+  values; from a different variant, try landing. Reveal a retained subscription
+  without refresh or forwarding, or rerun non-subscription entry without the
+  abandoned context. If landing is unavailable, exit. Landing itself exits.
+  The endpoint's landing definition never comes from a working result; inline
+  default subscription data keeps its existing list location.
   Back sends no `PrevRequest`, undoes nothing accepted, and
   fences abandoned replies, calculations, and subscriptions
   ([landing and Back](../reference/protocols.md#control-endpoint-landing-and-native-back)).

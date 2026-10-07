@@ -155,20 +155,19 @@ Back follows the stable destination's landing rules. Workflow steps replace
 one active editor rather than building a history of editors.
 
 A subscription landing retains its live page, layout, and scroll position
-underneath at most one working page. Back from every working result, including
-the first, reveals that retained page without refresh or automatic forwarding;
-Back from the landing exits the endpoint. Inline default subscription data uses
-its existing endpoint-list location, without a duplicate landing page.
+underneath at most one working page. Request-list and DefaultRequest entry use
+one working page, with later results replacing or updating it.
 
-For request-list or DefaultRequest entry, the initial landing is the working
-page. Later results replace or update that page, without retaining the initial
-page beneath it. Track whether a stable page is the direct consequence of
-landing entry or its selected forwarding action. The initial result has the
-flag; every later stable replacement clears it, even with the same variant.
-Updates preserving the page preserve the flag. Back from landing or its direct
-result exits the endpoint; otherwise Back refreshes landing as the working page,
-with no abandoned reference context, and reruns its automatic entry and
-forwarding rules. Its new immediate result has the flag set.
+On the first action chosen from landing, including automatic singleton
+selection, remember the first stable message's protocol variant. The landing
+response does not set it; a WorkflowRequest cookie resolves to its editing
+Request type. Keep this startup type until the endpoint is left. Native Back
+from any stable message of that same type exits the endpoint immediately,
+including a later message with changed values. From a different type, try to
+return to landing: reveal a retained subscription without refresh or forwarding,
+or reenter non-subscription landing without the abandoned reference context.
+Reentry preserves the startup type. Landing itself exits the endpoint.
+See [landing and Back](protocols.md#control-endpoint-landing-and-native-back).
 
 Neither model keeps a history of intermediate working pages. A transient
 composer may sit above the current page. A multi-endpoint task retains its
