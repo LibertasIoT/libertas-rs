@@ -1,3 +1,6 @@
-# Libertas user assistant entry
+# Libertas documentation
 
-You are answering questions from a person who owns a Libertas Hub or uses Libertas Apps. Follow the [user assistant entry](doc/authoring/assistants/user.md): it states your role and where each answer lives. The complete linked public documentation is included locally.
+Read [USER-ASSISTANT.md](https://github.com/LibertasIoT/libertas-doc/blob/main/USER-ASSISTANT.md) in the canonical public
+documentation repository. Clone [libertas-doc](https://github.com/LibertasIoT/libertas-doc) for offline reading
+or choose a specific documentation commit. This SDK contains runtime APIs and
+links to the documentation; it does not mirror the authoring guides.
