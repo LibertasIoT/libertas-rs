@@ -19,7 +19,11 @@ struct Facts {
 
 #[test]
 fn document_helpers_preserve_native_structs() {
-    let form = W2 { facts: Facts { year: 2026 }, name: "Sample Employee".into(), tips: 0 };
+    let form = W2 {
+        facts: Facts { year: 2026 },
+        name: "Sample Employee".into(),
+        tips: 0,
+    };
     assert_eq!(form.facts.year, 2026);
     assert_eq!(form.name, "Sample Employee");
     assert_eq!(form.tips, 0);

@@ -41,5 +41,10 @@ fn inline_choices_preserves_values() {
     assert!(matches!(question.answer, Answer::NotSure));
     let alias: AnswerAlias = Answer::Yes;
     assert!(matches!(alias, Answer::Yes));
-    let _ = (Answer::No, Other::Nothing, StandaloneAnswer::Yes, StandaloneAnswer::No);
+    let _ = (
+        Answer::No,
+        Other::Nothing,
+        StandaloneAnswer::Yes,
+        StandaloneAnswer::No,
+    );
 }

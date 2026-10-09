@@ -20,5 +20,8 @@ fn link_only_preserves_values() {
     };
     assert!(matches!(&hub, Protocol::Hub { rows } if rows[0].id == 7));
     assert!(matches!(Protocol::OpenRow, Protocol::OpenRow));
-    assert!(matches!(Protocol::Other(Row { id: 9 }), Protocol::Other(Row { id: 9 })));
+    assert!(matches!(
+        Protocol::Other(Row { id: 9 }),
+        Protocol::Other(Row { id: 9 })
+    ));
 }

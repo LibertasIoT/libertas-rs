@@ -20,5 +20,8 @@ fn request_confirmation_preserves_values() {
     };
     assert!(matches!(&state, Protocol::State { rows } if rows[0].id == 7));
     assert!(matches!(Protocol::EraseAll, Protocol::EraseAll));
-    assert!(matches!(Protocol::Remove(Row { id: 9 }), Protocol::Remove(Row { id: 9 })));
+    assert!(matches!(
+        Protocol::Remove(Row { id: 9 }),
+        Protocol::Remove(Row { id: 9 })
+    ));
 }

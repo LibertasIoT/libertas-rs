@@ -9,7 +9,10 @@ struct Media {
 
 #[test]
 fn mime_types_is_parser_metadata_and_raw_bytes_remain_available() {
-    let media = Media { photo: vec![1, 2], raw: vec![0] };
+    let media = Media {
+        photo: vec![1, 2],
+        raw: vec![0],
+    };
     assert_eq!(media.photo, [1, 2]);
     assert_eq!(media.raw, [0]);
 }
