@@ -187,6 +187,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     || attr.path().is_ident("libertas_range_min")
                     || attr.path().is_ident("libertas_range_max")
                     || attr.path().is_ident("libertas_enum_source")
+                    || attr.path().is_ident("libertas_key")
                     || attr.path().is_ident("libertas_bitflags")
                     || attr.path().is_ident("libertas_date_only")
                     || attr.path().is_ident("libertas_format")
@@ -573,6 +574,8 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_range_min,
     libertas_range_max,
     libertas_enum_source,
+    // Marks the List member field whose value an EnumSource host stores.
+    libertas_key,
     libertas_bitflags,
     libertas_date_only,
     libertas_format,
