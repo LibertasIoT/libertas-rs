@@ -8,11 +8,11 @@ use std::{
 
 #[derive(Debug, Clone)]
 struct Sent {
-    endpoint: u64,
+    endpoint: LibertasEndpoint,
     transaction: u32,
     opcode: u8,
     bytes: Vec<u8>,
-    peer: u64,
+    peer: LibertasPeer,
 }
 static SENT: Mutex<Vec<Sent>> = Mutex::new(Vec::new());
 static WAKEUPS: AtomicUsize = AtomicUsize::new(0);
@@ -24,12 +24,12 @@ static READS: AtomicUsize = AtomicUsize::new(0);
 
 extern "C" fn send(
     _: u16,
-    endpoint: u64,
+    endpoint: LibertasEndpoint,
     transaction: u32,
     opcode: u8,
     data: *const u8,
     len: usize,
-    peer: u64,
+    peer: LibertasPeer,
 ) {
     if endpoint == DEVICE_SYSTEM && opcode == OP_SYSTEM_WAKE_UP {
         WAKEUPS.fetch_add(1, Ordering::Relaxed);
@@ -67,7 +67,13 @@ extern "C" fn send(
 extern "C" fn ack(dispatched: u8) {
     ACKS.lock().unwrap().push(dispatched);
 }
-extern "C" fn read(_: u16, _: u64, operation: u8, data: *const u8, len: usize) -> ReadResult {
+extern "C" fn read(
+    _: u16,
+    _: LibertasDevice,
+    operation: u8,
+    data: *const u8,
+    len: usize,
+) -> ReadResult {
     if operation == 0xe7 {
         return ReadResult {
             success: true,
@@ -137,12 +143,26 @@ impl Host {
             thread::sleep(Duration::from_millis(1));
         }
     }
-    fn deliver(&self, endpoint: u64, opcode: u8, transaction: u32, peer: u64, value: u32) {
+    fn deliver(
+        &self,
+        endpoint: LibertasEndpoint,
+        opcode: u8,
+        transaction: u32,
+        peer: LibertasPeer,
+        value: u32,
+    ) {
         let mut bytes = alloc::vec![0];
         value.avro_encode(&mut bytes);
         self.raw(endpoint, opcode, transaction, peer, &bytes);
     }
-    fn raw(&self, endpoint: u64, opcode: u8, transaction: u32, peer: u64, bytes: &[u8]) {
+    fn raw(
+        &self,
+        endpoint: LibertasEndpoint,
+        opcode: u8,
+        transaction: u32,
+        peer: LibertasPeer,
+        bytes: &[u8],
+    ) {
         libertas_impl_device_callback(
             7,
             endpoint,
@@ -260,6 +280,26 @@ fn bounded_queue_cancellation_and_wakeup_callback_coexist() {
     assert_eq!(ready(waiting.as_mut()), Ok(3));
     assert_eq!(calls.get(), 1);
     assert_eq!(wake_calls.get(), 2);
+}
+
+#[test]
+fn dynamic_peer_survives_callback_dispatch_and_coroutine_reply() {
+    let host = Host::new();
+    let dispatcher = Dispatcher::attach(4).unwrap();
+    let (_endpoint, mut events) = dispatcher.endpoint::<u32>(55, 4).unwrap();
+    let peer: LibertasPeer = i64::MIN + 7;
+    host.deliver(55, OP_ENDPOINT_REQ, 42, peer, 10);
+    let event = runtime().block_on(events.recv()).unwrap();
+    assert_eq!(event.peer, peer);
+    let mut reply = Box::pin(event.response(20));
+    assert!(poll(reply.as_mut()).is_pending());
+    host.drive();
+    assert_eq!(ready(reply.as_mut()), Ok(()));
+    let sent = SENT.lock().unwrap();
+    let reply = sent.last().unwrap();
+    assert_eq!(reply.peer, peer);
+    assert_eq!(reply.transaction, 42);
+    assert_eq!(reply.opcode, OP_ENDPOINT_RSP);
 }
 
 #[test]

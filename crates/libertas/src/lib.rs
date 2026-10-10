@@ -64,9 +64,10 @@ use hashbrown::DefaultHashBuilder;
 use hashbrown::HashMap;
 use priority_queue::PriorityQueue;
 
-/// Platform identity. Allocated IDs are positive and at most `i64::MAX`.
-/// Zero is reserved for APIs that explicitly define a system context.
-pub type LibertasId = u64;
+/// Signed 64-bit platform identity. Durable allocated IDs are positive;
+/// negative IDs identify runtime dynamic objects and are not durable references.
+/// Zero and other sentinels are reserved for APIs that explicitly define them.
+pub type LibertasId = i64;
 /// Identity of an App task.
 pub type LibertasTaskId = LibertasId;
 /// Opaque peer route handle. Retain it unchanged for responses and signaling.
@@ -327,7 +328,7 @@ pub const LIBERTAS_ENDPOINT_IGNORED_TRANS_ID: LibertasTransId = 0;
 /// Endpoint servers normally call [`libertas_endpoint_report`] or
 /// [`libertas_endpoint_peer_alive`] with `None` so the host performs client
 /// fan-out without exposing this value to App logic.
-pub const LIBERTAS_BROADCAST_DEST: LibertasPeer = u64::MAX;
+pub const LIBERTAS_BROADCAST_DEST: LibertasPeer = -1;
 
 const OP_SYSTEM_LOG: u8 = 0xe0;
 

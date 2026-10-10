@@ -340,7 +340,7 @@ mod tests {
     static SENDS: Mutex<Vec<(u8, Vec<u8>)>> = Mutex::new(Vec::new());
     extern "C" fn read(
         _: u16,
-        _: u64,
+        _: crate::LibertasDevice,
         opcode: u8,
         data: *const u8,
         len: usize,
@@ -384,7 +384,15 @@ mod tests {
             data_len: reply.len(),
         }
     }
-    extern "C" fn send(_: u16, _: u64, _: u32, opcode: u8, data: *const u8, len: usize, _: u64) {
+    extern "C" fn send(
+        _: u16,
+        _: crate::LibertasDevice,
+        _: u32,
+        opcode: u8,
+        data: *const u8,
+        len: usize,
+        _: crate::LibertasPeer,
+    ) {
         let _host = suspend();
         // Notification input is a native pointer record. Only endpoint payloads
         // are Avro bytes at this ABI location; leave notification pointers alone.

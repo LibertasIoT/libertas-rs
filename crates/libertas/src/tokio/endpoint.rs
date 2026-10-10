@@ -8,22 +8,22 @@ enum Command {
     Subscribe(Vec<u8>),
     Response {
         transaction: u32,
-        peer: u64,
+        peer: LibertasPeer,
         edit: bool,
         data: Vec<u8>,
     },
     Status {
         transaction: u32,
-        peer: u64,
+        peer: LibertasPeer,
         status: u8,
         subscription: bool,
     },
     Report {
-        peer: Option<u64>,
+        peer: Option<LibertasPeer>,
         data: Vec<u8>,
     },
-    Alive(Option<u64>),
-    Remove(u64),
+    Alive(Option<LibertasPeer>),
+    Remove(LibertasPeer),
     ForgetSubscription(u32),
 }
 #[derive(LibertasAvroEncode, LibertasAvroDecode)]
@@ -37,7 +37,7 @@ enum Message {
 struct EventFrame {
     opcode: u8,
     transaction: u32,
-    peer: u64,
+    peer: LibertasPeer,
     message: Message,
 }
 struct Encoded(Vec<u8>);
