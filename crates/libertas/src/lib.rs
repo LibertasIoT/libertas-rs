@@ -25,33 +25,23 @@
 // Bring in the alloc crate
 extern crate alloc;
 
+#[cfg(any(test, feature = "tokio"))]
+extern crate std;
+
 extern crate self as libertas;
 
 mod avro;
-mod data;
+pub mod data;
 mod log;
 mod mime_bytes;
 mod notification;
 
+#[cfg(feature = "tokio")]
+pub mod tokio;
+
 pub use avro::{AvroDecode, AvroEncode, NotBytesDecode, NotBytesEncode};
-pub use data::{
-    DataError, libertas_data_try_get_indexed_names, libertas_data_try_get_single_names,
-    libertas_data_try_indexed_store_exists, libertas_data_try_open_indexed,
-    libertas_data_try_read_indexed, libertas_data_try_read_indexed_range,
-    libertas_data_try_read_single, libertas_data_try_remove_indexed,
-    libertas_data_try_remove_indexed_name, libertas_data_try_remove_indexed_records,
-    libertas_data_try_remove_single, libertas_data_try_write_indexed,
-    libertas_data_try_write_single,
-};
-pub use data::{
-    DataName, IndexDirection, IndexedData, IndexedDataStat, libertas_data_get_indexed_names,
-    libertas_data_get_single_names, libertas_data_indexed_store_exists, libertas_data_open_indexed,
-    libertas_data_read_indexed, libertas_data_read_indexed_range, libertas_data_read_single,
-    libertas_data_remove_indexed, libertas_data_remove_indexed_name,
-    libertas_data_remove_indexed_records, libertas_data_remove_single, libertas_data_write_indexed,
-    libertas_data_write_single,
-};
-pub use libertas_utils::{InlineByteBuffer, STACK_BUF_SIZE};
+pub use data::DataError;
+pub use libertas_utils::{ByteBuffer, InlineByteBuffer, STACK_BUF_SIZE};
 pub use log::{LogLevel, libertas_log};
 pub use mime_bytes::{
     MimeBytes, decode_mime_bytes, encode_mime_bytes, is_exact_mime_type, mime_type_matches_filter,
@@ -62,7 +52,9 @@ pub use notification::{
     libertas_notification_send_literal,
 };
 
-use alloc::{boxed::Box, rc::Rc, slice, vec::Vec};
+#[cfg(test)]
+use alloc::vec::Vec;
+use alloc::{boxed::Box, rc::Rc, slice};
 use core::cmp::Reverse;
 use core::ffi::c_void;
 use core::sync::atomic::{AtomicPtr, AtomicU8, Ordering};
@@ -330,10 +322,6 @@ pub type LibertasTransId = u32;
 /// when an interaction does not correlate with a transaction.
 pub const LIBERTAS_ENDPOINT_IGNORED_TRANS_ID: LibertasTransId = 0;
 
-/// Handle for an opened indexed data store, obtained via `libertas_data_open_indexed`.
-/// Valid until closed or the opening task terminates.
-pub type LibertasDataStore = u32;
-
 /// Low-level broadcast destination used by APIs that require an explicit peer
 /// route handle.
 /// Endpoint servers normally call [`libertas_endpoint_report`] or
@@ -505,21 +493,10 @@ const OP_SYSTEM_WAKE_UP: u8 = 255; // See
 const PROTOCOL_LIBERTAS: u16 = 0;
 
 const DEVICE_SYSTEM: LibertasDevice = 0;
-const DEVICE_SYSTEM_DATABASE_SINGLE: LibertasDevice = 0;
-const DEVICE_SYSTEM_DATABASE_INDEXED: LibertasDevice = 1;
 
 const OP_SYSTEM_MESSAGE: u8 = 0xfe;
-const OP_SYSTEM_DATABASE_GET_NAMES: u8 = 0xf0;
-const OP_SYSTEM_DATABASE_OPEN_INDEXED_DATA: u8 = 0xf1;
-const OP_SYSTEM_DATABASE_WRITE_DATA: u8 = 0xf2;
-const OP_SYSTEM_DATABASE_READ_DATA: u8 = 0xf3;
-const OP_SYSTEM_DATABASE_REMOVE_DATA: u8 = 0xf4;
-const OP_SYSTEM_DATABASE_REMOVE_RECORD: u8 = 0xf5;
-const OP_SYSTEM_DATABASE_CHECKED: u8 = 0xf6;
-const OP_SYSTEM_DATABASE_DECODE_FAILURE: u8 = 0xf7;
-const OP_SYSTEM_DATABASE_INDEXED_STORE_EXISTS: u8 = 0xf8;
 
-const CURRENT_VERSION: u32 = 0x000300; // Version 0.3.0, 1.0 shall be 0x10000, each sub version must be within [0,255]
+const CURRENT_VERSION: u32 = 0x000400; // Version 0.4.0, 1.0 shall be 0x10000, each sub version must be within [0,255]
 
 type LibertasTimerCallback = dyn FnMut(u32, u64, &mut Box<dyn Any>);
 type LibertasDeviceCallback =
@@ -619,6 +596,9 @@ pub struct LibertasPackageCallback {
 struct Context {
     device_callbacks: HashMap<LibertasDevice, DeviceCallback>,
     shutdown_handler: Option<ShutdownHandler>,
+    data_binding: Option<(core::any::TypeId, core::any::TypeId, u64)>,
+    #[cfg(feature = "tokio")]
+    dispatcher: Option<Rc<tokio::Driver>>,
 }
 
 impl Context {
@@ -626,6 +606,9 @@ impl Context {
         Self {
             device_callbacks: HashMap::new(),
             shutdown_handler: None,
+            data_binding: None,
+            #[cfg(feature = "tokio")]
+            dispatcher: None,
         }
     }
 }
@@ -642,6 +625,8 @@ extern "C" fn libertas_impl_init_task(task_id: LibertasTaskId) {
 }
 
 extern "C" fn libertas_impl_remove_task(task_id: LibertasTaskId) {
+    #[cfg(feature = "tokio")]
+    tokio::close_task(task_id);
     unsafe {
         match ENV {
             Some(ref mut env) => env.remove_task(task_id),
@@ -685,9 +670,13 @@ extern "C" fn libertas_impl_device_callback(
                 None => None,
             }
         };
+        #[cfg(feature = "tokio")]
+        let has_dispatcher = tokio::request_shutdown(task);
+        #[cfg(not(feature = "tokio"))]
+        let has_dispatcher = false;
         if let Some((callback, context)) = handler {
             (callback.borrow_mut())(&mut *context.borrow_mut());
-        } else {
+        } else if !has_dispatcher {
             libertas_shutdown_complete();
         }
         return 1;
@@ -697,136 +686,128 @@ extern "C" fn libertas_impl_device_callback(
         return 0;
     }
 
-    unsafe {
-        match ENV {
-            Some(ref mut env) => {
-                if let Some(context) = env.contexts.get_mut(&task) {
-                    if let Some(dcb) = context.device_callbacks.get_mut(&device) {
-                        let d = if data_len == 0 {
-                            &[]
-                        } else {
-                            if data.is_null() {
-                                return 0;
-                            }
-                            slice::from_raw_parts(data as *const u8, data_len)
-                        };
-                        if op_code == OP_ENDPOINT_SUB_REQ
-                            && !dcb.handles_endpoint_subscription_delivery
-                        {
-                            libertas_endpoint_subscription_delivery_result(true);
-                        }
-                        (dcb.cb.borrow_mut())(
-                            device,
-                            op_code,
-                            d,
-                            &mut *dcb.context.borrow_mut(),
-                            trans_id,
-                            peer,
-                        );
-                        return 1;
-                    }
-                }
-            }
-            _ => {
-                unreachable!();
-            }
+    // App callbacks may call back into the SDK. Retain only cloned callback
+    // handles across that boundary, never a borrow of the package environment.
+    let callback = unsafe {
+        let env_ptr = &raw const ENV;
+        match *env_ptr {
+            Some(ref env) => env.contexts.get(&task).and_then(|context| {
+                context.device_callbacks.get(&device).map(|dcb| {
+                    (
+                        Rc::clone(&dcb.cb),
+                        Rc::clone(&dcb.context),
+                        dcb.handles_endpoint_subscription_delivery,
+                    )
+                })
+            }),
+            None => None,
         }
+    };
+    let Some((callback, context, handles_subscription)) = callback else {
+        return 0;
+    };
+    let data = if data_len == 0 {
+        &[]
+    } else if data.is_null() {
+        return 0;
+    } else {
+        unsafe { slice::from_raw_parts(data as *const u8, data_len) }
+    };
+    if op_code == OP_ENDPOINT_SUB_REQ && !handles_subscription {
+        libertas_endpoint_subscription_delivery_result(true);
     }
-    0
+    (callback.borrow_mut())(
+        device,
+        op_code,
+        data,
+        &mut context.borrow_mut(),
+        trans_id,
+        peer,
+    );
+    1
 }
 
 extern "C" fn libertas_impl_timer_driver(monotonic: u64, utc: u64) -> TimerDriverResult {
-    if SHUTDOWN_STATE.load(Ordering::Acquire) == SHUTDOWN_COMPLETED {
-        return TimerDriverResult {
-            next_monotonic: u64::MAX,
-            next_utc: u64::MAX,
-        };
+    let stopped = || SHUTDOWN_STATE.load(Ordering::Acquire) == SHUTDOWN_COMPLETED;
+    let idle = || TimerDriverResult {
+        next_monotonic: u64::MAX,
+        next_utc: u64::MAX,
+    };
+    if stopped() {
+        return idle();
+    }
+    let wakeup = unsafe {
+        let env_ptr = &raw const ENV;
+        (*env_ptr).as_ref().and_then(|env| {
+            env.wakeup_callbacks
+                .as_ref()
+                .map(|cb| (Rc::clone(&cb.cb), Rc::clone(&cb.context)))
+        })
+    };
+    if let Some((callback, context)) = wakeup {
+        (callback.borrow_mut())(&mut context.borrow_mut());
+    }
+    if stopped() {
+        return idle();
+    }
+    #[cfg(feature = "tokio")]
+    tokio::drive_all();
+    if stopped() {
+        return idle();
+    }
+
+    // Pop and clone each due timer before invoking it. A callback can rearm,
+    // replace, or destroy timers without aliasing the environment's maps.
+    for (deadline, now) in [(false, monotonic), (true, utc)] {
+        loop {
+            let due = unsafe {
+                let env_ptr = &raw mut ENV;
+                let env = (*env_ptr).as_mut().expect("SDK not initialized");
+                let queue = if deadline {
+                    &mut env.timers_active_deadline
+                } else {
+                    &mut env.timers_active_interval
+                };
+                match queue.peek() {
+                    Some((_, time)) if time.0 < now => {
+                        let (id, _) = queue.pop().unwrap();
+                        env.timers.get_mut(&id).map(|timer| {
+                            timer.state = TimerState::Idle;
+                            (
+                                id,
+                                timer.task,
+                                Rc::clone(&timer.cb),
+                                Rc::clone(&timer.context),
+                            )
+                        })
+                    }
+                    _ => None,
+                }
+            };
+            let Some((id, task, callback, context)) = due else {
+                break;
+            };
+            unsafe {
+                ((*RUNTIME_API).set_task_id)(task);
+            }
+            (callback.borrow_mut())(id, now, &mut context.borrow_mut());
+            if stopped() {
+                return idle();
+            }
+        }
     }
     unsafe {
-        if let Some(runtime_api) = RUNTIME_API.as_ref() {
-            match ENV {
-                Some(ref mut env) => {
-                    // Process wakeup callback first if exists.
-                    if let Some(ref wakeup_callback) = env.wakeup_callbacks {
-                        (wakeup_callback.cb.borrow_mut())(
-                            &mut *wakeup_callback.context.borrow_mut(),
-                        );
-                    }
-                    // A wakeup callback may complete asynchronous shutdown.
-                    // Once completed, no timer or other App callback may start.
-                    if SHUTDOWN_STATE.load(Ordering::Acquire) == SHUTDOWN_COMPLETED {
-                        return TimerDriverResult {
-                            next_monotonic: u64::MAX,
-                            next_utc: u64::MAX,
-                        };
-                    }
-                    let mut next_mono = u64::MAX;
-                    let mut next_time = u64::MAX;
-                    loop {
-                        if let Some(mono) = env.timers_active_interval.peek() {
-                            if *mono.1 > Reverse(monotonic) {
-                                let timer = *mono.0;
-                                if let Some(t) = env.timers.get_mut(&timer) {
-                                    t.state = TimerState::Idle;
-                                    env.timers_active_interval.pop();
-                                    (runtime_api.set_task_id)(t.task);
-                                    (t.cb.borrow_mut())(
-                                        timer,
-                                        monotonic,
-                                        &mut *t.context.borrow_mut(),
-                                    );
-                                    if SHUTDOWN_STATE.load(Ordering::Acquire) == SHUTDOWN_COMPLETED
-                                    {
-                                        return TimerDriverResult {
-                                            next_monotonic: u64::MAX,
-                                            next_utc: u64::MAX,
-                                        };
-                                    }
-                                }
-                            } else {
-                                next_mono = mono.1.0;
-                                break;
-                            }
-                        } else {
-                            break;
-                        }
-                    }
-                    loop {
-                        if let Some(time) = env.timers_active_deadline.peek() {
-                            if *time.1 > Reverse(utc) {
-                                let timer = *time.0;
-                                if let Some(t) = env.timers.get_mut(&timer) {
-                                    t.state = TimerState::Idle;
-                                    env.timers_active_deadline.pop();
-                                    (runtime_api.set_task_id)(t.task);
-                                    (t.cb.borrow_mut())(timer, utc, &mut *t.context.borrow_mut());
-                                    if SHUTDOWN_STATE.load(Ordering::Acquire) == SHUTDOWN_COMPLETED
-                                    {
-                                        return TimerDriverResult {
-                                            next_monotonic: u64::MAX,
-                                            next_utc: u64::MAX,
-                                        };
-                                    }
-                                }
-                            } else {
-                                next_time = time.1.0;
-                                break;
-                            }
-                        } else {
-                            break;
-                        }
-                    }
-                    TimerDriverResult {
-                        next_monotonic: next_mono,
-                        next_utc: next_time,
-                    }
-                }
-                _ => {
-                    unreachable!();
-                }
-            }
-        } else {
-            unreachable!();
+        let env_ptr = &raw const ENV;
+        let env = (*env_ptr).as_ref().expect("SDK not initialized");
+        TimerDriverResult {
+            next_monotonic: env
+                .timers_active_interval
+                .peek()
+                .map_or(u64::MAX, |(_, time)| time.0),
+            next_utc: env
+                .timers_active_deadline
+                .peek()
+                .map_or(u64::MAX, |(_, time)| time.0),
         }
     }
 }
@@ -900,10 +881,11 @@ impl LibertasPackageEnv {
     /// "ignored."
     #[inline(always)]
     fn new_trans_id(&mut self) -> LibertasTransId {
-        self.trans_id += 1;
-        if self.trans_id == 0 {
-            self.trans_id = 1;
-        }
+        // Never let a late reply become a reply to a newly allocated request.
+        self.trans_id = self
+            .trans_id
+            .checked_add(1)
+            .expect("Transaction IDs exhausted");
         self.trans_id
     }
 }
@@ -932,6 +914,8 @@ pub fn __libertas_init_package(runtime_api: *mut c_void) -> *const LibertasPacka
         RUNTIME_API = runtime_api as *mut LibertasRuntimeApi;
         ASYNC_RUNTIME_API.store(RUNTIME_API, Ordering::Release);
         SHUTDOWN_STATE.store(SHUTDOWN_RUNNING, Ordering::Release);
+        #[cfg(feature = "tokio")]
+        tokio::initialize_thread();
         ENV = Some(LibertasPackageEnv::new());
         let env_ptr = &raw mut ENV;
         // We use .as_ref() on the *pointer* dereference, or better yet:
@@ -951,6 +935,8 @@ pub fn __libertas_init_package(runtime_api: *mut c_void) -> *const LibertasPacka
  */
 #[doc(hidden)]
 pub fn __libertas_release_package() {
+    #[cfg(feature = "tokio")]
+    tokio::close_all();
     unsafe {
         ENV = None; // Drop all memory
     }
@@ -1867,22 +1853,15 @@ pub fn __libertas_device_send_raw_req(
     data: *const u8,
     data_len: usize,
 ) -> LibertasTransId {
-    unsafe {
-        match ENV {
-            Some(ref mut env) => {
-                let ret = env.new_trans_id();
-                if let Some(runtime_api) = RUNTIME_API.as_ref() {
-                    (runtime_api.device_send)(protocol, device, ret, op, data, data_len, peer);
-                } else {
-                    unreachable!();
-                }
-                return ret;
-            }
-            _ => {
-                unreachable!();
-            }
-        }
-    }
+    let trans_id = unsafe {
+        let env_ptr = &raw mut ENV;
+        (*env_ptr)
+            .as_mut()
+            .expect("SDK not initialized")
+            .new_trans_id()
+    };
+    __libertas_device_send_raw(protocol, device, op, peer, trans_id, data, data_len);
+    trans_id
 }
 
 /// Sends a request to a LibertasDevice. A response is always expected as a transaction. Thus, a unique transaction ID is generated and returned.
@@ -2008,10 +1987,10 @@ pub fn libertas_endpoint_request<T>(server: LibertasEndpoint, data: &T) -> Liber
 where
     T: AvroEncode + 'static,
 {
-    let mut bytes: Vec<_> = Vec::new();
+    let mut bytes = InlineByteBuffer::new();
     bytes.push(LibertasEndpointStatus::Success as u8);
     data.avro_encode(&mut bytes);
-    libertas_device_send_request(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_REQ, &bytes)
+    libertas_device_send_request(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_REQ, bytes.as_slice())
 }
 
 /// Sends a endpoint request to a server
@@ -2039,10 +2018,15 @@ pub fn libertas_endpoint_subscribe_request<T>(server: LibertasEndpoint, data: &T
 where
     T: AvroEncode + 'static,
 {
-    let mut bytes: Vec<_> = Vec::new();
+    let mut bytes = InlineByteBuffer::new();
     bytes.push(LibertasEndpointStatus::Success as u8);
     data.avro_encode(&mut bytes);
-    libertas_device_send_request(PROTOCOL_LIBERTAS, server, OP_ENDPOINT_SUB_REQ, &bytes)
+    libertas_device_send_request(
+        PROTOCOL_LIBERTAS,
+        server,
+        OP_ENDPOINT_SUB_REQ,
+        bytes.as_slice(),
+    )
 }
 
 /// Sends a endpoint response to a device
@@ -2072,14 +2056,14 @@ pub fn libertas_endpoint_response<T>(
 ) where
     T: AvroEncode + 'static,
 {
-    let mut bytes: Vec<_> = Vec::new();
+    let mut bytes = InlineByteBuffer::new();
     bytes.push(LibertasEndpointStatus::Success as u8);
     data.avro_encode(&mut bytes);
     libertas_device_send_response(
         PROTOCOL_LIBERTAS,
         server,
         OP_ENDPOINT_RSP,
-        &bytes,
+        bytes.as_slice(),
         trans_id,
         dest,
     );
@@ -2099,14 +2083,14 @@ pub fn libertas_endpoint_edit_request<T>(
 ) where
     T: AvroEncode + 'static,
 {
-    let mut bytes = Vec::new();
+    let mut bytes = InlineByteBuffer::new();
     bytes.push(LibertasEndpointStatus::Success as u8);
     data.avro_encode(&mut bytes);
     libertas_device_send_response(
         PROTOCOL_LIBERTAS,
         server,
         OP_ENDPOINT_EDIT_REQ,
-        &bytes,
+        bytes.as_slice(),
         trans_id,
         dest,
     );
@@ -2133,7 +2117,7 @@ pub fn libertas_endpoint_status_response(
         PROTOCOL_LIBERTAS,
         server,
         OP_ENDPOINT_RSP,
-        &bytes,
+        bytes.as_slice(),
         trans_id,
         dest,
     );
@@ -2173,14 +2157,14 @@ where
     T: AvroEncode + 'static,
 {
     let peer_id = peer.unwrap_or(LIBERTAS_BROADCAST_DEST);
-    let mut bytes: Vec<_> = Vec::new();
+    let mut bytes = InlineByteBuffer::new();
     bytes.push(LibertasEndpointStatus::Success as u8);
     data.avro_encode(&mut bytes);
     libertas_device_send_report(
         PROTOCOL_LIBERTAS,
         server,
         OP_ENDPOINT_DATA,
-        &bytes,
+        bytes.as_slice(),
         LIBERTAS_ENDPOINT_IGNORED_TRANS_ID,
         peer_id,
     );
@@ -2257,7 +2241,7 @@ mod tests {
     use core::sync::atomic::{AtomicUsize, Ordering};
     use std::{sync::Mutex, thread};
 
-    static TEST_LOCK: Mutex<()> = Mutex::new(());
+    pub(crate) static TEST_LOCK: Mutex<()> = Mutex::new(());
     static SHUTDOWN_SENDS: AtomicUsize = AtomicUsize::new(0);
     static SHUTDOWN_HANDLERS: AtomicUsize = AtomicUsize::new(0);
     static ENDPOINT_CALLBACKS_WITH_DATA: AtomicUsize = AtomicUsize::new(0);
@@ -2368,7 +2352,7 @@ mod tests {
         }
     }
 
-    fn fake_runtime_api() -> LibertasRuntimeApi {
+    pub(crate) fn fake_runtime_api() -> LibertasRuntimeApi {
         LibertasRuntimeApi {
             version: CURRENT_VERSION,
             get_random: fake_get_random,
@@ -2392,35 +2376,41 @@ mod tests {
         data: *const u8,
         len: usize,
     ) -> ReadResult {
-        #[repr(C)]
-        struct Request {
-            operation: u8,
-            data: *const u8,
-            len: usize,
-        }
-        #[repr(C)]
-        struct Reply {
-            status: u32,
-            value: ReadResult,
-        }
-        assert_eq!(operation, 0xf6);
-        assert_eq!(len, core::mem::size_of::<Request>());
-        assert!(!data.is_null());
-        let request = unsafe { &*(data as *const Request) };
-        assert!((0xf0..=0xf5).contains(&request.operation));
-        let status = DATA_TEST_STATUS.load(Ordering::Acquire) as u32;
-        let reply = Box::leak(Box::new(Reply {
-            status,
-            value: ReadResult {
-                success: status == 0,
+        if operation == 0xe7 {
+            return ReadResult {
+                success: true,
                 data: core::ptr::null(),
                 data_len: 0,
-            },
-        }));
+            };
+        }
+        use crate::data::wire;
+        assert_eq!(operation, 0xe8);
+        let request: wire::Request =
+            wire::decode(unsafe { core::slice::from_raw_parts(data, len) }).unwrap();
+        assert!(request.checked);
+        let status = DATA_TEST_STATUS.load(Ordering::Acquire) as u32;
+        let result = if status >= 2 {
+            wire::Result::Failure(status)
+        } else {
+            match request.command {
+                wire::Command::Execute {
+                    operation: wire::Operation::Get(_),
+                    ..
+                } => wire::Result::Value(None),
+                _ => wire::Result::Done,
+            }
+        };
+        let bytes = Box::leak(
+            wire::encode(&wire::Response {
+                id: request.id,
+                result,
+            })
+            .into_boxed_slice(),
+        );
         ReadResult {
             success: true,
-            data: reply as *const _ as *const u8,
-            data_len: core::mem::size_of::<Reply>(),
+            data: bytes.as_ptr(),
+            data_len: bytes.len(),
         }
     }
 
@@ -2453,34 +2443,32 @@ mod tests {
         let mut runtime_api = fake_runtime_api();
         runtime_api.device_read = checked_data_read;
         __libertas_init_package(&raw mut runtime_api as *mut LibertasRuntimeApi as *mut c_void);
+        #[derive(libertas_macros::LibertasKeyCodec)]
+        enum Key {
+            Record,
+        }
+        libertas_impl_init_task(7);
+        data::__bind_schema::<Key, u32>();
+        let data = data::Data::<Key, u32>::try_current().unwrap();
+        let target = data::Target::all();
         DATA_TEST_STATUS.store(3, Ordering::Release);
         assert_eq!(
-            libertas_data_try_write_single("TEST", &[], &42u32),
+            data.try_put(&target, (&Key::Record).into(), &42),
             Err(DataError::StorageError)
         );
         assert_eq!(
-            libertas_data_try_read_single::<u32>("TEST", &[]),
+            data.try_get(&target, (&Key::Record).into()),
             Err(DataError::StorageError)
-        );
-        let mut records = Vec::<IndexedData<u32>>::new();
-        assert_eq!(
-            libertas_data_try_read_indexed_range(1, 0, IndexDirection::Above, 10, &mut records),
-            Err(DataError::StorageError)
-        );
-        assert!(records.is_empty());
-        DATA_TEST_STATUS.store(1, Ordering::Release);
-        assert_eq!(
-            libertas_data_try_read_single::<u32>("MISSING", &[]),
-            Ok(None)
         );
         DATA_TEST_STATUS.store(0, Ordering::Release);
-        assert_eq!(libertas_data_try_remove_single("MISSING", &[]), Ok(()));
-        assert!(libertas_data_try_get_single_names().unwrap().is_empty());
+        assert_eq!(data.try_get(&target, (&Key::Record).into()), Ok(None));
+        assert_eq!(data.try_delete(&target, (&Key::Record).into()), Ok(()));
         DATA_TEST_STATUS.store(4, Ordering::Release);
         assert_eq!(
-            libertas_data_try_read_single::<u32>("TEST", &[]),
+            data.try_get(&target, (&Key::Record).into()),
             Err(DataError::DataIntegrityError)
         );
+        __libertas_release_package();
         unsafe {
             RUNTIME_API = core::ptr::null_mut();
         }
@@ -3042,3 +3030,7 @@ mod tests {
         __libertas_release_package();
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/support/allocations.rs"]
+mod test_allocations;

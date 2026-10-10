@@ -1,518 +1,18 @@
-//! Libertas Rust SDK - Data API
-//!
-//! Ordinary failures terminate the task in the Hub runtime. Functions marked
-//! `#[libertas_data_error_status]` may use `libertas_data_try_*` counterparts
-//! to receive `Result` values and take responsibility for consistency.
-//!
-//! Functions for single-record and indexed data operations. Every logical data
-//! name is one canonical byte blob containing a package-local LMF1 resource key
-//! and ordered, typed Libertas Message Arguments. The blob is both stable
-//! storage identity and the complete input for localized human presentation.
+//! Schema-bound ordered key/value storage. Core calls run on the host thread.
+use crate::{AvroDecode, AvroEncode, LibertasTaskId};
+use alloc::{rc::Rc, vec::Vec};
+use core::{any::TypeId, marker::PhantomData, ops::Bound};
+mod key_codec;
+pub(crate) mod request;
+#[doc(hidden)]
+pub use key_codec::__private as __key_codec;
+pub use key_codec::{
+    KeyCodec, KeyDecode, KeyDecodeError, KeyEncodeError, KeyFieldCodec, KeyFieldDecode, KeyWriter,
+};
+#[doc(hidden)]
+pub mod wire;
+pub use wire::{Direction, Mode};
 
-use crate::*;
-use alloc::string::String;
-use alloc::vec::Vec;
-use libertas_macros::{LibertasAvroDecode, LibertasAvroEncode};
-use notification::*;
-
-/// Direction for indexed data reads.
-/// - `Above`: Index >= start.
-/// - `Below`: Index <= start.
-#[repr(u8)]
-pub enum IndexDirection {
-    Above,
-    Below,
-}
-
-/// Indexed data record with index and decoded data.
-pub struct IndexedData<T>
-where
-    T: AvroDecode,
-{
-    pub index: i64,
-    pub data: T,
-}
-
-/// Decoded view of a canonical Libertas data name.
-///
-/// At the storage boundary, `resource_name` and `arguments` are encoded into
-/// one byte blob. That blob is the sole identity of a single record or indexed
-/// database/table; it is not a literal or rendered String name. The same tuple
-/// is also a FormattedText value: the current task's package selects the
-/// `StringResources` catalog, `resource_name` selects an LMF1 template, and the
-/// typed arguments supply its data for localized human presentation.
-///
-/// Data functions accept the tuple and perform the canonical encoding. App code
-/// must not pre-render, Base64-wrap, or hand-encode it. A translation or template
-/// wording change leaves identity intact; changing the key, argument order,
-/// argument type, or argument value creates a different identity.
-///
-/// Single-record and indexed-database names occupy separate namespaces even
-/// when their bytes match. An indexed row's signed index is additional identity
-/// and is not part of this tuple.
-#[derive(LibertasAvroEncode, LibertasAvroDecode)]
-pub struct DataName {
-    /// Package-local key of the LMF1 template in `StringResources`.
-    pub resource_name: String,
-
-    /// Ordered, typed values used for both byte identity and human rendering.
-    pub arguments: Vec<LibertasMessageArgumentDecode>,
-}
-
-#[repr(C)]
-struct DataSingleInternal {
-    name: *const u8,
-    name_len: usize,
-    value: *const u8,
-    value_len: usize,
-}
-
-#[repr(C)]
-struct DataWriteIndexedReq {
-    db: LibertasDataStore,
-    index: i64,
-    value: *const u8,
-    value_len: usize,
-}
-
-#[repr(C)]
-struct DataDeleteIndexedRecordsReq {
-    db: LibertasDataStore,
-    index_lo: i64,
-    index_hi: i64,
-}
-
-#[repr(C)]
-struct DataReadIndexedReq {
-    db: LibertasDataStore,
-    index: i64,
-    direction: IndexDirection,
-    max_n: usize,
-}
-
-#[repr(C)]
-struct DataIndexedRaw {
-    index: i64,
-    value: *const u8,
-    value_len: usize,
-}
-
-/// Statistics for opened indexed data.
-/// Contains handle, record count, and index range.
-/// If `count` is 0, callers must ignore `min_index` and `max_index`; their values
-/// are unspecified. Otherwise, record indices are in [min_index, max_index].
-#[repr(C)]
-pub struct IndexedDataStat {
-    pub handle: LibertasDataStore,
-    pub count: u64,
-    pub min_index: i64,
-    pub max_index: i64,
-}
-
-/// Returns all single-record data names.
-///
-/// # Returns
-/// Vector of data names with resource and arguments.
-pub fn libertas_data_get_single_names() -> Vec<DataName> {
-    let result = __libertas_device_read_raw(
-        PROTOCOL_LIBERTAS,
-        DEVICE_SYSTEM_DATABASE_SINGLE,
-        OP_SYSTEM_DATABASE_GET_NAMES,
-        core::ptr::null(),
-        0,
-    );
-    let mut names = Vec::new();
-    if result.success {
-        let data_slice = if result.data_len == 0 {
-            &[]
-        } else {
-            unsafe { core::slice::from_raw_parts(result.data, result.data_len) }
-        };
-        let mut index = 0;
-        while index < data_slice.len() {
-            let name = DataName::avro_decode(data_slice, &mut index)
-                .unwrap_or_else(|_| data_decode_failure());
-            names.push(name);
-        }
-    }
-    names
-}
-
-/// Returns all indexed data names.
-///
-/// # Returns
-/// Vector of indexed data names.
-pub fn libertas_data_get_indexed_names() -> Vec<DataName> {
-    let result = __libertas_device_read_raw(
-        PROTOCOL_LIBERTAS,
-        DEVICE_SYSTEM_DATABASE_INDEXED,
-        OP_SYSTEM_DATABASE_GET_NAMES,
-        core::ptr::null(),
-        0,
-    );
-    let mut names = Vec::new();
-    if result.success {
-        let data_slice = if result.data_len == 0 {
-            &[]
-        } else {
-            unsafe { core::slice::from_raw_parts(result.data, result.data_len) }
-        };
-        let mut index = 0;
-        while index < data_slice.len() {
-            let name = DataName::avro_decode(data_slice, &mut index)
-                .unwrap_or_else(|_| data_decode_failure());
-            names.push(name);
-        }
-    }
-    names
-}
-
-/// Removes the single record identified by the canonical encoding of a
-/// package-local LMF1 resource key and its ordered, typed arguments.
-pub fn libertas_data_remove_single(resource_name: &str, arguments: &[LibertasMessageArgument]) {
-    let serialized = libertas_formatted_text(resource_name, arguments);
-    __libertas_device_send_raw(
-        PROTOCOL_LIBERTAS,
-        DEVICE_SYSTEM_DATABASE_SINGLE,
-        OP_SYSTEM_DATABASE_REMOVE_DATA,
-        0,
-        0,
-        serialized.as_ptr(),
-        serialized.len(),
-    );
-}
-
-/// Removes the complete indexed database identified and named by a
-/// package-local LMF1 resource key and its ordered, typed arguments.
-///
-/// # Arguments
-/// * `resource_name` - Package-local LMF1 template key in `StringResources`.
-/// * `arguments` - Ordered, typed values that must exactly match the tuple used
-///   when the indexed database was opened.
-///
-/// Unlike a single record, indexed data is organized by an index value for
-/// ordered lookup. This operation removes the complete indexed database named
-/// by the resource and arguments, regardless of its records' index values.
-///
-pub fn libertas_data_remove_indexed(resource_name: &str, arguments: &[LibertasMessageArgument]) {
-    let serialized = libertas_formatted_text(resource_name, arguments);
-    __libertas_device_send_raw(
-        PROTOCOL_LIBERTAS,
-        DEVICE_SYSTEM_DATABASE_INDEXED,
-        OP_SYSTEM_DATABASE_REMOVE_DATA,
-        0,
-        0,
-        serialized.as_ptr(),
-        serialized.len(),
-    );
-}
-
-/// Removes the complete indexed database identified by an enumerated data
-/// name.
-///
-/// This is the lossless counterpart to [`libertas_data_get_indexed_names`]: it
-/// preserves the decoded argument types and values without requiring the App
-/// to reconstruct borrowed [`LibertasMessageArgument`] values.
-pub fn libertas_data_remove_indexed_name(data_name: &DataName) {
-    let mut serialized = Vec::new();
-    data_name.avro_encode(&mut serialized);
-    __libertas_device_send_raw(
-        PROTOCOL_LIBERTAS,
-        DEVICE_SYSTEM_DATABASE_INDEXED,
-        OP_SYSTEM_DATABASE_REMOVE_DATA,
-        0,
-        0,
-        serialized.as_ptr(),
-        serialized.len(),
-    );
-}
-
-/// Removes indexed records in the given index range.
-///
-/// # Arguments
-/// * `db` - Database handle. See `libertas_data_open_indexed` for obtaining the handle.
-/// * `index_lo` - Lower index bound (inclusive).
-/// * `index_hi` - Upper index bound (inclusive).
-pub fn libertas_data_remove_indexed_records(db: LibertasDataStore, index_lo: i64, index_hi: i64) {
-    let req: DataDeleteIndexedRecordsReq = DataDeleteIndexedRecordsReq {
-        db,
-        index_lo,
-        index_hi,
-    };
-    __libertas_device_send_raw(
-        PROTOCOL_LIBERTAS,
-        DEVICE_SYSTEM_DATABASE_INDEXED,
-        OP_SYSTEM_DATABASE_REMOVE_RECORD,
-        0,
-        0,
-        &req as *const DataDeleteIndexedRecordsReq as *const u8,
-        core::mem::size_of::<DataDeleteIndexedRecordsReq>(),
-    );
-}
-
-/// Opens indexed data and returns handle with stats.
-///
-/// # Arguments
-/// * `resource_name` - Package-local LMF1 template key in `StringResources`.
-/// * `arguments` - Ordered, typed values identifying and naming the indexed
-///   database.
-///
-/// # Returns
-/// IndexedDataStat with handle, count, and index range. If `count` is 0, callers
-/// must ignore `min_index` and `max_index`; their values are unspecified.
-pub fn libertas_data_open_indexed(
-    resource_name: &str,
-    arguments: &[LibertasMessageArgument],
-) -> IndexedDataStat {
-    let serialized = libertas_formatted_text(resource_name, arguments);
-    let result = __libertas_device_read_raw(
-        PROTOCOL_LIBERTAS,
-        DEVICE_SYSTEM_DATABASE_INDEXED,
-        OP_SYSTEM_DATABASE_OPEN_INDEXED_DATA,
-        serialized.as_ptr(),
-        serialized.len(),
-    );
-    if result.success && result.data_len == core::mem::size_of::<IndexedDataStat>() {
-        let stat = unsafe { &*(result.data as *const IndexedDataStat) };
-        IndexedDataStat {
-            handle: stat.handle,
-            count: stat.count,
-            min_index: stat.min_index,
-            max_index: stat.max_index,
-        }
-    } else {
-        panic!("Failed to open indexed data");
-    }
-}
-
-/// Tests whether the named indexed store already exists without creating it.
-/// The canonical resource key and typed arguments identify one store directly;
-/// enumerating all store names is unnecessary for an existence check.
-pub fn libertas_data_indexed_store_exists(
-    resource_name: &str,
-    arguments: &[LibertasMessageArgument],
-) -> bool {
-    let serialized = libertas_formatted_text(resource_name, arguments);
-    __libertas_device_read_raw(
-        PROTOCOL_LIBERTAS,
-        DEVICE_SYSTEM_DATABASE_INDEXED,
-        OP_SYSTEM_DATABASE_INDEXED_STORE_EXISTS,
-        serialized.as_ptr(),
-        serialized.len(),
-    )
-    .success
-}
-
-/// Writes a single record.
-///
-/// # Arguments
-/// * `resource_name` - Package-local LMF1 template key in `StringResources`.
-/// * `arguments` - Ordered, typed values identifying and naming the record.
-/// * `data` - Encodable data.
-pub fn libertas_data_write_single(
-    resource_name: &str,
-    arguments: &[LibertasMessageArgument],
-    data: &dyn AvroEncode,
-) {
-    let mut serialized = libertas_formatted_text(resource_name, arguments);
-    let name_len = serialized.len();
-    data.avro_encode(&mut serialized);
-    let total_len = serialized.len();
-
-    let name_ptr = serialized.as_ptr();
-    let value_ptr = unsafe { name_ptr.add(name_len) };
-
-    let data_internal = DataSingleInternal {
-        name: name_ptr,
-        name_len: name_len,
-        value: value_ptr,
-        value_len: total_len - name_len,
-    };
-    __libertas_device_send_raw(
-        PROTOCOL_LIBERTAS,
-        DEVICE_SYSTEM_DATABASE_SINGLE,
-        OP_SYSTEM_DATABASE_WRITE_DATA,
-        0,
-        0,
-        &data_internal as *const DataSingleInternal as *const u8,
-        core::mem::size_of::<DataSingleInternal>(),
-    );
-}
-
-/// Writes indexed data.
-///
-/// # Arguments
-/// * `db` - Database handle. See `libertas_data_open_indexed` for obtaining the handle.
-/// * `index` - Record index.
-/// * `data` - Encodable data.
-pub fn libertas_data_write_indexed(db: LibertasDataStore, index: i64, data: &dyn AvroEncode) {
-    let mut value = Vec::new();
-    data.avro_encode(&mut value);
-
-    let data_internal = DataWriteIndexedReq {
-        db,
-        index,
-        value: value.as_ptr(),
-        value_len: value.len(),
-    };
-    __libertas_device_send_raw(
-        PROTOCOL_LIBERTAS,
-        DEVICE_SYSTEM_DATABASE_INDEXED,
-        OP_SYSTEM_DATABASE_WRITE_DATA,
-        0,
-        0,
-        &data_internal as *const DataWriteIndexedReq as *const u8,
-        core::mem::size_of::<DataWriteIndexedReq>(),
-    );
-}
-
-/// Reads a single record.
-///
-/// # Arguments
-/// * `resource_name` - Package-local LMF1 template key in `StringResources`.
-/// * `arguments` - Ordered, typed values identifying and naming the record.
-///
-/// # Returns
-/// Decoded data or None if not found.
-pub fn libertas_data_read_single<T>(
-    resource_name: &str,
-    arguments: &[LibertasMessageArgument],
-) -> Option<T>
-where
-    T: AvroDecode,
-{
-    let name = libertas_formatted_text(resource_name, arguments);
-    let result = __libertas_device_read_raw(
-        PROTOCOL_LIBERTAS,
-        DEVICE_SYSTEM_DATABASE_SINGLE,
-        OP_SYSTEM_DATABASE_READ_DATA,
-        name.as_ptr(),
-        name.len(),
-    );
-    return if result.success {
-        let data_slice = if result.data_len == 0 {
-            &[]
-        } else {
-            unsafe { core::slice::from_raw_parts(result.data, result.data_len) }
-        };
-        let mut index = 0;
-        Some(T::avro_decode(data_slice, &mut index).unwrap_or_else(|_| data_decode_failure()))
-    } else {
-        None
-    };
-}
-
-/// Reads indexed data range.
-///
-/// # Arguments
-/// * `db` - Database handle. See `libertas_data_open_indexed` for obtaining the handle.
-/// * `index` - Starting index.
-/// * `direction` - Read direction.
-/// * `max_n` - Max records to read.
-/// * `results` - Output vector for records.
-pub fn libertas_data_read_indexed_range<T>(
-    db: LibertasDataStore,
-    index: i64,
-    direction: IndexDirection,
-    max_n: usize,
-    results: &mut Vec<IndexedData<T>>,
-) where
-    T: AvroDecode,
-{
-    let req = DataReadIndexedReq {
-        db,
-        index,
-        direction,
-        max_n,
-    };
-    let read_result = __libertas_device_read_raw(
-        PROTOCOL_LIBERTAS,
-        DEVICE_SYSTEM_DATABASE_INDEXED,
-        OP_SYSTEM_DATABASE_READ_DATA,
-        &req as *const DataReadIndexedReq as *const u8,
-        core::mem::size_of::<DataReadIndexedReq>(),
-    );
-    if read_result.success {
-        let data_slice = if read_result.data_len == 0 {
-            &[]
-        } else {
-            unsafe { core::slice::from_raw_parts(read_result.data, read_result.data_len) }
-        };
-        let mut index = 0;
-        while index < data_slice.len() {
-            let record = unsafe { &*(data_slice.as_ptr().add(index) as *const DataIndexedRaw) };
-            index += core::mem::size_of::<DataIndexedRaw>();
-            let value_slice =
-                unsafe { core::slice::from_raw_parts(record.value, record.value_len) };
-            let mut value_index = 0;
-            let data = T::avro_decode(value_slice, &mut value_index)
-                .unwrap_or_else(|_| data_decode_failure());
-            results.push(IndexedData {
-                index: record.index,
-                data,
-            });
-        }
-    }
-}
-
-/// Reads a single indexed data record.
-///
-/// # Arguments
-/// * `db` - Database handle. See `libertas_data_open_indexed` for obtaining the handle.
-/// * `index` - Record index.
-///
-/// # Returns
-/// Decoded record or None if not found.
-pub fn libertas_data_read_indexed<T>(db: LibertasDataStore, index: i64) -> Option<IndexedData<T>>
-where
-    T: AvroDecode,
-{
-    let req = DataReadIndexedReq {
-        db,
-        index,
-        direction: IndexDirection::Above,
-        max_n: 1,
-    };
-    let read_result = __libertas_device_read_raw(
-        PROTOCOL_LIBERTAS,
-        DEVICE_SYSTEM_DATABASE_INDEXED,
-        OP_SYSTEM_DATABASE_READ_DATA,
-        &req as *const DataReadIndexedReq as *const u8,
-        core::mem::size_of::<DataReadIndexedReq>(),
-    );
-    if read_result.success {
-        if read_result.data_len > 0 {
-            let record = unsafe { &*(read_result.data as *const DataIndexedRaw) };
-            let value_slice =
-                unsafe { core::slice::from_raw_parts(record.value, record.value_len) };
-            let mut value_index = 0;
-            let data = IndexedData::<T> {
-                index: record.index,
-                data: T::avro_decode(value_slice, &mut value_index)
-                    .unwrap_or_else(|_| data_decode_failure()),
-            };
-            return Some(data);
-        }
-    }
-    None
-}
-
-// Decoding is performed by the typed SDK, but termination remains Hub-owned.
-fn data_decode_failure() -> ! {
-    __libertas_device_send_raw(
-        PROTOCOL_LIBERTAS,
-        DEVICE_SYSTEM_DATABASE_SINGLE,
-        OP_SYSTEM_DATABASE_DECODE_FAILURE,
-        0,
-        0,
-        core::ptr::null(),
-        0,
-    );
-    panic!("Hub returned from fatal Data API decoding failure");
-}
-
-/// Errors returned by checked Data API operations. The Hub enforces the
-/// function's `DataErrorStatus` opt-in. Missing records are `Ok(None)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
 pub enum DataError {
@@ -521,443 +21,901 @@ pub enum DataError {
     DataIntegrityError = 4,
     ResourceLimit = 5,
 }
-
-#[repr(C)]
-struct DataCheckedRequest {
-    operation: u8,
-    data: *const u8,
-    data_len: usize,
-}
-#[repr(C)]
-struct DataCheckedResult {
-    status: u32,
-    value: ReadResult,
+impl DataError {
+    pub(crate) fn status(status: u32) -> Self {
+        match status {
+            2 => Self::InvalidRequest,
+            3 => Self::StorageError,
+            5 => Self::ResourceLimit,
+            _ => Self::DataIntegrityError,
+        }
+    }
 }
 
-fn checked_data_operation(
-    device: LibertasDevice,
-    operation: u8,
-    data: *const u8,
-    data_len: usize,
-) -> Result<ReadResult, DataError> {
-    let request = DataCheckedRequest {
-        operation,
-        data,
-        data_len,
-    };
-    let reply = __libertas_device_read_raw(
-        PROTOCOL_LIBERTAS,
-        device,
-        OP_SYSTEM_DATABASE_CHECKED,
-        &request as *const _ as *const u8,
-        core::mem::size_of::<DataCheckedRequest>(),
-    );
-    if !reply.success
-        || reply.data.is_null()
-        || reply.data_len != core::mem::size_of::<DataCheckedResult>()
+pub struct EncodedKey<K> {
+    pub(crate) bytes: Vec<u8>,
+    marker: PhantomData<fn() -> K>,
+}
+impl<K> Clone for EncodedKey<K> {
+    fn clone(&self) -> Self {
+        Self::from_bytes(self.bytes.clone())
+    }
+}
+impl<K> PartialEq for EncodedKey<K> {
+    fn eq(&self, other: &Self) -> bool {
+        self.bytes == other.bytes
+    }
+}
+impl<K> Eq for EncodedKey<K> {}
+impl<K> PartialOrd for EncodedKey<K> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl<K> Ord for EncodedKey<K> {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.bytes.cmp(&other.bytes)
+    }
+}
+impl<K> core::fmt::Debug for EncodedKey<K> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.bytes.fmt(f)
+    }
+}
+impl<K> EncodedKey<K> {
+    pub(crate) fn from_bytes(bytes: Vec<u8>) -> Self {
+        Self {
+            bytes,
+            marker: PhantomData,
+        }
+    }
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+impl<K: KeyCodec> EncodedKey<K> {
+    pub fn new(key: &K) -> Result<Self, KeyEncodeError> {
+        Ok(Self::from_bytes(key.to_key_bytes()?))
+    }
+}
+impl<K: KeyDecode> EncodedKey<K> {
+    pub fn decode(&self) -> Result<K, KeyDecodeError> {
+        K::decode_key(&self.bytes)
+    }
+}
+pub enum KeyRef<'a, K> {
+    Typed(&'a K),
+    Encoded(&'a EncodedKey<K>),
+}
+impl<'a, K> From<&'a K> for KeyRef<'a, K> {
+    fn from(key: &'a K) -> Self {
+        Self::Typed(key)
+    }
+}
+impl<'a, K> From<&'a EncodedKey<K>> for KeyRef<'a, K> {
+    fn from(key: &'a EncodedKey<K>) -> Self {
+        Self::Encoded(key)
+    }
+}
+impl<K: KeyCodec> KeyRef<'_, K> {
+    pub(crate) fn bytes(&self) -> Result<Vec<u8>, DataError> {
+        match self {
+            Self::Typed(k) => k.to_key_bytes().map_err(|_| DataError::InvalidRequest),
+            Self::Encoded(k) => Ok(k.bytes.clone()),
+        }
+    }
+}
+
+pub struct Target<K> {
+    pub(crate) raw: wire::Target,
+    marker: PhantomData<fn() -> K>,
+}
+impl<K> Clone for Target<K> {
+    fn clone(&self) -> Self {
+        Self {
+            raw: self.raw.clone(),
+            marker: PhantomData,
+        }
+    }
+}
+impl<K: KeyCodec> Target<K> {
+    /// Exact keys in strictly ascending encoded order; duplicates are rejected.
+    pub fn keys(keys: &[KeyRef<'_, K>]) -> Result<Self, DataError> {
+        let raw = wire::Target::Keys(keys.iter().map(KeyRef::bytes).collect::<Result<_, _>>()?);
+        if !raw.validate() {
+            return Err(DataError::InvalidRequest);
+        }
+        Ok(Self {
+            raw,
+            marker: PhantomData,
+        })
+    }
+    /// All complete keys starting with these ordered key-codec bytes.
+    pub fn prefix(prefix: &[u8]) -> Result<Self, DataError> {
+        let raw = wire::Target::Prefix(prefix.to_vec());
+        if !raw.validate() {
+            return Err(DataError::InvalidRequest);
+        }
+        Ok(Self {
+            raw,
+            marker: PhantomData,
+        })
+    }
+    pub fn all() -> Self {
+        Self {
+            raw: wire::Target::Prefix(Vec::new()),
+            marker: PhantomData,
+        }
+    }
+}
+pub struct KeyRange<K> {
+    pub(crate) raw: wire::Range,
+    marker: PhantomData<fn() -> K>,
+}
+impl<K> Clone for KeyRange<K> {
+    fn clone(&self) -> Self {
+        Self {
+            raw: self.raw.clone(),
+            marker: PhantomData,
+        }
+    }
+}
+impl<K> KeyRange<K> {
+    pub fn new(start: Bound<EncodedKey<K>>, end: Bound<EncodedKey<K>>) -> Self {
+        fn b<K>(v: Bound<EncodedKey<K>>) -> wire::Bound {
+            match v {
+                Bound::Unbounded => wire::Bound::Unbounded,
+                Bound::Included(k) => wire::Bound::Included(k.bytes),
+                Bound::Excluded(k) => wire::Bound::Excluded(k.bytes),
+            }
+        }
+        Self {
+            raw: wire::Range {
+                start: b(start),
+                end: b(end),
+            },
+            marker: PhantomData,
+        }
+    }
+    pub fn all() -> Self {
+        Self::new(Bound::Unbounded, Bound::Unbounded)
+    }
+}
+pub struct Continuation<K> {
+    pub(crate) bytes: Vec<u8>,
+    marker: PhantomData<fn() -> K>,
+}
+impl<K> Clone for Continuation<K> {
+    fn clone(&self) -> Self {
+        Self {
+            bytes: self.bytes.clone(),
+            marker: PhantomData,
+        }
+    }
+}
+pub struct ScanOptions<K> {
+    pub direction: Direction,
+    pub limit: u32,
+    pub continuation: Option<Continuation<K>>,
+}
+impl<K> ScanOptions<K> {
+    pub fn new(limit: u32) -> Self {
+        Self {
+            direction: Direction::Ascending,
+            limit,
+            continuation: None,
+        }
+    }
+}
+pub struct Entry<K, V> {
+    pub key: EncodedKey<K>,
+    pub value: V,
+}
+pub struct Page<K, T> {
+    pub items: Vec<T>,
+    pub next: Option<Continuation<K>>,
+}
+pub enum Mutation<'a, K, V> {
+    Put(KeyRef<'a, K>, &'a V),
+    Delete(KeyRef<'a, K>),
+}
+pub(crate) fn optional<V: AvroDecode>(r: wire::Result) -> Result<Option<V>, DataError> {
+    if let wire::Result::Value(value) = r {
+        value
+            .map(|v| wire::decode(&v).map_err(|_| DataError::DataIntegrityError))
+            .transpose()
+    } else {
+        Err(DataError::DataIntegrityError)
+    }
+}
+pub(crate) fn values<V: AvroDecode>(r: wire::Result) -> Result<Vec<Option<V>>, DataError> {
+    if let wire::Result::Values(values) = r {
+        values
+            .into_iter()
+            .map(|v| optional(wire::Result::Value(v)))
+            .collect()
+    } else {
+        Err(DataError::DataIntegrityError)
+    }
+}
+pub(crate) fn exists(r: wire::Result) -> Result<bool, DataError> {
+    if let wire::Result::Exists(v) = r {
+        Ok(v)
+    } else {
+        Err(DataError::DataIntegrityError)
+    }
+}
+pub(crate) fn done(r: wire::Result) -> Result<(), DataError> {
+    if r == wire::Result::Done {
+        Ok(())
+    } else {
+        Err(DataError::DataIntegrityError)
+    }
+}
+pub(crate) fn entries<K, V: AvroDecode>(
+    r: wire::Result,
+) -> Result<Page<K, Entry<K, V>>, DataError> {
+    if let wire::Result::Entries {
+        items,
+        continuation,
+    } = r
     {
-        // An older Hub cannot safely provide this opt-in contract.
-        return Err(DataError::InvalidRequest);
+        Ok(Page {
+            items: items
+                .into_iter()
+                .map(|e| {
+                    Ok(Entry {
+                        key: EncodedKey::from_bytes(e.key),
+                        value: wire::decode(&e.value).map_err(|_| DataError::DataIntegrityError)?,
+                    })
+                })
+                .collect::<Result<_, _>>()?,
+            next: continuation.map(|bytes| Continuation {
+                bytes,
+                marker: PhantomData,
+            }),
+        })
+    } else {
+        Err(DataError::DataIntegrityError)
     }
-    let result = unsafe { core::ptr::read_unaligned(reply.data as *const DataCheckedResult) };
-    match result.status {
-        0 | 1 => Ok(result.value),
-        2 => Err(DataError::InvalidRequest),
-        3 => Err(DataError::StorageError),
-        5 => Err(DataError::ResourceLimit),
-        _ => Err(DataError::DataIntegrityError),
-    }
 }
-
-/// Status-returning counterpart; requires `#[libertas_data_error_status]`.
-pub fn libertas_data_try_get_single_names() -> Result<Vec<DataName>, DataError> {
-    let result = checked_data_operation(
-        DEVICE_SYSTEM_DATABASE_SINGLE,
-        OP_SYSTEM_DATABASE_GET_NAMES,
-        core::ptr::null(),
-        0,
-    )?;
-    let mut names = Vec::new();
-    if result.success {
-        let data_slice = if result.data_len == 0 {
-            &[]
-        } else {
-            unsafe { core::slice::from_raw_parts(result.data, result.data_len) }
-        };
-        let mut index = 0;
-        while index < data_slice.len() {
-            let name = DataName::avro_decode(data_slice, &mut index)
-                .map_err(|_| DataError::DataIntegrityError)?;
-            names.push(name);
-        }
-    }
-    Ok(names)
-}
-
-/// Status-returning counterpart; requires `#[libertas_data_error_status]`.
-pub fn libertas_data_try_get_indexed_names() -> Result<Vec<DataName>, DataError> {
-    let result = checked_data_operation(
-        DEVICE_SYSTEM_DATABASE_INDEXED,
-        OP_SYSTEM_DATABASE_GET_NAMES,
-        core::ptr::null(),
-        0,
-    )?;
-    let mut names = Vec::new();
-    if result.success {
-        let data_slice = if result.data_len == 0 {
-            &[]
-        } else {
-            unsafe { core::slice::from_raw_parts(result.data, result.data_len) }
-        };
-        let mut index = 0;
-        while index < data_slice.len() {
-            let name = DataName::avro_decode(data_slice, &mut index)
-                .map_err(|_| DataError::DataIntegrityError)?;
-            names.push(name);
-        }
-    }
-    Ok(names)
-}
-
-/// Status-returning counterpart; requires `#[libertas_data_error_status]`.
-pub fn libertas_data_try_remove_single(
-    resource_name: &str,
-    arguments: &[LibertasMessageArgument],
-) -> Result<(), DataError> {
-    let serialized = libertas_formatted_text(resource_name, arguments);
-    checked_data_operation(
-        DEVICE_SYSTEM_DATABASE_SINGLE,
-        OP_SYSTEM_DATABASE_REMOVE_DATA,
-        serialized.as_ptr(),
-        serialized.len(),
-    )?;
-    Ok(())
-}
-
-/// Status-returning counterpart; requires `#[libertas_data_error_status]`.
-pub fn libertas_data_try_remove_indexed(
-    resource_name: &str,
-    arguments: &[LibertasMessageArgument],
-) -> Result<(), DataError> {
-    let serialized = libertas_formatted_text(resource_name, arguments);
-    checked_data_operation(
-        DEVICE_SYSTEM_DATABASE_INDEXED,
-        OP_SYSTEM_DATABASE_REMOVE_DATA,
-        serialized.as_ptr(),
-        serialized.len(),
-    )?;
-    Ok(())
-}
-
-/// Status-returning counterpart; requires `#[libertas_data_error_status]`.
-pub fn libertas_data_try_remove_indexed_name(data_name: &DataName) -> Result<(), DataError> {
-    let mut serialized = Vec::new();
-    data_name.avro_encode(&mut serialized);
-    checked_data_operation(
-        DEVICE_SYSTEM_DATABASE_INDEXED,
-        OP_SYSTEM_DATABASE_REMOVE_DATA,
-        serialized.as_ptr(),
-        serialized.len(),
-    )?;
-    Ok(())
-}
-
-/// Status-returning counterpart; requires `#[libertas_data_error_status]`.
-pub fn libertas_data_try_remove_indexed_records(
-    db: LibertasDataStore,
-    index_lo: i64,
-    index_hi: i64,
-) -> Result<(), DataError> {
-    let req: DataDeleteIndexedRecordsReq = DataDeleteIndexedRecordsReq {
-        db,
-        index_lo,
-        index_hi,
-    };
-    checked_data_operation(
-        DEVICE_SYSTEM_DATABASE_INDEXED,
-        OP_SYSTEM_DATABASE_REMOVE_RECORD,
-        &req as *const DataDeleteIndexedRecordsReq as *const u8,
-        core::mem::size_of::<DataDeleteIndexedRecordsReq>(),
-    )?;
-    Ok(())
-}
-
-/// Status-returning counterpart; requires `#[libertas_data_error_status]`.
-pub fn libertas_data_try_open_indexed(
-    resource_name: &str,
-    arguments: &[LibertasMessageArgument],
-) -> Result<IndexedDataStat, DataError> {
-    let serialized = libertas_formatted_text(resource_name, arguments);
-    let result = checked_data_operation(
-        DEVICE_SYSTEM_DATABASE_INDEXED,
-        OP_SYSTEM_DATABASE_OPEN_INDEXED_DATA,
-        serialized.as_ptr(),
-        serialized.len(),
-    )?;
-    if result.success && result.data_len == core::mem::size_of::<IndexedDataStat>() {
-        let stat = unsafe { &*(result.data as *const IndexedDataStat) };
-        Ok(IndexedDataStat {
-            handle: stat.handle,
-            count: stat.count,
-            min_index: stat.min_index,
-            max_index: stat.max_index,
+pub(crate) fn keys<K>(r: wire::Result) -> Result<Page<K, EncodedKey<K>>, DataError> {
+    if let wire::Result::Keys {
+        items,
+        continuation,
+    } = r
+    {
+        Ok(Page {
+            items: items.into_iter().map(EncodedKey::from_bytes).collect(),
+            next: continuation.map(|bytes| Continuation {
+                bytes,
+                marker: PhantomData,
+            }),
         })
     } else {
         Err(DataError::DataIntegrityError)
     }
 }
 
-/// Status-returning indexed-store existence check; requires
-/// `#[libertas_data_error_status]`. An absent store returns `Ok(false)`.
-pub fn libertas_data_try_indexed_store_exists(
-    resource_name: &str,
-    arguments: &[LibertasMessageArgument],
-) -> Result<bool, DataError> {
-    let serialized = libertas_formatted_text(resource_name, arguments);
-    let result = checked_data_operation(
-        DEVICE_SYSTEM_DATABASE_INDEXED,
-        OP_SYSTEM_DATABASE_INDEXED_STORE_EXISTS,
-        serialized.as_ptr(),
-        serialized.len(),
-    )?;
-    Ok(result.success)
+static mut NEXT_ID: u64 = 1;
+pub(crate) fn next_id() -> Result<u64, DataError> {
+    unsafe {
+        let id = NEXT_ID;
+        NEXT_ID = NEXT_ID.checked_add(1).ok_or(DataError::ResourceLimit)?;
+        Ok(id)
+    }
 }
-
-/// Status-returning counterpart; requires `#[libertas_data_error_status]`.
-pub fn libertas_data_try_write_single(
-    resource_name: &str,
-    arguments: &[LibertasMessageArgument],
-    data: &dyn AvroEncode,
-) -> Result<(), DataError> {
-    let mut serialized = libertas_formatted_text(resource_name, arguments);
-    let name_len = serialized.len();
-    data.avro_encode(&mut serialized);
-    let total_len = serialized.len();
-
-    let name_ptr = serialized.as_ptr();
-    let value_ptr = unsafe { name_ptr.add(name_len) };
-
-    let data_internal = DataSingleInternal {
-        name: name_ptr,
-        name_len: name_len,
-        value: value_ptr,
-        value_len: total_len - name_len,
-    };
-    checked_data_operation(
-        DEVICE_SYSTEM_DATABASE_SINGLE,
-        OP_SYSTEM_DATABASE_WRITE_DATA,
-        &data_internal as *const DataSingleInternal as *const u8,
-        core::mem::size_of::<DataSingleInternal>(),
-    )?;
-    Ok(())
+#[doc(hidden)]
+pub fn __bind_schema<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static>() {
+    if unsafe { (&*(&raw const crate::ENV)).is_none() } {
+        return;
+    }
+    let binding = (
+        TypeId::of::<K>(),
+        TypeId::of::<V>(),
+        next_id().unwrap_or_else(fatal),
+    );
+    let task = crate::libertas_get_task_id();
+    unsafe {
+        let env = &mut *(&raw mut crate::ENV);
+        env.as_mut()
+            .and_then(|e| e.contexts.get_mut(&task))
+            .unwrap_or_else(|| panic!("Data schema binding requires a task"))
+            .data_binding = Some(binding);
+    }
 }
-
-/// Status-returning counterpart; requires `#[libertas_data_error_status]`.
-pub fn libertas_data_try_write_indexed(
-    db: LibertasDataStore,
-    index: i64,
-    data: &dyn AvroEncode,
-) -> Result<(), DataError> {
-    let mut value = Vec::new();
-    data.avro_encode(&mut value);
-
-    let data_internal = DataWriteIndexedReq {
-        db,
-        index,
-        value: value.as_ptr(),
-        value_len: value.len(),
-    };
-    checked_data_operation(
-        DEVICE_SYSTEM_DATABASE_INDEXED,
-        OP_SYSTEM_DATABASE_WRITE_DATA,
-        &data_internal as *const DataWriteIndexedReq as *const u8,
-        core::mem::size_of::<DataWriteIndexedReq>(),
-    )?;
-    Ok(())
+pub struct Data<K, V> {
+    pub(crate) task: LibertasTaskId,
+    pub(crate) binding: u64,
+    marker: PhantomData<(fn() -> (K, V), Rc<()>)>,
 }
-
-/// Status-returning counterpart; requires `#[libertas_data_error_status]`.
-pub fn libertas_data_try_read_single<T>(
-    resource_name: &str,
-    arguments: &[LibertasMessageArgument],
-) -> Result<Option<T>, DataError>
-where
-    T: AvroDecode,
-{
-    let name = libertas_formatted_text(resource_name, arguments);
-    let result = checked_data_operation(
-        DEVICE_SYSTEM_DATABASE_SINGLE,
-        OP_SYSTEM_DATABASE_READ_DATA,
-        name.as_ptr(),
-        name.len(),
-    )?;
-    return Ok(if result.success {
-        let data_slice = if result.data_len == 0 {
-            &[]
-        } else {
-            unsafe { core::slice::from_raw_parts(result.data, result.data_len) }
+impl<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> Data<K, V> {
+    pub fn current() -> Self {
+        Self::try_current().unwrap_or_else(fatal)
+    }
+    pub fn try_current() -> Result<Self, DataError> {
+        if unsafe { crate::RUNTIME_API.is_null() || (&*(&raw const crate::ENV)).is_none() } {
+            return Err(DataError::InvalidRequest);
+        }
+        let task = crate::libertas_get_task_id();
+        let binding = unsafe {
+            let env = &*(&raw const crate::ENV);
+            env.as_ref()
+                .and_then(|e| e.contexts.get(&task))
+                .and_then(|c| c.data_binding)
         };
-        let mut index = 0;
-        Some(T::avro_decode(data_slice, &mut index).map_err(|_| DataError::DataIntegrityError)?)
+        match binding {
+            Some((k, v, binding)) if k == TypeId::of::<K>() && v == TypeId::of::<V>() => Ok(Self {
+                task,
+                binding,
+                marker: PhantomData,
+            }),
+            _ => Err(DataError::InvalidRequest),
+        }
+    }
+    pub(crate) fn duplicate(&self) -> Self {
+        Self {
+            task: self.task,
+            binding: self.binding,
+            marker: PhantomData,
+        }
+    }
+    pub(crate) fn valid(&self) -> bool {
+        Self::try_current().is_ok_and(|d| d.task == self.task && d.binding == self.binding)
+    }
+    #[cfg(feature = "tokio")]
+    pub(crate) fn request(
+        &self,
+        checked: bool,
+        command: wire::Command,
+    ) -> Result<wire::Request, DataError> {
+        if !self.valid() {
+            return Err(DataError::InvalidRequest);
+        }
+        Ok(wire::Request {
+            version: wire::VERSION,
+            id: next_id()?,
+            checked,
+            command,
+        })
+    }
+    fn call(
+        &self,
+        checked: bool,
+        command: request::Command<'_, K, V>,
+    ) -> Result<wire::Result, DataError> {
+        if !self.valid() {
+            return Err(DataError::InvalidRequest);
+        }
+        let id = next_id()?;
+        let bytes = request::frame(id, checked, command)?;
+        host_call_bytes(0xe8, id, bytes.as_slice())?.ok_or(DataError::DataIntegrityError)
+    }
+    fn operation(
+        &self,
+        target: &Target<K>,
+        checked: bool,
+        operation: request::Operation<'_, K, V>,
+    ) -> Result<wire::Result, DataError> {
+        self.call(checked, request::Command::Execute { target, operation })
+    }
+    pub fn begin(&self, target: &Target<K>, mode: Mode) -> Transaction<K, V> {
+        self.begin_with(target, mode, false).unwrap_or_else(fatal)
+    }
+    pub fn try_begin(
+        &self,
+        target: &Target<K>,
+        mode: Mode,
+    ) -> Result<Transaction<K, V>, DataError> {
+        authorize_checked()?;
+        self.begin_with(target, mode, true)
+    }
+    fn begin_with(
+        &self,
+        target: &Target<K>,
+        mode: Mode,
+        checked: bool,
+    ) -> Result<Transaction<K, V>, DataError> {
+        match self.call(checked, request::Command::Begin { target, mode })? {
+            wire::Result::Begun(id) if id != 0 => Ok(Transaction {
+                data: self.duplicate(),
+                id: Some(id),
+            }),
+            _ => Err(DataError::DataIntegrityError),
+        }
+    }
+}
+pub struct Transaction<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> {
+    data: Data<K, V>,
+    id: Option<u64>,
+}
+impl<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> Transaction<K, V> {
+    fn operation(
+        &mut self,
+        checked: bool,
+        operation: request::Operation<'_, K, V>,
+    ) -> Result<wire::Result, DataError> {
+        let id = self.id.ok_or(DataError::InvalidRequest)?;
+        let result = self.data.call(
+            checked,
+            request::Command::ExecuteInTransaction {
+                transaction: id,
+                operation,
+            },
+        );
+        if result.is_err() {
+            self.invalidate();
+        }
+        result
+    }
+    fn invalidate(&mut self) {
+        if let Some(id) = self.id.take() {
+            if self.data.valid() {
+                cancel(true, id);
+            }
+        }
+    }
+    pub fn commit(mut self) {
+        let result = self.finish(true, false);
+        result.unwrap_or_else(fatal)
+    }
+    pub fn try_commit(mut self) -> Result<(), DataError> {
+        authorize_checked()?;
+        self.finish(true, true)
+    }
+    pub fn rollback(mut self) {
+        let result = self.finish(false, false);
+        result.unwrap_or_else(fatal)
+    }
+    pub fn try_rollback(mut self) -> Result<(), DataError> {
+        authorize_checked()?;
+        self.finish(false, true)
+    }
+    fn finish(&mut self, commit: bool, checked: bool) -> Result<(), DataError> {
+        let id = self.id.take().ok_or(DataError::InvalidRequest)?;
+        {
+            let result = self
+                .data
+                .call(
+                    checked,
+                    if commit {
+                        request::Command::Commit(id)
+                    } else {
+                        request::Command::Rollback(id)
+                    },
+                )
+                .and_then(done);
+            if result.is_err() && self.data.valid() {
+                cancel(true, id);
+            }
+            result
+        }
+    }
+}
+impl<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> Drop for Transaction<K, V> {
+    fn drop(&mut self) {
+        self.invalidate();
+    }
+}
+#[cfg(feature = "tokio")]
+pub(crate) fn host_call(
+    op: u8,
+    request: &wire::Request,
+) -> Result<Option<wire::Result>, DataError> {
+    let mut bytes = crate::InlineByteBuffer::new();
+    request.avro_encode(&mut bytes);
+    host_call_bytes(op, request.id, bytes.as_slice())
+}
+fn host_call_bytes(op: u8, id: u64, bytes: &[u8]) -> Result<Option<wire::Result>, DataError> {
+    if bytes.len() > wire::MAX_REQUEST_BYTES {
+        return Err(DataError::ResourceLimit);
+    }
+    let result = crate::__libertas_device_read_raw(
+        crate::PROTOCOL_LIBERTAS,
+        crate::DEVICE_SYSTEM,
+        op,
+        bytes.as_ptr(),
+        bytes.len(),
+    );
+    if !result.success {
+        if op == 0xe9 {
+            return Ok(None);
+        }
+        return Err(DataError::StorageError);
+    }
+    reply(id, result).map(Some)
+}
+pub(crate) fn reply(id: u64, result: crate::ReadResult) -> Result<wire::Result, DataError> {
+    if result.data.is_null() || result.data_len > wire::MAX_REQUEST_BYTES {
+        return Err(DataError::DataIntegrityError);
+    }
+    let bytes = unsafe { core::slice::from_raw_parts(result.data, result.data_len) };
+    let reply: wire::Response = wire::decode(bytes).map_err(|_| DataError::DataIntegrityError)?;
+    if reply.id != id {
+        return Err(DataError::DataIntegrityError);
+    }
+    match reply.result {
+        wire::Result::Failure(status) => Err(DataError::status(status)),
+        v => Ok(v),
+    }
+}
+pub(crate) fn cancel(transaction: bool, id: u64) {
+    let mut bytes = crate::InlineByteBuffer::new();
+    (transaction, id).avro_encode(&mut bytes);
+    crate::__libertas_device_send_raw(
+        crate::PROTOCOL_LIBERTAS,
+        crate::DEVICE_SYSTEM,
+        0xeb,
+        0,
+        0,
+        bytes.as_slice().as_ptr(),
+        bytes.len(),
+    );
+}
+pub(crate) fn fatal<T>(_: DataError) -> T {
+    crate::__libertas_device_send_raw(
+        crate::PROTOCOL_LIBERTAS,
+        crate::DEVICE_SYSTEM,
+        0xf7,
+        0,
+        0,
+        core::ptr::null(),
+        0,
+    );
+    panic!("Host returned after fatal Data API failure")
+}
+impl<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> Data<K, V> {
+    pub fn get(&self, target: &Target<K>, key: KeyRef<'_, K>) -> Option<V> {
+        let result = (|| {
+            let op = request::Operation::Get(key);
+            optional(self.operation(target, false, op)?)
+        })();
+        result.unwrap_or_else(fatal)
+    }
+    pub fn try_get(&self, target: &Target<K>, key: KeyRef<'_, K>) -> Result<Option<V>, DataError> {
+        authorize_checked()?;
+        let result = (|| {
+            let op = request::Operation::Get(key);
+            optional(self.operation(target, true, op)?)
+        })();
+        result
+    }
+    pub fn get_many(&self, target: &Target<K>, keys: &[KeyRef<'_, K>]) -> Vec<Option<V>> {
+        let result = (|| {
+            let op = request::Operation::GetMany(keys);
+            values(self.operation(target, false, op)?)
+        })();
+        result.unwrap_or_else(fatal)
+    }
+    pub fn try_get_many(
+        &self,
+        target: &Target<K>,
+        keys: &[KeyRef<'_, K>],
+    ) -> Result<Vec<Option<V>>, DataError> {
+        authorize_checked()?;
+        let result = (|| {
+            let op = request::Operation::GetMany(keys);
+            values(self.operation(target, true, op)?)
+        })();
+        result
+    }
+    pub fn exists(&self, target: &Target<K>, key: KeyRef<'_, K>) -> bool {
+        let result = (|| {
+            let op = request::Operation::Exists(key);
+            exists(self.operation(target, false, op)?)
+        })();
+        result.unwrap_or_else(fatal)
+    }
+    pub fn try_exists(&self, target: &Target<K>, key: KeyRef<'_, K>) -> Result<bool, DataError> {
+        authorize_checked()?;
+        let result = (|| {
+            let op = request::Operation::Exists(key);
+            exists(self.operation(target, true, op)?)
+        })();
+        result
+    }
+    pub fn scan(
+        &self,
+        target: &Target<K>,
+        range: &KeyRange<K>,
+        options: &ScanOptions<K>,
+    ) -> Page<K, Entry<K, V>> {
+        let result = (|| {
+            let op = request::Operation::Scan(range, options, false);
+            entries(self.operation(target, false, op)?)
+        })();
+        result.unwrap_or_else(fatal)
+    }
+    pub fn try_scan(
+        &self,
+        target: &Target<K>,
+        range: &KeyRange<K>,
+        options: &ScanOptions<K>,
+    ) -> Result<Page<K, Entry<K, V>>, DataError> {
+        authorize_checked()?;
+        let result = (|| {
+            let op = request::Operation::Scan(range, options, false);
+            entries(self.operation(target, true, op)?)
+        })();
+        result
+    }
+    pub fn scan_keys(
+        &self,
+        target: &Target<K>,
+        range: &KeyRange<K>,
+        options: &ScanOptions<K>,
+    ) -> Page<K, EncodedKey<K>> {
+        let result = (|| {
+            let op = request::Operation::Scan(range, options, true);
+            keys(self.operation(target, false, op)?)
+        })();
+        result.unwrap_or_else(fatal)
+    }
+    pub fn try_scan_keys(
+        &self,
+        target: &Target<K>,
+        range: &KeyRange<K>,
+        options: &ScanOptions<K>,
+    ) -> Result<Page<K, EncodedKey<K>>, DataError> {
+        authorize_checked()?;
+        let result = (|| {
+            let op = request::Operation::Scan(range, options, true);
+            keys(self.operation(target, true, op)?)
+        })();
+        result
+    }
+    pub fn put(&self, target: &Target<K>, key: KeyRef<'_, K>, value: &V) -> () {
+        let result = (|| {
+            let op = request::Operation::Put { key, value };
+            done(self.operation(target, false, op)?)
+        })();
+        result.unwrap_or_else(fatal)
+    }
+    pub fn try_put(
+        &self,
+        target: &Target<K>,
+        key: KeyRef<'_, K>,
+        value: &V,
+    ) -> Result<(), DataError> {
+        authorize_checked()?;
+        let result = (|| {
+            let op = request::Operation::Put { key, value };
+            done(self.operation(target, true, op)?)
+        })();
+        result
+    }
+    pub fn delete(&self, target: &Target<K>, key: KeyRef<'_, K>) -> () {
+        let result = (|| {
+            let op = request::Operation::Delete(key);
+            done(self.operation(target, false, op)?)
+        })();
+        result.unwrap_or_else(fatal)
+    }
+    pub fn try_delete(&self, target: &Target<K>, key: KeyRef<'_, K>) -> Result<(), DataError> {
+        authorize_checked()?;
+        let result = (|| {
+            let op = request::Operation::Delete(key);
+            done(self.operation(target, true, op)?)
+        })();
+        result
+    }
+    pub fn write_batch(&self, target: &Target<K>, batch: &[Mutation<'_, K, V>]) -> () {
+        let result = (|| {
+            let op = request::Operation::WriteBatch(batch);
+            done(self.operation(target, false, op)?)
+        })();
+        result.unwrap_or_else(fatal)
+    }
+    pub fn try_write_batch(
+        &self,
+        target: &Target<K>,
+        batch: &[Mutation<'_, K, V>],
+    ) -> Result<(), DataError> {
+        authorize_checked()?;
+        let result = (|| {
+            let op = request::Operation::WriteBatch(batch);
+            done(self.operation(target, true, op)?)
+        })();
+        result
+    }
+}
+impl<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> Transaction<K, V> {
+    pub fn get(&mut self, key: KeyRef<'_, K>) -> Option<V> {
+        let result = (|| {
+            let op = request::Operation::Get(key);
+            optional(self.operation(false, op)?)
+        })();
+        if result.is_err() {
+            self.invalidate();
+        }
+        result.unwrap_or_else(fatal)
+    }
+    pub fn try_get(&mut self, key: KeyRef<'_, K>) -> Result<Option<V>, DataError> {
+        authorize_checked()?;
+        let result = (|| {
+            let op = request::Operation::Get(key);
+            optional(self.operation(true, op)?)
+        })();
+        if result.is_err() {
+            self.invalidate();
+        }
+        result
+    }
+    pub fn get_many(&mut self, keys: &[KeyRef<'_, K>]) -> Vec<Option<V>> {
+        let result = (|| {
+            let op = request::Operation::GetMany(keys);
+            values(self.operation(false, op)?)
+        })();
+        if result.is_err() {
+            self.invalidate();
+        }
+        result.unwrap_or_else(fatal)
+    }
+    pub fn try_get_many(&mut self, keys: &[KeyRef<'_, K>]) -> Result<Vec<Option<V>>, DataError> {
+        authorize_checked()?;
+        let result = (|| {
+            let op = request::Operation::GetMany(keys);
+            values(self.operation(true, op)?)
+        })();
+        if result.is_err() {
+            self.invalidate();
+        }
+        result
+    }
+    pub fn exists(&mut self, key: KeyRef<'_, K>) -> bool {
+        let result = (|| {
+            let op = request::Operation::Exists(key);
+            exists(self.operation(false, op)?)
+        })();
+        if result.is_err() {
+            self.invalidate();
+        }
+        result.unwrap_or_else(fatal)
+    }
+    pub fn try_exists(&mut self, key: KeyRef<'_, K>) -> Result<bool, DataError> {
+        authorize_checked()?;
+        let result = (|| {
+            let op = request::Operation::Exists(key);
+            exists(self.operation(true, op)?)
+        })();
+        if result.is_err() {
+            self.invalidate();
+        }
+        result
+    }
+    pub fn scan(&mut self, range: &KeyRange<K>, options: &ScanOptions<K>) -> Page<K, Entry<K, V>> {
+        let result = (|| {
+            let op = request::Operation::Scan(range, options, false);
+            entries(self.operation(false, op)?)
+        })();
+        if result.is_err() {
+            self.invalidate();
+        }
+        result.unwrap_or_else(fatal)
+    }
+    pub fn try_scan(
+        &mut self,
+        range: &KeyRange<K>,
+        options: &ScanOptions<K>,
+    ) -> Result<Page<K, Entry<K, V>>, DataError> {
+        authorize_checked()?;
+        let result = (|| {
+            let op = request::Operation::Scan(range, options, false);
+            entries(self.operation(true, op)?)
+        })();
+        if result.is_err() {
+            self.invalidate();
+        }
+        result
+    }
+    pub fn scan_keys(
+        &mut self,
+        range: &KeyRange<K>,
+        options: &ScanOptions<K>,
+    ) -> Page<K, EncodedKey<K>> {
+        let result = (|| {
+            let op = request::Operation::Scan(range, options, true);
+            keys(self.operation(false, op)?)
+        })();
+        if result.is_err() {
+            self.invalidate();
+        }
+        result.unwrap_or_else(fatal)
+    }
+    pub fn try_scan_keys(
+        &mut self,
+        range: &KeyRange<K>,
+        options: &ScanOptions<K>,
+    ) -> Result<Page<K, EncodedKey<K>>, DataError> {
+        authorize_checked()?;
+        let result = (|| {
+            let op = request::Operation::Scan(range, options, true);
+            keys(self.operation(true, op)?)
+        })();
+        if result.is_err() {
+            self.invalidate();
+        }
+        result
+    }
+    pub fn put(&mut self, key: KeyRef<'_, K>, value: &V) -> () {
+        let result = (|| {
+            let op = request::Operation::Put { key, value };
+            done(self.operation(false, op)?)
+        })();
+        if result.is_err() {
+            self.invalidate();
+        }
+        result.unwrap_or_else(fatal)
+    }
+    pub fn try_put(&mut self, key: KeyRef<'_, K>, value: &V) -> Result<(), DataError> {
+        authorize_checked()?;
+        let result = (|| {
+            let op = request::Operation::Put { key, value };
+            done(self.operation(true, op)?)
+        })();
+        if result.is_err() {
+            self.invalidate();
+        }
+        result
+    }
+    pub fn delete(&mut self, key: KeyRef<'_, K>) -> () {
+        let result = (|| {
+            let op = request::Operation::Delete(key);
+            done(self.operation(false, op)?)
+        })();
+        if result.is_err() {
+            self.invalidate();
+        }
+        result.unwrap_or_else(fatal)
+    }
+    pub fn try_delete(&mut self, key: KeyRef<'_, K>) -> Result<(), DataError> {
+        authorize_checked()?;
+        let result = (|| {
+            let op = request::Operation::Delete(key);
+            done(self.operation(true, op)?)
+        })();
+        if result.is_err() {
+            self.invalidate();
+        }
+        result
+    }
+    pub fn write_batch(&mut self, batch: &[Mutation<'_, K, V>]) -> () {
+        let result = (|| {
+            let op = request::Operation::WriteBatch(batch);
+            done(self.operation(false, op)?)
+        })();
+        if result.is_err() {
+            self.invalidate();
+        }
+        result.unwrap_or_else(fatal)
+    }
+    pub fn try_write_batch(&mut self, batch: &[Mutation<'_, K, V>]) -> Result<(), DataError> {
+        authorize_checked()?;
+        let result = (|| {
+            let op = request::Operation::WriteBatch(batch);
+            done(self.operation(true, op)?)
+        })();
+        if result.is_err() {
+            self.invalidate();
+        }
+        result
+    }
+}
+
+pub(crate) fn authorize_checked() -> Result<(), DataError> {
+    if unsafe { crate::RUNTIME_API.is_null() } {
+        return Err(DataError::InvalidRequest);
+    }
+    let raw = crate::__libertas_device_read_raw(
+        crate::PROTOCOL_LIBERTAS,
+        crate::DEVICE_SYSTEM,
+        0xe7,
+        [].as_ptr(),
+        0,
+    );
+    if raw.success {
+        Ok(())
     } else {
-        None
-    });
-}
-
-/// Status-returning counterpart; requires `#[libertas_data_error_status]`.
-pub fn libertas_data_try_read_indexed_range<T>(
-    db: LibertasDataStore,
-    index: i64,
-    direction: IndexDirection,
-    max_n: usize,
-    results: &mut Vec<IndexedData<T>>,
-) -> Result<(), DataError>
-where
-    T: AvroDecode,
-{
-    let req = DataReadIndexedReq {
-        db,
-        index,
-        direction,
-        max_n,
-    };
-    let read_result = checked_data_operation(
-        DEVICE_SYSTEM_DATABASE_INDEXED,
-        OP_SYSTEM_DATABASE_READ_DATA,
-        &req as *const DataReadIndexedReq as *const u8,
-        core::mem::size_of::<DataReadIndexedReq>(),
-    )?;
-    let mut pending = Vec::new();
-    if read_result.success {
-        let data_slice = if read_result.data_len == 0 {
-            &[]
-        } else {
-            unsafe { core::slice::from_raw_parts(read_result.data, read_result.data_len) }
-        };
-        let mut index = 0;
-        while index < data_slice.len() {
-            let record = unsafe { &*(data_slice.as_ptr().add(index) as *const DataIndexedRaw) };
-            index += core::mem::size_of::<DataIndexedRaw>();
-            let value_slice =
-                unsafe { core::slice::from_raw_parts(record.value, record.value_len) };
-            let mut value_index = 0;
-            let data = T::avro_decode(value_slice, &mut value_index)
-                .map_err(|_| DataError::DataIntegrityError)?;
-            pending.push(IndexedData {
-                index: record.index,
-                data,
-            });
-        }
-    }
-    results.extend(pending);
-    Ok(())
-}
-
-/// Status-returning counterpart; requires `#[libertas_data_error_status]`.
-pub fn libertas_data_try_read_indexed<T>(
-    db: LibertasDataStore,
-    index: i64,
-) -> Result<Option<IndexedData<T>>, DataError>
-where
-    T: AvroDecode,
-{
-    let req = DataReadIndexedReq {
-        db,
-        index,
-        direction: IndexDirection::Above,
-        max_n: 1,
-    };
-    let read_result = checked_data_operation(
-        DEVICE_SYSTEM_DATABASE_INDEXED,
-        OP_SYSTEM_DATABASE_READ_DATA,
-        &req as *const DataReadIndexedReq as *const u8,
-        core::mem::size_of::<DataReadIndexedReq>(),
-    )?;
-    if read_result.success {
-        if read_result.data_len > 0 {
-            let record = unsafe { &*(read_result.data as *const DataIndexedRaw) };
-            let value_slice =
-                unsafe { core::slice::from_raw_parts(record.value, record.value_len) };
-            let mut value_index = 0;
-            let data = IndexedData::<T> {
-                index: record.index,
-                data: T::avro_decode(value_slice, &mut value_index)
-                    .map_err(|_| DataError::DataIntegrityError)?,
-            };
-            return Ok(Some(data));
-        }
-    }
-    Ok(None)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn decoded_data_name_matches_formatted_text_bytes() {
-        let arguments = [
-            LibertasMessageArgument::LiteralText("north greenhouse"),
-            LibertasMessageArgument::Object(42),
-            LibertasMessageArgument::Boolean(true),
-            LibertasMessageArgument::Signed(-9),
-            LibertasMessageArgument::Unsigned(9),
-            LibertasMessageArgument::Float(1.25),
-            LibertasMessageArgument::Double(-2.5),
-            LibertasMessageArgument::UnitSigned {
-                unit_type: "celsius",
-                value: -3,
-            },
-            LibertasMessageArgument::UnitUnsigned {
-                unit_type: "byte",
-                value: 1024,
-            },
-            LibertasMessageArgument::UnitFloat {
-                unit_type: "meter-per-second",
-                value: 1.5,
-            },
-            LibertasMessageArgument::UnitDouble {
-                unit_type: "millimeter",
-                value: 2.75,
-            },
-            LibertasMessageArgument::ResourceText("READY"),
-            LibertasMessageArgument::Plural(3),
-        ];
-        let expected = libertas_formatted_text("DEVICE_HISTORY", &arguments);
-
-        let decoded = DataName {
-            resource_name: String::from("DEVICE_HISTORY"),
-            arguments: Vec::from([
-                LibertasMessageArgumentDecode::LiteralText(String::from("north greenhouse")),
-                LibertasMessageArgumentDecode::Object(42),
-                LibertasMessageArgumentDecode::Boolean(true),
-                LibertasMessageArgumentDecode::Signed(-9),
-                LibertasMessageArgumentDecode::Unsigned(9),
-                LibertasMessageArgumentDecode::Float(1.25),
-                LibertasMessageArgumentDecode::Double(-2.5),
-                LibertasMessageArgumentDecode::UnitSigned {
-                    unit_type: String::from("celsius"),
-                    value: -3,
-                },
-                LibertasMessageArgumentDecode::UnitUnsigned {
-                    unit_type: String::from("byte"),
-                    value: 1024,
-                },
-                LibertasMessageArgumentDecode::UnitFloat {
-                    unit_type: String::from("meter-per-second"),
-                    value: 1.5,
-                },
-                LibertasMessageArgumentDecode::UnitDouble {
-                    unit_type: String::from("millimeter"),
-                    value: 2.75,
-                },
-                LibertasMessageArgumentDecode::ResourceText(String::from("READY")),
-                LibertasMessageArgumentDecode::Plural(3),
-            ]),
-        };
-        let mut reencoded = Vec::new();
-        decoded.avro_encode(&mut reencoded);
-
-        assert_eq!(reencoded, expected);
+        Err(DataError::InvalidRequest)
     }
 }

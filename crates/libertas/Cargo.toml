@@ -7,7 +7,12 @@ authors.workspace = true
 homepage.workspace = true
 description = "Libertas App SDK"
 
+[features]
+default = []
+tokio = ["dep:tokio"]
+
 [dependencies]
+tokio = { version = "1.53", optional = true, default-features = false, features = ["sync"] }
 hashbrown = { version = "0.16" }
 priority-queue = { version = "2.7", default-features = false }
 libertas_macros = { path = "../libertas_macros", version="0.3.0" }
@@ -16,3 +21,6 @@ libertas_utils = { path = "../libertas_utils", version="0.3.0" }
 [lib]
 name = "libertas"
 crate-type = ["rlib"]
+
+[dev-dependencies]
+tokio = { version = "1.53", default-features = false, features = ["rt", "rt-multi-thread", "time"] }

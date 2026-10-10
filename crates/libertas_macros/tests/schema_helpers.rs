@@ -1,4 +1,4 @@
-use libertas_macros::{LibertasExport, libertas_data_schema, libertas_export};
+use libertas_macros::{LibertasExport, libertas_export};
 
 #[derive(LibertasExport)]
 struct Bounds {
@@ -8,15 +8,6 @@ struct Bounds {
     entries: Vec<u8>,
     #[libertas_number(min = 0, max = 10)]
     count: u32,
-}
-
-enum Stored {
-    Record(u32),
-}
-
-#[libertas_data_schema(Stored)]
-fn store() -> Stored {
-    Stored::Record(3)
 }
 
 #[libertas_export]
@@ -35,6 +26,4 @@ fn supported_schema_helpers_preserve_native_values() {
         (values.label.as_str(), values.entries.len(), values.count),
         ("text", 1, 3)
     );
-    let Stored::Record(value) = store();
-    assert_eq!(value, 3);
 }

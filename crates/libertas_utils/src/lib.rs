@@ -10,6 +10,35 @@ use core::{mem::MaybeUninit, slice};
 /// Number of bytes stored inline by [`InlineByteBuffer`].
 pub const STACK_BUF_SIZE: usize = 1000;
 
+/// Append-only byte destination for serialization.
+///
+/// Both implementations initialize only the bytes being appended. Encoders can
+/// use either a heap-backed Vec or an InlineByteBuffer without changing formats.
+pub trait ByteBuffer {
+    /// Appends one byte.
+    fn push(&mut self, byte: u8);
+    /// Appends a byte slice.
+    fn extend_from_slice(&mut self, bytes: &[u8]);
+}
+
+impl ByteBuffer for Vec<u8> {
+    fn push(&mut self, byte: u8) {
+        Vec::push(self, byte);
+    }
+    fn extend_from_slice(&mut self, bytes: &[u8]) {
+        Vec::extend_from_slice(self, bytes);
+    }
+}
+
+impl ByteBuffer for InlineByteBuffer {
+    fn push(&mut self, byte: u8) {
+        InlineByteBuffer::push(self, byte);
+    }
+    fn extend_from_slice(&mut self, bytes: &[u8]) {
+        InlineByteBuffer::extend_from_slice(self, bytes);
+    }
+}
+
 /// Byte buffer with [`STACK_BUF_SIZE`] bytes of uninitialized inline storage.
 ///
 /// A locally constructed buffer uses its inline storage, normally placing the

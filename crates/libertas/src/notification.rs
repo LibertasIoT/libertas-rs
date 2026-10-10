@@ -17,7 +17,7 @@ impl<'a> From<&'a [u8]> for LibertasFormattedTextArgument<'a> {
 }
 
 impl AvroEncode for LibertasFormattedTextArgument<'_> {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         (self.0.len() as i64).avro_encode(buffer);
         buffer.extend_from_slice(self.0);
     }
@@ -388,12 +388,12 @@ pub fn libertas_notification_send(
         resource_name,
         arguments: args,
     };
-    let mut data = Vec::<u8>::new();
+    let mut data = InlineByteBuffer::new();
     n.avro_encode(&mut data);
     let raw_message = LibertasNotificationRaw {
         recipients: recipients.as_ptr(),
         recipients_len: recipients.len(),
-        data: data.as_ptr(),
+        data: data.as_slice().as_ptr(),
         data_len: data.len(),
     };
     __libertas_device_send_raw(
@@ -428,6 +428,12 @@ pub fn libertas_notification_send_literal(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[derive(libertas_macros::LibertasAvroDecode)]
+    struct FormattedName {
+        resource_name: String,
+        arguments: Vec<LibertasMessageArgumentDecode>,
+    }
 
     #[test]
     fn decoded_arguments_borrow_without_changing_type_or_value() {
@@ -493,7 +499,7 @@ mod tests {
             0i64.avro_encode(&mut expected);
             assert_eq!(encoded, expected);
             let mut offset = 0;
-            let decoded = crate::DataName::avro_decode(&encoded, &mut offset).unwrap();
+            let decoded = FormattedName::avro_decode(&encoded, &mut offset).unwrap();
             assert_eq!(offset, encoded.len());
             assert_eq!(decoded.arguments[0], argument);
             assert_eq!(
@@ -515,7 +521,7 @@ mod tests {
             libertas_formatted_text("OUTER", &[LibertasMessageArgument::formatted_text(&inner)]);
         assert_eq!(outer, b"\x0aOUTER\x02\x1a\x14\x0aINNER\x02\x18\x04\x00\x00",);
         let mut offset = 0;
-        let decoded = crate::DataName::avro_decode(&outer, &mut offset)
+        let decoded = FormattedName::avro_decode(&outer, &mut offset)
             .unwrap_or_else(|error| panic!("{error}: {outer:?}"));
         assert_eq!(offset, outer.len());
         assert_eq!(decoded.resource_name, "OUTER");
@@ -534,7 +540,7 @@ mod tests {
         );
         assert_eq!(exact, b"\x0cAMOUNT\x02\x1c\x06USD\x04\x09\x00");
         let mut offset = 0;
-        let decoded = crate::DataName::avro_decode(&exact, &mut offset).unwrap();
+        let decoded = FormattedName::avro_decode(&exact, &mut offset).unwrap();
         assert_eq!(offset, exact.len());
         assert_eq!(
             decoded.arguments,

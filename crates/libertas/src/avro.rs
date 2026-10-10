@@ -14,10 +14,22 @@ fn take_bytes<'a>(
     Ok(bytes)
 }
 
-/// A trait for encoding Rust data types into Avro format, which is a compact binary serialization format. Types that implement the `AvroEncode` trait can be encoded into a byte buffer in Avro format using the `avro_encode` method. This trait is essential for converting Rust data structures into a format that can be stored or transmitted efficiently, especially when working with indexed data in the indexed database. The `avro_encode` method takes a mutable reference to a `Vec<u8>` buffer, where the encoded bytes will be appended. Implementing this trait for your custom data types allows you to easily serialize them into Avro format for storage or communication purposes.
+/// Encodes Avro bytes into an append-only destination.
+///
+/// Pass either `Vec<u8>` or [`crate::InlineByteBuffer`]. The latter stores small
+/// encodings inline and spills to the heap when necessary. Both append without
+/// preliminary zeroing, and produce identical Avro bytes.
+///
+/// ```
+/// use libertas::{AvroEncode, InlineByteBuffer};
+/// let mut buffer = InlineByteBuffer::new();
+/// 42i64.avro_encode(&mut buffer);
+/// assert_eq!(buffer.as_slice(), &[84]);
+/// ```
 pub trait AvroEncode {
-    /// Encode the implementing type into Avro format and append the encoded bytes to the provided buffer. The `avro_encode` method is responsible for converting the data of the implementing type into a compact binary representation according to the Avro specification. The encoded bytes are appended to the `buffer`, which is a mutable reference to a `Vec<u8>`. This allows you to build up a byte buffer containing the Avro-encoded data, which can then be stored in the indexed database or transmitted over a network. When implementing this method for your custom types, you should ensure that the encoding follows the Avro format correctly so that it can be decoded later using the corresponding `AvroDecode` trait.
-    fn avro_encode(&self, buffer: &mut Vec<u8>);
+    /// Appends this value's encoding. Implementations write through the shared
+    /// buffer interface; no intermediate Vec is required for inline output.
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized));
 }
 
 /// A trait for decoding Rust data types from Avro format, which is a compact binary serialization format. Types that implement the `AvroDecode` trait can be decoded from a byte buffer in Avro format using the `avro_decode` method. This trait is essential for converting Avro-encoded byte data back into usable Rust data structures, especially when working with indexed data read from the indexed database. The `avro_decode` method takes a byte slice (`&[u8]`) containing the Avro-encoded data and a mutable reference to an offset (`&mut usize`) that tracks the current position in the buffer. The method returns a `Result<Self, &'static str>`, where `Self` is the type being decoded, and the error string provides information about any decoding issues that may arise, such as unexpected end of buffer or invalid data formats. When implementing this method for your custom types, you should ensure that the decoding logic correctly interprets the Avro format and updates the offset accordingly as bytes are read from the buffer.
@@ -57,7 +69,7 @@ impl<T> NotBytesEncode for Box<T> {}
 impl<T> NotBytesDecode for Box<T> {}
 
 impl AvroEncode for bool {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         buffer.push(if *self { 1 } else { 0 });
     }
 }
@@ -78,7 +90,7 @@ impl AvroDecode for bool {
 }
 
 impl AvroEncode for i32 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         let n = (*self << 1) ^ (*self >> 31);
         let mut n = n as u32;
         loop {
@@ -123,7 +135,7 @@ impl AvroDecode for i32 {
 }
 
 impl AvroEncode for i64 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         let n = (*self << 1) ^ (*self >> 63);
         let mut n = n as u64;
         loop {
@@ -168,7 +180,7 @@ impl AvroDecode for i64 {
 }
 
 impl AvroEncode for f32 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         buffer.extend_from_slice(&self.to_le_bytes());
     }
 }
@@ -182,7 +194,7 @@ impl AvroDecode for f32 {
 }
 
 impl AvroEncode for f64 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         buffer.extend_from_slice(&self.to_le_bytes());
     }
 }
@@ -196,7 +208,7 @@ impl AvroDecode for f64 {
 }
 
 impl AvroEncode for String {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         let len = self.len() as i64;
         len.avro_encode(buffer);
         buffer.extend_from_slice(self.as_bytes());
@@ -216,7 +228,7 @@ impl AvroDecode for String {
 }
 
 impl AvroEncode for &str {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         let bytes = self.as_bytes();
         let len = bytes.len() as i64;
         len.avro_encode(buffer);
@@ -228,7 +240,7 @@ impl<T> AvroEncode for &[T]
 where
     T: AvroEncode,
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         let len = self.len() as i64;
 
         if len == 0 {
@@ -249,7 +261,7 @@ where
 }
 
 impl<A: AvroEncode> AvroEncode for (A,) {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
     }
 }
@@ -261,7 +273,7 @@ impl<A: AvroDecode> AvroDecode for (A,) {
 }
 
 impl<A: AvroEncode, B: AvroEncode> AvroEncode for (A, B) {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
     }
@@ -277,7 +289,7 @@ impl<A: AvroDecode, B: AvroDecode> AvroDecode for (A, B) {
 }
 
 impl<A: AvroEncode, B: AvroEncode, C: AvroEncode> AvroEncode for (A, B, C) {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -295,7 +307,7 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode> AvroDecode for (A, B, C) {
 }
 
 impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode> AvroEncode for (A, B, C, D) {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -317,7 +329,7 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode> AvroDecode for 
 impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode> AvroEncode
     for (A, B, C, D, E)
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -343,7 +355,7 @@ impl<A: AvroDecode, B: AvroDecode, C: AvroDecode, D: AvroDecode, E: AvroDecode> 
 impl<A: AvroEncode, B: AvroEncode, C: AvroEncode, D: AvroEncode, E: AvroEncode, F: AvroEncode>
     AvroEncode for (A, B, C, D, E, F)
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -378,7 +390,7 @@ impl<
     G: AvroEncode,
 > AvroEncode for (A, B, C, D, E, F, G)
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -423,7 +435,7 @@ impl<
     H: AvroEncode,
 > AvroEncode for (A, B, C, D, E, F, G, H)
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -472,7 +484,7 @@ impl<
     I: AvroEncode,
 > AvroEncode for (A, B, C, D, E, F, G, H, I)
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -525,7 +537,7 @@ impl<
     J: AvroEncode,
 > AvroEncode for (A, B, C, D, E, F, G, H, I, J)
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -582,7 +594,7 @@ impl<
     K: AvroEncode,
 > AvroEncode for (A, B, C, D, E, F, G, H, I, J, K)
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -643,7 +655,7 @@ impl<
     L: AvroEncode,
 > AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L)
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -708,7 +720,7 @@ impl<
     M: AvroEncode,
 > AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M)
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -794,7 +806,7 @@ impl<A, B, C, D, E, F, G, H, I, J, K, L, M> NotBytesDecode
 }
 
 impl AvroEncode for u8 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         (*self as i32).avro_encode(buffer);
     }
 }
@@ -805,7 +817,7 @@ impl AvroDecode for u8 {
 }
 
 impl AvroEncode for i8 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         (*self as i32).avro_encode(buffer);
     }
 }
@@ -816,7 +828,7 @@ impl AvroDecode for i8 {
 }
 
 impl AvroEncode for i16 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         (*self as i32).avro_encode(buffer);
     }
 }
@@ -830,7 +842,7 @@ impl NotBytesEncode for i16 {}
 impl NotBytesDecode for i16 {}
 
 impl AvroEncode for u16 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         (*self as i32).avro_encode(buffer);
     }
 }
@@ -844,7 +856,7 @@ impl NotBytesEncode for u16 {}
 impl NotBytesDecode for u16 {}
 
 impl AvroEncode for u32 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         (*self as i64).avro_encode(buffer);
     }
 }
@@ -858,7 +870,7 @@ impl NotBytesEncode for u32 {}
 impl NotBytesDecode for u32 {}
 
 impl AvroEncode for u64 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         (*self as i64).avro_encode(buffer);
     }
 }
@@ -871,7 +883,7 @@ impl NotBytesEncode for u64 {}
 impl NotBytesDecode for u64 {}
 
 impl AvroEncode for Vec<i8> {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         let len = self.len() as i64;
         len.avro_encode(buffer);
         for &b in self {
@@ -893,7 +905,7 @@ impl AvroDecode for Vec<i8> {
 }
 
 impl AvroEncode for Vec<u8> {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         let len = self.len() as i64;
         len.avro_encode(buffer);
         buffer.extend_from_slice(self);
@@ -913,7 +925,7 @@ impl AvroDecode for Vec<u8> {
 }
 
 impl<T: AvroEncode + NotBytesEncode> AvroEncode for Vec<T> {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         if !self.is_empty() {
             let len = self.len() as i64;
             len.avro_encode(buffer);
@@ -975,7 +987,7 @@ impl<T: AvroDecode + NotBytesDecode> AvroDecode for Vec<T> {
 }
 
 impl<T: AvroEncode> AvroEncode for Option<T> {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         match self {
             None => {
                 0i32.avro_encode(buffer);
@@ -1000,7 +1012,7 @@ impl<T: AvroDecode> AvroDecode for Option<T> {
 }
 
 impl<T: AvroEncode> AvroEncode for Box<T> {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.as_ref().avro_encode(buffer);
     }
 }
@@ -1028,7 +1040,7 @@ impl<
     N: AvroEncode,
 > AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N)
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -1178,7 +1190,7 @@ impl<
     O: AvroEncode,
 > AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -1264,7 +1276,7 @@ impl<
     P: AvroEncode,
 > AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -1354,7 +1366,7 @@ impl<
     Q: AvroEncode,
 > AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q)
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -1448,7 +1460,7 @@ impl<
     R: AvroEncode,
 > AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R)
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -1546,7 +1558,7 @@ impl<
     S: AvroEncode,
 > AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S)
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -1648,7 +1660,7 @@ impl<
     T: AvroEncode,
 > AvroEncode for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -1777,7 +1789,7 @@ impl<
         U,
     )
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -1978,7 +1990,7 @@ impl<
         V,
     )
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -2187,7 +2199,7 @@ impl<
         W,
     )
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -2404,7 +2416,7 @@ impl<
         X,
     )
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -2629,7 +2641,7 @@ impl<
         Y,
     )
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);
@@ -2862,7 +2874,7 @@ impl<
         Z,
     )
 {
-    fn avro_encode(&self, buffer: &mut Vec<u8>) {
+    fn avro_encode(&self, buffer: &mut (impl crate::ByteBuffer + ?Sized)) {
         self.0.avro_encode(buffer);
         self.1.avro_encode(buffer);
         self.2.avro_encode(buffer);

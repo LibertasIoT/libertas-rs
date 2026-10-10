@@ -3,6 +3,62 @@ use quote::{format_ident, quote};
 use syn::ext::IdentExt;
 use syn::{DeriveInput, ExprPath, FnArg, ItemFn, Pat, Path, PathArguments, parse_macro_input};
 
+mod data_schema;
+mod key_codec;
+
+/// Derives `libertas::data::KeyCodec` for a root key enum.
+///
+/// Uses the zero-based variant index as a big-endian `u16` tag.
+/// Supports up to 65,536 variants; explicit discriminants are rejected.
+/// Published root variants are append-only. No `repr` annotation is required.
+/// Encodes the selected tag and fields without padding to other root variants.
+/// String and byte-vector fields require `#[libertas_size(max = N)]`.
+/// Option fields add a one-byte presence flag and retain the full payload slot.
+/// Optional String/byte-vector fields use the same byte-capacity annotation.
+/// This derive generates encoding only; it imposes no decoding requirement.
+#[proc_macro_derive(LibertasKeyCodec, attributes(libertas_size))]
+pub fn libertas_key_codec_derive(input: TokenStream) -> TokenStream {
+    key_codec::derive(parse_macro_input!(input as DeriveInput), true)
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
+/// Derives `libertas::data::KeyFieldCodec` for a fixed-width key component.
+///
+/// Named structs concatenate their fields. Enums encode their zero-based
+/// variant index as big-endian `u16` and pad to the largest variant payload.
+/// String and byte-vector fields require `#[libertas_size(max = N)]`.
+/// Option fields add a one-byte presence flag; None has an all-zero payload slot.
+/// Published layouts must remain unchanged, including nested enum variants.
+#[proc_macro_derive(LibertasKeyFieldCodec, attributes(libertas_size))]
+pub fn libertas_key_field_codec_derive(input: TokenStream) -> TokenStream {
+    key_codec::derive(parse_macro_input!(input as DeriveInput), false)
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
+/// Derives `libertas::data::KeyDecode` alongside `LibertasKeyCodec`.
+///
+/// Decodes an exact root key, rejecting unknown discriminants, extra or missing
+/// bytes, and noncanonical field encodings. Components must support decoding.
+#[proc_macro_derive(LibertasKeyDecode, attributes(libertas_size))]
+pub fn libertas_key_decode_derive(input: TokenStream) -> TokenStream {
+    key_codec::derive_decode(parse_macro_input!(input as DeriveInput), true)
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
+/// Derives `libertas::data::KeyFieldDecode` alongside `LibertasKeyFieldCodec`.
+///
+/// Uses the same fixed-width layout and validates canonical union and bounded
+/// byte padding. String fields also require valid UTF-8.
+#[proc_macro_derive(LibertasKeyFieldDecode, attributes(libertas_size))]
+pub fn libertas_key_field_decode_derive(input: TokenStream) -> TokenStream {
+    key_codec::derive_decode(parse_macro_input!(input as DeriveInput), false)
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
 fn variant_index_const_ident(variant: &syn::Ident) -> syn::Ident {
     let variant = variant.unraw();
     format_ident!("__VARIANT_INDEX_{}", variant, span = variant.span())
@@ -298,12 +354,10 @@ pub fn libertas_singleton(_attr: TokenStream, item: TokenStream) -> TokenStream 
 }
 
 #[proc_macro_attribute]
-pub fn libertas_data_schema(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn libertas_data_schema(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(attr as data_schema::Arguments);
     let input = parse_macro_input!(item as ItemFn);
-    // Return the modified function (now clean of custom attributes)
-    TokenStream::from(quote! {
-        #input
-    })
+    data_schema::expand(args, input).into()
 }
 
 /// Declares the direct official App type for a published compatible type.
@@ -746,7 +800,7 @@ pub fn libertas_avro_encode_derive(input: TokenStream) -> TokenStream {
         impl #impl_generics ::libertas::NotBytesEncode for #name #ty_generics #where_clause {}
 
         impl #impl_generics ::libertas::AvroEncode for #name #ty_generics #where_clause {
-            fn avro_encode(&self, buffer: &mut alloc::vec::Vec<u8>) {
+            fn avro_encode(&self, buffer: &mut (impl ::libertas::ByteBuffer + ?::core::marker::Sized)) {
                 #encode_logic
             }
         }
