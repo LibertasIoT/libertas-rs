@@ -247,6 +247,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     || attr.path().is_ident("libertas_bitflags")
                     || attr.path().is_ident("libertas_date_only")
                     || attr.path().is_ident("libertas_format")
+                    || attr.path().is_ident("libertas_pattern")
                     || attr.path().is_ident("libertas_money")
                     || attr.path().is_ident("libertas_formatted_text")
                     || attr.path().is_ident("libertas_mime_types")
@@ -452,6 +453,13 @@ pub fn libertas_format(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
+/// Parser-only portable whole-String pattern metadata. Studio owns effective
+/// placement and regex validation; this macro leaves the native value unchanged.
+#[proc_macro_attribute]
+pub fn libertas_pattern(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 /// Requests that clients display the localized long description inline with
 /// the short display name. This parser-only metadata does not alter the Rust
 /// value or its wire encoding.
@@ -633,6 +641,7 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_bitflags,
     libertas_date_only,
     libertas_format,
+    libertas_pattern,
     libertas_money,
     libertas_formatted_text,
     libertas_mime_types,
