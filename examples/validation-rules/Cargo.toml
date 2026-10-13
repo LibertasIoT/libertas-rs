@@ -1,0 +1,11 @@
+[package]
+name = "example-validation_rules"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+libertas = { path = "../../crates/libertas" }
+libertas_macros = { path = "../../crates/libertas_macros" }

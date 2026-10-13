@@ -1,0 +1,6 @@
+{
+  "project": "..",
+  "type": "Settings",
+  "value": { "minimum": 1 },
+  "expected": { "RANGE_ORDER": "undecided" }
+}
