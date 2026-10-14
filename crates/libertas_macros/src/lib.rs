@@ -658,6 +658,7 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_response,
     libertas_error,
     libertas_error_field_path,
+    libertas_output_only,
     libertas_subscription_request,
     libertas_subscription_data,
     libertas_default,
