@@ -8,6 +8,8 @@ pub const VERSION: u32 = 1;
 pub const MAX_KEY_BYTES: usize = 4096;
 pub const MAX_VALUE_BYTES: usize = 4 * 1024 * 1024;
 pub const MAX_REQUEST_BYTES: usize = 16 * 1024 * 1024;
+/// Entry-count limit for read-side key sets, bulk reads and scan pages.
+/// Write batches and transactions have no count limit; bytes bound them.
 pub const MAX_ITEMS: usize = 4096;
 
 #[derive(Debug, Clone, PartialEq, Eq, LibertasAvroEncode, LibertasAvroDecode)]
@@ -190,6 +192,7 @@ pub fn decode_request(bytes: &[u8]) -> core::result::Result<Request, &'static st
         }
         fn array(
             &mut self,
+            max: usize,
             mut item: impl FnMut(&mut Self) -> core::result::Result<(), &'static str>,
         ) -> core::result::Result<(), &'static str> {
             let mut total = 0usize;
@@ -202,7 +205,7 @@ pub fn decode_request(bytes: &[u8]) -> core::result::Result<Request, &'static st
                     .map_err(|_| "Invalid storage array count")?;
                 total = total
                     .checked_add(count)
-                    .filter(|n| *n <= MAX_ITEMS)
+                    .filter(|n| *n <= max)
                     .ok_or("Storage item limit")?;
                 let end = if n < 0 {
                     let size =
@@ -226,7 +229,7 @@ pub fn decode_request(bytes: &[u8]) -> core::result::Result<Request, &'static st
         }
         fn target(&mut self) -> core::result::Result<(), &'static str> {
             if self.tag(2)? == 0 {
-                self.array(|s| s.bytes(MAX_KEY_BYTES))
+                self.array(MAX_ITEMS, |s| s.bytes(MAX_KEY_BYTES))
             } else {
                 self.bytes(MAX_KEY_BYTES)
             }
@@ -234,7 +237,7 @@ pub fn decode_request(bytes: &[u8]) -> core::result::Result<Request, &'static st
         fn operation(&mut self) -> core::result::Result<(), &'static str> {
             match self.tag(7)? {
                 0 | 2 | 5 => self.bytes(MAX_KEY_BYTES),
-                1 => self.array(|s| s.bytes(MAX_KEY_BYTES)),
+                1 => self.array(MAX_ITEMS, |s| s.bytes(MAX_KEY_BYTES)),
                 3 => {
                     for _ in 0..2 {
                         if self.tag(3)? != 0 {
@@ -255,7 +258,8 @@ pub fn decode_request(bytes: &[u8]) -> core::result::Result<Request, &'static st
                     self.bytes(MAX_KEY_BYTES)?;
                     self.bytes(MAX_VALUE_BYTES)
                 }
-                6 => self.array(|s| {
+                // The frame byte limit bounds a write batch; it has no count limit.
+                6 => self.array(usize::MAX, |s| {
                     let tag = s.tag(2)?;
                     s.bytes(MAX_KEY_BYTES)?;
                     if tag == 0 {
@@ -296,4 +300,81 @@ pub fn decode_request(bytes: &[u8]) -> core::result::Result<Request, &'static st
         return Err("Trailing storage frame bytes");
     }
     decode(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+
+    fn request(command: Command) -> Vec<u8> {
+        encode(&Request {
+            version: VERSION,
+            id: 1,
+            checked: true,
+            command,
+        })
+    }
+    fn key(n: usize) -> Vec<u8> {
+        let mut key = vec![0, 1];
+        key.extend_from_slice(&(n as u32).to_be_bytes());
+        key
+    }
+
+    #[test]
+    fn write_batches_are_bounded_by_bytes_not_entries() {
+        let batch: Vec<Mutation> = (0..MAX_ITEMS * 3)
+            .map(|n| match n % 2 {
+                0 => Mutation::Put {
+                    key: key(n),
+                    value: vec![7; 16],
+                },
+                _ => Mutation::Delete { key: key(n) },
+            })
+            .collect();
+        let command = Command::ExecuteInTransaction {
+            transaction: 9,
+            operation: Operation::WriteBatch(batch),
+        };
+        let bytes = request(command.clone());
+        assert_eq!(decode_request(&bytes).unwrap().command, command);
+
+        // A batch frame over 16 MiB is still rejected as a resource limit.
+        let over = Command::Execute {
+            target: Target::Prefix(vec![]),
+            operation: Operation::WriteBatch(
+                (0..5)
+                    .map(|n| Mutation::Put {
+                        key: key(n),
+                        value: vec![0; MAX_VALUE_BYTES],
+                    })
+                    .collect(),
+            ),
+        };
+        assert_eq!(decode_request(&request(over)), Err("Storage frame limit"));
+    }
+
+    #[test]
+    fn read_key_sets_keep_their_entry_limit() {
+        let keys = |n: usize| (0..n).map(key).collect::<Vec<_>>();
+        let target = |n: usize| Command::Execute {
+            target: Target::Keys(keys(n)),
+            operation: Operation::Get(key(0)),
+        };
+        assert!(decode_request(&request(target(MAX_ITEMS))).is_ok());
+        assert_eq!(
+            decode_request(&request(target(MAX_ITEMS + 1))),
+            Err("Storage item limit")
+        );
+        assert!(!Target::Keys(keys(MAX_ITEMS + 1)).validate());
+        let many = |n: usize| Command::Execute {
+            target: Target::Prefix(vec![]),
+            operation: Operation::GetMany(keys(n)),
+        };
+        assert!(decode_request(&request(many(MAX_ITEMS))).is_ok());
+        assert_eq!(
+            decode_request(&request(many(MAX_ITEMS + 1))),
+            Err("Storage item limit")
+        );
+    }
 }
