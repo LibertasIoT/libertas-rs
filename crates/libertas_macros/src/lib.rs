@@ -453,6 +453,22 @@ pub fn libertas_format(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
+/// Parser-only numeric type and bounds metadata. On a field it is a
+/// `LibertasExport` helper; this standalone form keeps it valid Rust on a
+/// numeric type alias. The value is unchanged; Studio owns placement.
+#[proc_macro_attribute]
+pub fn libertas_number(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+/// Parser-only String, Bytes or List size bounds. On a field it is a
+/// `LibertasExport` helper; this standalone form keeps it valid Rust on a type
+/// alias. The value is unchanged; Studio owns placement.
+#[proc_macro_attribute]
+pub fn libertas_size(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 /// Parser-only portable whole-String pattern metadata. Studio owns effective
 /// placement and regex validation; this macro leaves the native value unchanged.
 #[proc_macro_attribute]
