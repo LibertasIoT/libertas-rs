@@ -231,6 +231,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     || attr.path().is_ident("libertas_workflow_request")
                     || attr.path().is_ident("libertas_prev_request")
                     || attr.path().is_ident("libertas_calculation_request")
+                    || attr.path().is_ident("libertas_calculation_root")
                     || attr.path().is_ident("libertas_copy_from")
                     || attr.path().is_ident("libertas_constrained_by")
                     || attr.path().is_ident("libertas_action_control")
@@ -453,6 +454,16 @@ pub fn libertas_format(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
+/// Parser-only calculation root declaration: a comma-delimited list of
+/// calculation names on the root node (a struct, enum, type alias, field,
+/// enum variant or List member type). On fields and variants it is a
+/// `LibertasExport` helper; this standalone form keeps it valid Rust on items.
+/// Studio owns placement and rules; this macro leaves the native value unchanged.
+#[proc_macro_attribute]
+pub fn libertas_calculation_root(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 /// Parser-only numeric type and bounds metadata. On a field it is a
 /// `LibertasExport` helper; this standalone form keeps it valid Rust on a
 /// numeric type alias. The value is unchanged; Studio owns placement.
@@ -638,6 +649,7 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_derive(LibertasExport, attributes(
     libertas_calculation_request,
+    libertas_calculation_root,
     libertas_workflow_request,
     libertas_prev_request,
     libertas_copy_from,
