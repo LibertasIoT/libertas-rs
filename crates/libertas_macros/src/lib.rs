@@ -291,6 +291,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     || attr.path().is_ident("libertas_time_interval")
                     || attr.path().is_ident("libertas_enum")
                     || attr.path().is_ident("libertas_unordered")
+                    || attr.path().is_ident("libertas_ask_on_add")
                     || attr.path().is_ident("libertas_unique")
                     || attr.path().is_ident("libertas_virtual_device_type")
                     || attr.path().is_ident("content")
@@ -721,6 +722,7 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_time_interval,
     libertas_enum,
     libertas_unordered,
+    libertas_ask_on_add,
     libertas_unique,
     libertas_next_request,
     libertas_next_response,
