@@ -240,6 +240,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     || attr.path().is_ident("libertas_copy_to")
                     || attr.path().is_ident("libertas_append_to")
                     || attr.path().is_ident("libertas_append_index")
+                    || attr.path().is_ident("libertas_dynamic")
                     || attr.path().is_ident("libertas_validation_rules")
                     || attr.path().is_ident("libertas_range_min")
                     || attr.path().is_ident("libertas_range_max")
@@ -536,6 +537,14 @@ pub fn libertas_request_confirmation(_attr: TokenStream, item: TokenStream) -> T
     item
 }
 
+/// Declares Dynamic editing-operation expressions on a schema data node.
+/// Studio owns expression parsing and semantic validation; this metadata does
+/// not alter native values or their encoding.
+#[proc_macro_attribute]
+pub fn libertas_dynamic(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 /// Declares pure Libertas data validation expressions on a function, named
 /// type, field, parameter, or other schema data-type node. Studio owns parsing
 /// and semantic validation; this macro deliberately leaves Rust code intact.
@@ -662,6 +671,7 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_append_to,
     libertas_append_index,
     libertas_validation_rules,
+    libertas_dynamic,
     libertas_range_min,
     libertas_range_max,
     libertas_enum_source,
