@@ -16,7 +16,7 @@ mod key_codec;
 /// Option fields add a one-byte presence flag and retain the full payload slot.
 /// Optional String/byte-vector fields use the same byte-capacity annotation.
 /// This derive generates encoding only; it imposes no decoding requirement.
-#[proc_macro_derive(LibertasKeyCodec, attributes(libertas_size, libertas_pattern))]
+#[proc_macro_derive(LibertasKeyCodec, attributes(libertas_size, libertas_pattern, libertas_multiline))]
 pub fn libertas_key_codec_derive(input: TokenStream) -> TokenStream {
     key_codec::derive(parse_macro_input!(input as DeriveInput), true)
         .unwrap_or_else(syn::Error::into_compile_error)
@@ -30,7 +30,7 @@ pub fn libertas_key_codec_derive(input: TokenStream) -> TokenStream {
 /// String and byte-vector fields require `#[libertas_size(max = N)]`.
 /// Option fields add a one-byte presence flag; None has an all-zero payload slot.
 /// Published layouts must remain unchanged, including nested enum variants.
-#[proc_macro_derive(LibertasKeyFieldCodec, attributes(libertas_size, libertas_pattern))]
+#[proc_macro_derive(LibertasKeyFieldCodec, attributes(libertas_size, libertas_pattern, libertas_multiline))]
 pub fn libertas_key_field_codec_derive(input: TokenStream) -> TokenStream {
     key_codec::derive(parse_macro_input!(input as DeriveInput), false)
         .unwrap_or_else(syn::Error::into_compile_error)
@@ -41,7 +41,7 @@ pub fn libertas_key_field_codec_derive(input: TokenStream) -> TokenStream {
 ///
 /// Decodes an exact root key, rejecting unknown discriminants, extra or missing
 /// bytes, and noncanonical field encodings. Components must support decoding.
-#[proc_macro_derive(LibertasKeyDecode, attributes(libertas_size, libertas_pattern))]
+#[proc_macro_derive(LibertasKeyDecode, attributes(libertas_size, libertas_pattern, libertas_multiline))]
 pub fn libertas_key_decode_derive(input: TokenStream) -> TokenStream {
     key_codec::derive_decode(parse_macro_input!(input as DeriveInput), true)
         .unwrap_or_else(syn::Error::into_compile_error)
@@ -52,7 +52,7 @@ pub fn libertas_key_decode_derive(input: TokenStream) -> TokenStream {
 ///
 /// Uses the same fixed-width layout and validates canonical union and bounded
 /// byte padding. String fields also require valid UTF-8.
-#[proc_macro_derive(LibertasKeyFieldDecode, attributes(libertas_size, libertas_pattern))]
+#[proc_macro_derive(LibertasKeyFieldDecode, attributes(libertas_size, libertas_pattern, libertas_multiline))]
 pub fn libertas_key_field_decode_derive(input: TokenStream) -> TokenStream {
     key_codec::derive_decode(parse_macro_input!(input as DeriveInput), false)
         .unwrap_or_else(syn::Error::into_compile_error)
@@ -250,6 +250,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     || attr.path().is_ident("libertas_date_only")
                     || attr.path().is_ident("libertas_format")
                     || attr.path().is_ident("libertas_pattern")
+                    || attr.path().is_ident("libertas_multiline")
                     || attr.path().is_ident("libertas_money")
                     || attr.path().is_ident("libertas_formatted_text")
                     || attr.path().is_ident("libertas_mime_types")
@@ -489,6 +490,13 @@ pub fn libertas_pattern(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
+/// Parser-only multiline String metadata. Studio validates the marker and
+/// effective host; this helper leaves the native String value unchanged.
+#[proc_macro_attribute]
+pub fn libertas_multiline(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 /// Requests that clients display the localized long description inline with
 /// the short display name. This parser-only metadata does not alter the Rust
 /// value or its wire encoding.
@@ -681,6 +689,7 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_date_only,
     libertas_format,
     libertas_pattern,
+    libertas_multiline,
     libertas_money,
     libertas_formatted_text,
     libertas_mime_types,
