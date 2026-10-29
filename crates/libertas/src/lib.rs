@@ -35,12 +35,14 @@ pub mod data;
 mod log;
 mod mime_bytes;
 mod notification;
+mod schema_path;
 
 #[cfg(feature = "tokio")]
 pub mod tokio;
 
 pub use avro::{AvroDecode, AvroEncode, NotBytesDecode, NotBytesEncode};
 pub use data::DataError;
+pub use schema_path::{SchemaPath, SchemaPathKey};
 pub use libertas_utils::{ByteBuffer, InlineByteBuffer, STACK_BUF_SIZE};
 pub use log::{LogLevel, libertas_log};
 pub use mime_bytes::{
