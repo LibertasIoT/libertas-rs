@@ -587,6 +587,17 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
+/// Declares the exact code a form prints for one Bitflags flag constant.
+///
+/// On an Enumeration member or Union variant the same name is a
+/// `LibertasExport` helper; this attribute form lets a flag `const` inside
+/// `bitflags!` or a manual `impl` carry it. Parser-only: Rust values are
+/// unchanged, and Studio validates placement, value and uniqueness.
+#[proc_macro_attribute]
+pub fn libertas_form_code(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 /// Enables parser-only attributes on published structs and enums.
 ///
 /// `libertas_foreign_type` is accepted by Rust through this derive because it
@@ -730,7 +741,7 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_request_confirmation,
     libertas_llm_doc_trans,
     libertas_llm_doc_field,
-    // Declares the exact code a form prints for an Enumeration member or Union variant.
+    // Declares the exact code a form prints for an Enumeration member, Union variant or Bitflags flag.
     libertas_form_code,
     // Requests that clients render the long description beside the short
     // display name. This is presentation metadata only.
