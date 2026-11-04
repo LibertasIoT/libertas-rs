@@ -281,6 +281,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     || attr.path().is_ident("libertas_request_confirmation")
                     || attr.path().is_ident("libertas_llm_doc_trans")
                     || attr.path().is_ident("libertas_llm_doc_field")
+                    || attr.path().is_ident("libertas_form_code")
                     || attr.path().is_ident("libertas_cache_identity")
                     || attr.path().is_ident("libertas_suppress_label")
                     || attr.path().is_ident("libertas_ui_include_description")
@@ -729,6 +730,8 @@ pub fn libertas_bitflags(_attr: TokenStream, item: TokenStream) -> TokenStream {
     libertas_request_confirmation,
     libertas_llm_doc_trans,
     libertas_llm_doc_field,
+    // Declares the exact code a form prints for an Enumeration member or Union variant.
+    libertas_form_code,
     // Requests that clients render the long description beside the short
     // display name. This is presentation metadata only.
     libertas_ui_include_description,
