@@ -251,6 +251,7 @@ pub fn libertas_export(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     || attr.path().is_ident("libertas_format")
                     || attr.path().is_ident("libertas_pattern")
                     || attr.path().is_ident("libertas_multiline")
+                    || attr.path().is_ident("libertas_secret")
                     || attr.path().is_ident("libertas_money")
                     || attr.path().is_ident("libertas_formatted_text")
                     || attr.path().is_ident("libertas_mime_types")
@@ -498,6 +499,14 @@ pub fn libertas_multiline(_attr: TokenStream, item: TokenStream) -> TokenStream 
     item
 }
 
+/// Parser-only confidential String metadata: clients mask the value and keep it
+/// from AI models. Studio validates the marker and effective host; this helper
+/// leaves the native String value unchanged.
+#[proc_macro_attribute]
+pub fn libertas_secret(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 /// Requests that clients display the localized long description inline with
 /// the short display name. This parser-only metadata does not alter the Rust
 /// value or its wire encoding.
@@ -702,6 +711,7 @@ pub fn libertas_form_code(_attr: TokenStream, item: TokenStream) -> TokenStream 
     libertas_format,
     libertas_pattern,
     libertas_multiline,
+    libertas_secret,
     libertas_money,
     libertas_formatted_text,
     libertas_mime_types,
