@@ -145,6 +145,81 @@ impl<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> Data<K, V> {
         })
     }
 
+    /// Restores the running digest and progress of an authorized durable upload.
+    /// The calling App must first validate the generation against its durable
+    /// owner record. Recovery reads one committed chunk at a time.
+    pub fn resume_document_upload(
+        &self,
+        schema: &impl DocumentWriteSchema<K, V>,
+        generation: [u8; 16],
+    ) -> Result<DocumentUpload, DocumentWriteError> {
+        let manifest_key = encode_key(&schema.manifest_key())?;
+        let stage_key = encode_key(&schema.stage_key(&generation))?;
+        let target = exact_target([&stage_key])?;
+        let stage = self
+            .get(&target, (&stage_key).into())
+            .ok_or(DocumentWriteError::InvalidStage)
+            .and_then(|value| decode_stage(schema, value, &manifest_key))?;
+        require_live(&stage, utc_now()?)?;
+        if !matches!(
+            stage.status,
+            DocumentStageStatus::Open | DocumentStageStatus::Sealed(_)
+        ) {
+            return Err(DocumentWriteError::Conflict);
+        }
+        if stage.accepted_bytes > stage.byte_len
+            || u64::from(stage.chunk_count) > stage.accepted_bytes
+        {
+            return Err(DocumentWriteError::InvalidStage);
+        }
+        let same_stage = |value| {
+            decode_stage(schema, value, &manifest_key).is_ok_and(|current| current == stage)
+        };
+        let mut digest = Sha256::new();
+        let mut remaining = stage.accepted_bytes;
+        for index in 0..stage.chunk_count {
+            let bytes = self
+                .read_bound_chunk::<core::convert::Infallible>(
+                    schema,
+                    &stage_key,
+                    &generation,
+                    index,
+                    &same_stage,
+                )
+                .map_err(|error| match error {
+                    DocumentReadError::InvalidKey => DocumentWriteError::InvalidKey,
+                    DocumentReadError::InvalidChunk(_) => DocumentWriteError::InvalidChunk,
+                    _ => DocumentWriteError::Conflict,
+                })?;
+            remaining = remaining
+                .checked_sub(bytes.len() as u64)
+                .ok_or(DocumentWriteError::LengthMismatch)?;
+            digest.update(bytes);
+        }
+        if remaining != 0 {
+            return Err(DocumentWriteError::LengthMismatch);
+        }
+        if let DocumentStageStatus::Sealed(expected) = stage.status
+            && (stage.accepted_bytes != stage.byte_len
+                || <[u8; 32]>::from(digest.clone().finalize()) != expected)
+        {
+            return Err(DocumentWriteError::DigestMismatch);
+        }
+        if !self
+            .get(&target, (&stage_key).into())
+            .is_some_and(same_stage)
+        {
+            return Err(DocumentWriteError::Conflict);
+        }
+        require_live(&stage, utc_now()?)?;
+        Ok(DocumentUpload {
+            generation,
+            digest,
+            chunk_count: stage.chunk_count,
+            accepted_bytes: stage.accepted_bytes,
+        })
+    }
+
     /// Commits one piece and its progress together. A retry must match the stored bytes.
     pub fn append_document_chunk(
         &self,

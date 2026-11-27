@@ -323,6 +323,14 @@ fn only_publishes_the_complete_generation_and_keeps_retries_idempotent() {
         data.publish_document(&Schema, upload.generation()),
         Err(DocumentWriteError::Conflict)
     );
+    let mut upload = data
+        .resume_document_upload(&Schema, upload.generation())
+        .unwrap();
+    assert_eq!(upload.progress(), (1, 2));
+    assert_eq!(
+        data.append_document_chunk(&Schema, &mut upload, 0, b"ab"),
+        Ok(2)
+    );
     assert_eq!(
         data.append_document_chunk(&Schema, &mut upload, 1, b"cd"),
         Ok(4)

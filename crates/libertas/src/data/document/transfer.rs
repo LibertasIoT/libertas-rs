@@ -55,6 +55,26 @@ impl DocumentTransfer {
         })
     }
 
+    /// Rebinds a durable upload after the App verifies its persisted owner
+    /// and returns the existing handle and committed progress.
+    pub fn resume<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static>(
+        data: &Data<K, V>,
+        schema: &impl DocumentWriteSchema<K, V>,
+        owner: DocumentTransferOwner,
+        generation: [u8; 16],
+        piece_bytes: usize,
+    ) -> Result<Self, DocumentWriteError> {
+        if piece_bytes == 0 || piece_bytes >= wire::MAX_VALUE_BYTES {
+            return Err(DocumentWriteError::ValueTooLarge);
+        }
+        let upload = data.resume_document_upload(schema, generation)?;
+        Ok(Self {
+            owner,
+            upload,
+            piece_bytes,
+        })
+    }
+
     pub fn handle(&self) -> [u8; 16] {
         self.upload.generation()
     }

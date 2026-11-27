@@ -110,22 +110,13 @@ impl<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> Data<K, V> {
         let mut digest = Sha256::new();
         let mut remaining = manifest.byte_len;
         for index in 0..manifest.chunk_count {
-            let chunk_key = encode_key(&schema.chunk_key(&manifest.generation, index))?;
-            let mut keys = [binding_key, &chunk_key];
-            keys.sort_unstable();
-            let target =
-                Target::keys(&keys.map(Into::into)).map_err(|_| DocumentReadError::InvalidKey)?;
-            let mut txn = self.begin(&target, Mode::ReadOnly);
-            if !txn.get(binding_key.into()).is_some_and(&matches_generation) {
-                return Err(DocumentReadError::ManifestChanged);
-            }
-            let bytes = txn
-                .get((&chunk_key).into())
-                .and_then(|v| schema.chunk_from_value(v));
-            txn.commit();
-            let bytes = bytes
-                .filter(|bytes| !bytes.is_empty())
-                .ok_or(DocumentReadError::InvalidChunk(index))?;
+            let bytes = self.read_bound_chunk(
+                schema,
+                binding_key,
+                &manifest.generation,
+                index,
+                &matches_generation,
+            )?;
             remaining = remaining
                 .checked_sub(bytes.len() as u64)
                 .ok_or(DocumentReadError::LengthMismatch)?;
@@ -139,6 +130,32 @@ impl<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> Data<K, V> {
             return Err(DocumentReadError::DigestMismatch);
         }
         Ok(())
+    }
+
+    fn read_bound_chunk<E>(
+        &self,
+        schema: &impl DocumentReadSchema<K, V>,
+        binding_key: &EncodedKey<K>,
+        generation: &[u8; 16],
+        index: u32,
+        matches_generation: impl FnOnce(V) -> bool,
+    ) -> Result<Vec<u8>, DocumentReadError<E>> {
+        let chunk_key = encode_key(&schema.chunk_key(generation, index))?;
+        let mut keys = [binding_key, &chunk_key];
+        keys.sort_unstable();
+        let target =
+            Target::keys(&keys.map(Into::into)).map_err(|_| DocumentReadError::InvalidKey)?;
+        let mut txn = self.begin(&target, Mode::ReadOnly);
+        if !txn.get(binding_key.into()).is_some_and(matches_generation) {
+            return Err(DocumentReadError::ManifestChanged);
+        }
+        let bytes = txn
+            .get((&chunk_key).into())
+            .and_then(|value| schema.chunk_from_value(value));
+        txn.commit();
+        bytes
+            .filter(|bytes| !bytes.is_empty())
+            .ok_or(DocumentReadError::InvalidChunk(index))
     }
 }
 
