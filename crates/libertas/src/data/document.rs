@@ -93,6 +93,26 @@ impl<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> Data<K, V> {
         Ok(Some(manifest))
     }
 
+    /// Reads one committed piece while verifying that the manifest is still the
+    /// exact snapshot supplied by the caller. Use this for transports that
+    /// wait for an acknowledgment before obtaining the next indexed piece.
+    /// Each returned piece is provisional until the receiver verifies the
+    /// complete length and digest against the captured manifest.
+    pub fn read_document_piece(
+        &self,
+        schema: &impl DocumentReadSchema<K, V>,
+        manifest: &DocumentManifest,
+        index: u32,
+    ) -> Result<Vec<u8>, DocumentReadError<core::convert::Infallible>> {
+        if index >= manifest.chunk_count {
+            return Err(DocumentReadError::InvalidChunk(index));
+        }
+        let binding_key = encode_key(&schema.manifest_key())?;
+        self.read_bound_chunk(schema, &binding_key, &manifest.generation, index, |value| {
+            schema.manifest_from_value(value).as_ref() == Some(manifest)
+        })
+    }
+
     fn stream_document_generation<E>(
         &self,
         schema: &impl DocumentReadSchema<K, V>,

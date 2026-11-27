@@ -398,6 +398,14 @@ fn only_publishes_the_complete_generation_and_keeps_retries_idempotent() {
         data.get(&Target::all(), (&Key::Attachment).into()),
         Some(42)
     );
+    assert_eq!(
+        data.read_document_piece(&Schema, &manifest, 0),
+        Ok(b"ab".to_vec())
+    );
+    assert_eq!(
+        data.read_document_piece(&Schema, &manifest, 1),
+        Ok(b"cd".to_vec())
+    );
     let document = data.read_document(&Schema).unwrap().unwrap();
     assert_eq!(document.manifest, manifest);
     assert_eq!(document.bytes, b"abcd");
@@ -416,6 +424,10 @@ fn only_publishes_the_complete_generation_and_keeps_retries_idempotent() {
     let new_manifest = data
         .publish_document(&Schema, replacement.generation())
         .unwrap();
+    assert_eq!(
+        data.read_document_piece(&Schema, &manifest, 1),
+        Err(DocumentReadError::ManifestChanged)
+    );
     assert_eq!(
         data.publish_document(&Schema, stale.generation()),
         Err(DocumentWriteError::Conflict)
