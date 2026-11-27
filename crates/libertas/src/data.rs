@@ -2,6 +2,7 @@
 use crate::{AvroDecode, AvroEncode, LibertasTaskId};
 use alloc::{rc::Rc, vec::Vec};
 use core::{any::TypeId, marker::PhantomData, ops::Bound};
+pub mod document;
 mod key_codec;
 pub(crate) mod request;
 #[doc(hidden)]
