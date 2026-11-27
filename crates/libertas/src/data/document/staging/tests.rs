@@ -331,17 +331,34 @@ fn only_publishes_the_complete_generation_and_keeps_retries_idempotent() {
     assert_eq!(data.seal_document_upload(&Schema, &upload, digest), Ok(()));
     assert_eq!(data.seal_document_upload(&Schema, &upload, digest), Ok(()));
     assert_eq!(data.read_document(&Schema), Ok(None));
-    let manifest = data
-        .publish_document_with_mutations(
+    data.put(&Target::all(), (&Key::Attachment).into(), &7);
+    assert_eq!(
+        data.publish_document_if(
             &Schema,
             upload.generation(),
+            (&Key::Attachment).into(),
+            |revision| revision == Some(6),
+            &[Mutation::Put((&Key::Attachment).into(), &42)],
+        ),
+        Err(DocumentWriteError::Conflict)
+    );
+    assert_eq!(data.read_document(&Schema), Ok(None));
+    assert_eq!(data.get(&Target::all(), (&Key::Attachment).into()), Some(7));
+    let manifest = data
+        .publish_document_if(
+            &Schema,
+            upload.generation(),
+            (&Key::Attachment).into(),
+            |revision| revision == Some(7),
             &[Mutation::Put((&Key::Attachment).into(), &42)],
         )
         .unwrap();
     assert_eq!(
-        data.publish_document_with_mutations(
+        data.publish_document_if(
             &Schema,
             upload.generation(),
+            (&Key::Attachment).into(),
+            |_| panic!("an already committed publication never repeats the App save"),
             &[Mutation::Put((&Key::Attachment).into(), &123)],
         ),
         Ok(manifest.clone())

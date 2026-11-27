@@ -1,5 +1,5 @@
 use super::{DocumentManifest, DocumentReadSchema};
-use crate::data::{Data, EncodedKey, KeyCodec, Mode, Mutation, Target, Transaction, wire};
+use crate::data::{Data, EncodedKey, KeyCodec, KeyRef, Mode, Mutation, Target, Transaction, wire};
 use crate::{AvroDecode, AvroEncode, ByteBuffer, libertas_get_random, libertas_get_utc_time};
 use alloc::{string::String, vec::Vec};
 use sha2::{Digest, Sha256};
@@ -258,6 +258,36 @@ impl<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> Data<K, V> {
         generation: [u8; 16],
         mutations: &[Mutation<'_, K, V>],
     ) -> Result<DocumentManifest, DocumentWriteError> {
+        self.publish_document_in_target(schema, generation, mutations, None, |_| true)
+    }
+
+    /// Publishes with the App's mutations if the guarded key still satisfies
+    /// `check` inside the manifest transaction. A rejected guard leaves the
+    /// sealed upload available to cancel or retry. A retry of an already
+    /// committed publication returns its manifest without applying mutations.
+    pub fn publish_document_if(
+        &self,
+        schema: &impl DocumentWriteSchema<K, V>,
+        generation: [u8; 16],
+        guard_key: KeyRef<'_, K>,
+        check: impl FnOnce(Option<V>) -> bool,
+        mutations: &[Mutation<'_, K, V>],
+    ) -> Result<DocumentManifest, DocumentWriteError> {
+        let guard_key = guard_key
+            .bytes()
+            .map(EncodedKey::from_bytes)
+            .map_err(|_| DocumentWriteError::InvalidKey)?;
+        self.publish_document_in_target(schema, generation, mutations, Some(guard_key), check)
+    }
+
+    fn publish_document_in_target(
+        &self,
+        schema: &impl DocumentWriteSchema<K, V>,
+        generation: [u8; 16],
+        mutations: &[Mutation<'_, K, V>],
+        guard_key: Option<EncodedKey<K>>,
+        check: impl FnOnce(Option<V>) -> bool,
+    ) -> Result<DocumentManifest, DocumentWriteError> {
         let manifest_key = encode_key(&schema.manifest_key())?;
         let stage_key = encode_key(&schema.stage_key(&generation))?;
         let stage_target = exact_target([&stage_key])?;
@@ -289,6 +319,14 @@ impl<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> Data<K, V> {
             .chain(&previous_key)
             .chain(&app_keys)
             .collect();
+        if let Some(key) = &guard_key
+            && !keys.contains(&key)
+        {
+            keys.push(key);
+        }
+        if keys.len() > wire::MAX_ITEMS {
+            return Err(DocumentWriteError::ValueTooLarge);
+        }
         keys.sort_unstable();
         let keys: Vec<_> = keys.into_iter().map(Into::into).collect();
         let target = Target::keys(&keys).map_err(|_| DocumentWriteError::InvalidKey)?;
@@ -316,6 +354,11 @@ impl<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> Data<K, V> {
         require_live(&stage, utc_now()?)?;
         if stage.expected_generation != expected
             || current.as_ref().map(|manifest| manifest.generation) != expected
+        {
+            return Err(DocumentWriteError::Conflict);
+        }
+        if let Some(key) = &guard_key
+            && !check(txn.get(key.into()))
         {
             return Err(DocumentWriteError::Conflict);
         }

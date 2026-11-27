@@ -1,5 +1,5 @@
 use super::{DocumentManifest, DocumentUpload, DocumentWriteError, DocumentWriteSchema};
-use crate::data::{Data, KeyCodec, Mutation, wire};
+use crate::data::{Data, KeyCodec, KeyRef, Mutation, wire};
 use crate::{AvroDecode, AvroEncode, LibertasEndpoint, LibertasPeer};
 use alloc::string::String;
 
@@ -121,6 +121,21 @@ impl DocumentTransfer {
     ) -> Result<DocumentManifest, DocumentWriteError> {
         self.check_owner(owner)?;
         data.publish_document_with_mutations(schema, self.handle(), mutations)
+    }
+
+    /// Checks the authenticated editor and an App-owned record revision in
+    /// the same transaction as the manifest and attachment mutations.
+    pub fn publish_if<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static>(
+        &self,
+        data: &Data<K, V>,
+        schema: &impl DocumentWriteSchema<K, V>,
+        owner: &DocumentTransferOwner,
+        guard_key: KeyRef<'_, K>,
+        check: impl FnOnce(Option<V>) -> bool,
+        mutations: &[Mutation<'_, K, V>],
+    ) -> Result<DocumentManifest, DocumentWriteError> {
+        self.check_owner(owner)?;
+        data.publish_document_if(schema, self.handle(), guard_key, check, mutations)
     }
 
     pub fn cancel<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static>(
