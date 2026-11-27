@@ -6,9 +6,11 @@ use alloc::{collections::TryReserveError, string::String, vec::Vec};
 use sha2::{Digest, Sha256};
 
 mod staging;
+mod sweep;
 pub use staging::{
     DocumentStage, DocumentStageStatus, DocumentUpload, DocumentWriteError, DocumentWriteSchema,
 };
+pub use sweep::DocumentSweepSchema;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DocumentManifest {

@@ -1,3 +1,4 @@
+use super::super::DocumentSweepSchema;
 use super::*;
 use crate::{LibertasDevice, LibertasPeer, LibertasTransId, ReadResult};
 use alloc::collections::BTreeMap;
@@ -6,11 +7,12 @@ use core::{
     ffi::c_void,
 };
 
-#[derive(libertas_macros::LibertasKeyCodec)]
+#[derive(libertas_macros::LibertasKeyCodec, libertas_macros::LibertasKeyDecode)]
 enum Key {
     Manifest,
     Stage { generation: [u8; 16] },
     Chunk { generation: [u8; 16], index: u32 },
+    Attachment,
 }
 
 #[derive(Clone)]
@@ -33,6 +35,7 @@ std::thread_local! {
     static STORAGE: RefCell<Storage> = RefCell::new(Storage::default());
     static VALUES: RefCell<Vec<Value>> = const { RefCell::new(Vec::new()) };
     static NEXT_RANDOM: Cell<u64> = const { Cell::new(0) };
+    static NOW: Cell<u64> = const { Cell::new(1) };
 }
 
 fn value_id(value: Value) -> u32 {
@@ -101,6 +104,19 @@ impl DocumentWriteSchema<Key, u32> for Schema {
     }
 }
 
+impl DocumentSweepSchema<Key, u32> for Schema {
+    fn stage_prefix(&self) -> &[u8] {
+        &[0, 1]
+    }
+
+    fn generation_from_stage_key(&self, key: &EncodedKey<Key>) -> Option<[u8; 16]> {
+        match key.decode().ok()? {
+            Key::Stage { generation } => Some(generation),
+            _ => None,
+        }
+    }
+}
+
 fn apply(records: &mut Records, target: &wire::Target, operation: wire::Operation) -> wire::Result {
     match operation {
         wire::Operation::Get(key) => {
@@ -120,6 +136,29 @@ fn apply(records: &mut Records, target: &wire::Target, operation: wire::Operatio
             assert!(target.contains(&key));
             records.remove(&key);
             wire::Result::Done
+        }
+        wire::Operation::Scan(scan) => {
+            assert!(scan.keys_only);
+            assert_eq!(scan.range.end, wire::Bound::Unbounded);
+            assert_eq!(scan.direction, wire::Direction::Ascending);
+            let mut keys: Vec<_> = records
+                .keys()
+                .filter(|key| {
+                    target.contains(key)
+                        && match &scan.range.start {
+                            wire::Bound::Unbounded => true,
+                            wire::Bound::Excluded(after) => *key > after,
+                            wire::Bound::Included(_) => unreachable!(),
+                        }
+                })
+                .take(scan.limit as usize + 1)
+                .cloned()
+                .collect();
+            let continuation = (keys.len() > scan.limit as usize).then(|| keys.pop().unwrap());
+            wire::Result::Keys {
+                items: keys,
+                continuation,
+            }
         }
         _ => unreachable!(),
     }
@@ -198,7 +237,7 @@ extern "C" fn random(_: u8) -> u64 {
 }
 
 extern "C" fn utc() -> u64 {
-    1
+    NOW.get()
 }
 
 #[test]
@@ -242,10 +281,24 @@ fn only_publishes_the_complete_generation_and_keeps_retries_idempotent() {
     assert_eq!(data.seal_document_upload(&Schema, &upload, digest), Ok(()));
     assert_eq!(data.seal_document_upload(&Schema, &upload, digest), Ok(()));
     assert_eq!(data.read_document(&Schema), Ok(None));
-    let manifest = data.publish_document(&Schema, upload.generation()).unwrap();
+    let manifest = data
+        .publish_document_with_mutations(
+            &Schema,
+            upload.generation(),
+            &[Mutation::Put((&Key::Attachment).into(), &42)],
+        )
+        .unwrap();
     assert_eq!(
-        data.publish_document(&Schema, upload.generation()),
+        data.publish_document_with_mutations(
+            &Schema,
+            upload.generation(),
+            &[Mutation::Put((&Key::Attachment).into(), &123)],
+        ),
         Ok(manifest.clone())
+    );
+    assert_eq!(
+        data.get(&Target::all(), (&Key::Attachment).into()),
+        Some(42)
     );
     let document = data.read_document(&Schema).unwrap().unwrap();
     assert_eq!(document.manifest, manifest);
@@ -303,4 +356,66 @@ fn only_publishes_the_complete_generation_and_keeps_retries_idempotent() {
 fn checks_the_record_encoding_including_the_avro_length_prefix() {
     let raw = alloc::vec![0u8; wire::MAX_VALUE_BYTES];
     assert_eq!(bounded_value(raw), Err(DocumentWriteError::ValueTooLarge));
+}
+
+#[test]
+fn startup_sweeps_an_expired_upload_across_bounded_transactions() {
+    let _guard = crate::tests::TEST_LOCK.lock().unwrap();
+    let mut runtime = crate::tests::fake_runtime_api();
+    runtime.device_read = request;
+    runtime.device_send = send;
+    runtime.get_random = random;
+    runtime.get_utc_time = utc;
+    crate::__libertas_init_package(&raw mut runtime as *mut c_void);
+    crate::libertas_impl_init_task(7);
+    crate::data::__bind_schema::<Key, u32>();
+    let data = Data::current();
+
+    let mut abandoned = data
+        .begin_document_upload(&Schema, 65, "application/pdf".into())
+        .unwrap();
+    for index in 0..65 {
+        data.append_document_chunk(&Schema, &mut abandoned, index, b"x")
+            .unwrap();
+    }
+    let generation = abandoned.generation();
+    let stage_key = Schema.stage_key(&generation);
+    assert_eq!(data.read_document(&Schema), Ok(None));
+    data.sweep_document_page(&Schema, &mut None).unwrap();
+    assert!(data.exists(&Target::all(), (&Schema.chunk_key(&generation, 0)).into()));
+
+    crate::libertas_impl_remove_task(7);
+    NOW.set(STAGING_LEASE_US + 2);
+    crate::libertas_impl_init_task(7);
+    crate::data::__bind_schema::<Key, u32>();
+    let data = Data::current();
+    let manifest = data
+        .store_document(&Schema, 4, "application/pdf".into(), [b"ab", b"cd"])
+        .unwrap();
+    data.start_document_sweeper(Schema, |error| panic!("{error:?}"))
+        .unwrap();
+    let id = data.get(&Target::all(), (&stage_key).into()).unwrap();
+    assert_eq!(
+        Schema.stage_from_value(id).unwrap().status,
+        DocumentStageStatus::Retired { next_chunk: 64 }
+    );
+    assert!(!data.exists(&Target::all(), (&Schema.chunk_key(&generation, 0)).into()));
+    assert!(data.exists(&Target::all(), (&Schema.chunk_key(&generation, 64)).into()));
+
+    crate::libertas_impl_remove_task(7);
+    crate::libertas_impl_init_task(7);
+    crate::data::__bind_schema::<Key, u32>();
+    let data = Data::current();
+    data.start_document_sweeper(Schema, |error| panic!("{error:?}"))
+        .unwrap();
+    assert!(!data.exists(&Target::all(), (&stage_key).into()));
+    assert!(!data.exists(&Target::all(), (&Schema.chunk_key(&generation, 64)).into()));
+    let document = data.read_document(&Schema).unwrap().unwrap();
+    assert_eq!(document.manifest, manifest);
+    assert_eq!(document.bytes, b"abcd");
+
+    crate::__libertas_release_package();
+    unsafe {
+        crate::RUNTIME_API = core::ptr::null_mut();
+    }
 }

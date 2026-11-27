@@ -1,10 +1,12 @@
 use super::{DocumentManifest, DocumentReadSchema};
-use crate::data::{Data, EncodedKey, KeyCodec, Mode, Target, Transaction, wire};
+use crate::data::{Data, EncodedKey, KeyCodec, Mode, Mutation, Target, Transaction, wire};
 use crate::{AvroDecode, AvroEncode, ByteBuffer, libertas_get_random, libertas_get_utc_time};
 use alloc::{string::String, vec::Vec};
 use sha2::{Digest, Sha256};
 
 const STAGING_LEASE_US: u64 = 15 * 60 * 1_000_000;
+// Covers the version, request ID, checked flag, and command and mode tags.
+const BEGIN_ENVELOPE_BYTES: usize = 64;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DocumentStageStatus {
@@ -65,6 +67,31 @@ pub enum DocumentWriteError {
 }
 
 impl<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> Data<K, V> {
+    /// Stores a document from an iterator of bounded pieces, publishing only
+    /// after the iterator ends and the received length matches `byte_len`.
+    pub fn store_document<B: AsRef<[u8]>>(
+        &self,
+        schema: &impl DocumentWriteSchema<K, V>,
+        byte_len: u64,
+        media_type: String,
+        pieces: impl IntoIterator<Item = B>,
+    ) -> Result<DocumentManifest, DocumentWriteError> {
+        let mut upload = self.begin_document_upload(schema, byte_len, media_type)?;
+        let result = (|| {
+            for piece in pieces {
+                let index = upload.chunk_count;
+                self.append_document_chunk(schema, &mut upload, index, piece.as_ref())?;
+            }
+            let sha256 = upload.digest.clone().finalize().into();
+            self.seal_document_upload(schema, &upload, sha256)?;
+            self.publish_document(schema, upload.generation)
+        })();
+        if result.is_err() {
+            let _ = self.cancel_document_upload(schema, upload.generation);
+        }
+        result
+    }
+
     /// Records the current manifest and creates an unpublished upload generation.
     pub fn begin_document_upload(
         &self,
@@ -215,6 +242,17 @@ impl<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> Data<K, V> {
         schema: &impl DocumentWriteSchema<K, V>,
         generation: [u8; 16],
     ) -> Result<DocumentManifest, DocumentWriteError> {
+        self.publish_document_with_mutations(schema, generation, &[])
+    }
+
+    /// Publishes the document and applies the App's attachment mutations in
+    /// the same transaction. Each mutation must target a distinct App key.
+    pub fn publish_document_with_mutations(
+        &self,
+        schema: &impl DocumentWriteSchema<K, V>,
+        generation: [u8; 16],
+        mutations: &[Mutation<'_, K, V>],
+    ) -> Result<DocumentManifest, DocumentWriteError> {
         let manifest_key = encode_key(&schema.manifest_key())?;
         let stage_key = encode_key(&schema.stage_key(&generation))?;
         let stage_target = exact_target([&stage_key])?;
@@ -227,10 +265,31 @@ impl<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> Data<K, V> {
         let previous_key = expected
             .map(|previous| encode_key(&schema.stage_key(&previous)))
             .transpose()?;
-        let target = match &previous_key {
-            Some(previous_key) => exact_target([&manifest_key, &stage_key, previous_key])?,
-            None => exact_target([&manifest_key, &stage_key])?,
-        };
+        if mutations.len() > wire::MAX_ITEMS - 2 - usize::from(previous_key.is_some()) {
+            return Err(DocumentWriteError::ValueTooLarge);
+        }
+        let app_keys = mutations
+            .iter()
+            .map(|mutation| {
+                let key = match mutation {
+                    Mutation::Put(key, _) | Mutation::Delete(key) => key,
+                };
+                key.bytes()
+                    .map(EncodedKey::from_bytes)
+                    .map_err(|_| DocumentWriteError::InvalidKey)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut keys: Vec<_> = [&manifest_key, &stage_key]
+            .into_iter()
+            .chain(&previous_key)
+            .chain(&app_keys)
+            .collect();
+        keys.sort_unstable();
+        let keys: Vec<_> = keys.into_iter().map(Into::into).collect();
+        let target = Target::keys(&keys).map_err(|_| DocumentWriteError::InvalidKey)?;
+        if encoded_len(&target.raw) > wire::MAX_REQUEST_BYTES - BEGIN_ENVELOPE_BYTES {
+            return Err(DocumentWriteError::ValueTooLarge);
+        }
         let mut txn = self.begin(&target, Mode::ReadWrite);
         let mut stage = read_stage(&mut txn, schema, &stage_key, &manifest_key)?;
         let current = txn
@@ -263,18 +322,42 @@ impl<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> Data<K, V> {
             chunk_count: stage.chunk_count,
         };
         stage.status = DocumentStageStatus::Published;
-        let manifest_value = bounded_value(schema.manifest_value(manifest.clone()))?;
-        let stage_value = bounded_value(schema.stage_value(stage))?;
-        if let Some(previous_key) = previous_key {
-            let previous = read_stage(&mut txn, schema, &previous_key, &manifest_key)?;
+        let manifest_value = schema.manifest_value(manifest.clone());
+        let stage_value = schema.stage_value(stage);
+        let mut mutation_bytes = mutation_size(&manifest_key, Some(&manifest_value))?
+            .saturating_add(mutation_size(&stage_key, Some(&stage_value))?);
+        let mut previous_value = None;
+        if let Some(previous_key) = &previous_key {
+            let previous = read_stage(&mut txn, schema, previous_key, &manifest_key)?;
             if previous.status != DocumentStageStatus::Published {
                 return Err(DocumentWriteError::InvalidStage);
             }
-            let previous_value = retired_value(schema, previous)?;
-            txn.put((&previous_key).into(), &previous_value);
+            let value = retired_value(schema, previous)?;
+            mutation_bytes =
+                mutation_bytes.saturating_add(mutation_size(previous_key, Some(&value))?);
+            previous_value = Some(value);
+        }
+        for (key, mutation) in app_keys.iter().zip(mutations) {
+            let value = match mutation {
+                Mutation::Put(_, value) => Some(*value),
+                Mutation::Delete(_) => None,
+            };
+            mutation_bytes = mutation_bytes.saturating_add(mutation_size(key, value)?);
+            if mutation_bytes > wire::MAX_REQUEST_BYTES {
+                return Err(DocumentWriteError::ValueTooLarge);
+            }
         }
         txn.put((&manifest_key).into(), &manifest_value);
         txn.put((&stage_key).into(), &stage_value);
+        if let (Some(key), Some(value)) = (&previous_key, &previous_value) {
+            txn.put(key.into(), value);
+        }
+        for (key, mutation) in app_keys.iter().zip(mutations) {
+            match mutation {
+                Mutation::Put(_, value) => txn.put(key.into(), *value),
+                Mutation::Delete(_) => txn.delete(key.into()),
+            }
+        }
         txn.commit();
         Ok(manifest)
     }
@@ -427,13 +510,31 @@ impl ByteBuffer for EncodedLen {
     }
 }
 
-fn bounded_value<V: AvroEncode>(value: V) -> Result<V, DocumentWriteError> {
-    let mut len = EncodedLen(0);
-    value.avro_encode(&mut len);
-    if len.0 > wire::MAX_VALUE_BYTES {
+pub(super) fn bounded_value<V: AvroEncode>(value: V) -> Result<V, DocumentWriteError> {
+    value_size(&value)?;
+    Ok(value)
+}
+
+fn value_size<V: AvroEncode>(value: &V) -> Result<usize, DocumentWriteError> {
+    let len = encoded_len(value);
+    if len > wire::MAX_VALUE_BYTES {
         return Err(DocumentWriteError::ValueTooLarge);
     }
-    Ok(value)
+    Ok(len)
+}
+
+fn encoded_len<V: AvroEncode>(value: &V) -> usize {
+    let mut len = EncodedLen(0);
+    value.avro_encode(&mut len);
+    len.0
+}
+
+fn mutation_size<K, V: AvroEncode>(
+    key: &EncodedKey<K>,
+    value: Option<&V>,
+) -> Result<usize, DocumentWriteError> {
+    let value_len = value.map(value_size).transpose()?.unwrap_or(0);
+    Ok(key.as_bytes().len() + value_len)
 }
 
 #[cfg(test)]
