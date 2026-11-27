@@ -4,7 +4,7 @@ use super::super::{
 };
 use super::*;
 use crate::{LibertasDevice, LibertasPeer, LibertasTransId, ReadResult};
-use alloc::collections::BTreeMap;
+use alloc::{collections::BTreeMap, sync::Arc};
 use core::{
     cell::{Cell, RefCell},
     ffi::c_void,
@@ -25,7 +25,7 @@ enum Value {
     Chunk(Vec<u8>),
 }
 
-type Records = BTreeMap<Vec<u8>, Vec<u8>>;
+type Records = BTreeMap<Vec<u8>, Arc<[u8]>>;
 
 #[derive(Default)]
 struct Storage {
@@ -120,11 +120,58 @@ impl DocumentSweepSchema<Key, u32> for Schema {
     }
 }
 
+// Send actual chunk bytes through the Data wire codec. Metadata can use the
+// existing fixture registry because the test exercises the chunk size budget.
+struct ByteSchema;
+
+impl DocumentReadSchema<Key, Vec<u8>> for ByteSchema {
+    fn manifest_key(&self) -> Key {
+        Schema.manifest_key()
+    }
+
+    fn chunk_key(&self, generation: &[u8; 16], index: u32) -> Key {
+        Schema.chunk_key(generation, index)
+    }
+
+    fn manifest_from_value(&self, value: Vec<u8>) -> Option<DocumentManifest> {
+        Schema.manifest_from_value(u32::from_le_bytes(value.as_slice().try_into().ok()?))
+    }
+
+    fn chunk_from_value(&self, mut value: Vec<u8>) -> Option<Vec<u8>> {
+        (value.pop() == Some(1)).then_some(value)
+    }
+}
+
+impl DocumentWriteSchema<Key, Vec<u8>> for ByteSchema {
+    fn stage_key(&self, generation: &[u8; 16]) -> Key {
+        Schema.stage_key(generation)
+    }
+
+    fn stage_from_value(&self, value: Vec<u8>) -> Option<DocumentStage> {
+        Schema.stage_from_value(u32::from_le_bytes(value.as_slice().try_into().ok()?))
+    }
+
+    fn stage_value(&self, stage: DocumentStage) -> Vec<u8> {
+        Schema.stage_value(stage).to_le_bytes().to_vec()
+    }
+
+    fn chunk_value(&self, bytes: &[u8]) -> Vec<u8> {
+        let mut value = Vec::with_capacity(bytes.len() + 1);
+        value.extend_from_slice(bytes);
+        value.push(1);
+        value
+    }
+
+    fn manifest_value(&self, manifest: DocumentManifest) -> Vec<u8> {
+        Schema.manifest_value(manifest).to_le_bytes().to_vec()
+    }
+}
+
 fn apply(records: &mut Records, target: &wire::Target, operation: wire::Operation) -> wire::Result {
     match operation {
         wire::Operation::Get(key) => {
             assert!(target.contains(&key));
-            wire::Result::Value(records.get(&key).cloned())
+            wire::Result::Value(records.get(&key).map(|bytes| bytes.to_vec()))
         }
         wire::Operation::Exists(key) => {
             assert!(target.contains(&key));
@@ -132,7 +179,7 @@ fn apply(records: &mut Records, target: &wire::Target, operation: wire::Operatio
         }
         wire::Operation::Put { key, value } => {
             assert!(target.contains(&key));
-            records.insert(key, value);
+            records.insert(key, value.into());
             wire::Result::Done
         }
         wire::Operation::Delete(key) => {
@@ -418,6 +465,99 @@ fn only_publishes_the_complete_generation_and_keeps_retries_idempotent() {
 fn checks_the_record_encoding_including_the_avro_length_prefix() {
     let raw = alloc::vec![0u8; wire::MAX_VALUE_BYTES];
     assert_eq!(bounded_value(raw), Err(DocumentWriteError::ValueTooLarge));
+}
+
+#[test]
+fn transfers_sixty_mebibytes_and_verifies_the_bounded_stream() {
+    let _guard = crate::tests::TEST_LOCK.lock().unwrap();
+    let mut runtime = crate::tests::fake_runtime_api();
+    runtime.device_read = request;
+    runtime.device_send = send;
+    runtime.get_random = random;
+    runtime.get_utc_time = utc;
+    crate::__libertas_init_package(&raw mut runtime as *mut c_void);
+    crate::libertas_impl_init_task(7);
+    crate::data::__bind_schema::<Key, Vec<u8>>();
+    let data = Data::current();
+
+    const TOTAL: usize = 60 * 1024 * 1024;
+    // One fixture tag and a four-byte Avro length prefix fill the value budget.
+    const PIECE: usize = wire::MAX_VALUE_BYTES - 5;
+    let sample = |offset: usize, index: u32| {
+        let len = PIECE.min(TOTAL - offset);
+        let mut piece = alloc::vec![index as u8; len];
+        if offset == 0 {
+            piece[..9].copy_from_slice(b"%PDF-1.7\n");
+        }
+        if offset + len == TOTAL {
+            piece[len - 6..].copy_from_slice(b"%%EOF\n");
+        }
+        piece
+    };
+    let owner = DocumentTransferOwner {
+        peer: 1,
+        endpoint: 467,
+        editor: [2; 16],
+        field_path: "$.attachment".into(),
+    };
+    let mut transfer = DocumentTransfer::begin(
+        &data,
+        &ByteSchema,
+        DocumentTransferOwner {
+            peer: owner.peer,
+            endpoint: owner.endpoint,
+            editor: owner.editor,
+            field_path: owner.field_path.clone(),
+        },
+        DocumentTransferStart {
+            byte_len: TOTAL as u64,
+            media_type: "application/pdf".into(),
+            piece_bytes: PIECE,
+        },
+    )
+    .unwrap();
+    let mut digest = Sha256::new();
+    let mut count = 0;
+    for offset in (0..TOTAL).step_by(PIECE) {
+        let piece = sample(offset, count);
+        digest.update(&piece);
+        assert_eq!(
+            transfer.piece(&data, &ByteSchema, &owner, count, &piece),
+            Ok((offset + piece.len()) as u64)
+        );
+        count += 1;
+    }
+    let expected_digest: [u8; 32] = digest.finalize().into();
+    assert_eq!(data.read_document(&ByteSchema), Ok(None));
+    transfer
+        .seal(&data, &ByteSchema, &owner, expected_digest)
+        .unwrap();
+    assert_eq!(data.read_document(&ByteSchema), Ok(None));
+    let published = transfer.publish(&data, &ByteSchema, &owner, &[]).unwrap();
+
+    let mut offset = 0;
+    let mut index = 0;
+    let streamed = data
+        .stream_document(&ByteSchema, |bytes| {
+            assert_eq!(bytes, sample(offset, index));
+            offset += bytes.len();
+            index += 1;
+            Ok::<(), core::convert::Infallible>(())
+        })
+        .unwrap()
+        .unwrap();
+    assert_eq!(streamed, published);
+    assert_eq!(offset, TOTAL);
+    assert_eq!(index, count);
+    assert_eq!(streamed.byte_len, TOTAL as u64);
+    assert_eq!(streamed.sha256, expected_digest);
+    assert_eq!(streamed.media_type, "application/pdf");
+    assert_eq!(streamed.chunk_count, count);
+
+    crate::__libertas_release_package();
+    unsafe {
+        crate::RUNTIME_API = core::ptr::null_mut();
+    }
 }
 
 #[test]
