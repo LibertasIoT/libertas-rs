@@ -327,10 +327,33 @@ fn only_publishes_the_complete_generation_and_keeps_retries_idempotent() {
         data.append_document_chunk(&Schema, &mut upload, 1, b"cd"),
         Ok(4)
     );
+    assert_eq!(
+        data.stream_sealed_document(&Schema, upload.generation(), |_| Ok::<_, ()>(())),
+        Err(DocumentReadError::StageUnavailable)
+    );
     let digest = Sha256::digest(b"abcd").into();
     assert_eq!(data.seal_document_upload(&Schema, &upload, digest), Ok(()));
     assert_eq!(data.seal_document_upload(&Schema, &upload, digest), Ok(()));
     assert_eq!(data.read_document(&Schema), Ok(None));
+    let mut checked = Vec::new();
+    let sealed = data
+        .stream_sealed_document(&Schema, upload.generation(), |bytes| {
+            checked.extend_from_slice(bytes);
+            Ok::<_, ()>(())
+        })
+        .unwrap();
+    assert_eq!(checked, b"abcd");
+    assert_eq!(sealed.sha256, digest);
+    assert_eq!(sealed.chunk_count, 2);
+    let last = Schema.chunk_key(&upload.generation(), 1);
+    data.put(&Target::all(), (&last).into(), &Schema.chunk_value(b"xy"));
+    assert_eq!(
+        data.stream_sealed_document(&Schema, upload.generation(), |_| Ok::<_, ()>(())),
+        Err(DocumentReadError::DigestMismatch)
+    );
+    data.put(&Target::all(), (&last).into(), &Schema.chunk_value(b"cd"));
+    assert_eq!(data.read_document(&Schema), Ok(None));
+
     data.put(&Target::all(), (&Key::Attachment).into(), &7);
     assert_eq!(
         data.publish_document_if(

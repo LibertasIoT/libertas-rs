@@ -38,6 +38,7 @@ pub enum DocumentReadError<E> {
     InvalidKey,
     InvalidManifest,
     ManifestChanged,
+    StageUnavailable,
     InvalidChunk(u32),
     LengthMismatch,
     DigestMismatch,
@@ -71,7 +72,7 @@ impl<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> Data<K, V> {
     pub fn stream_document<E>(
         &self,
         schema: &impl DocumentReadSchema<K, V>,
-        mut sink: impl FnMut(&[u8]) -> Result<(), E>,
+        sink: impl FnMut(&[u8]) -> Result<(), E>,
     ) -> Result<Option<DocumentManifest>, DocumentReadError<E>> {
         let manifest_key = encode_key(&schema.manifest_key())?;
         let manifest_target =
@@ -82,6 +83,24 @@ impl<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> Data<K, V> {
         let manifest = schema
             .manifest_from_value(value)
             .ok_or(DocumentReadError::InvalidManifest)?;
+        self.stream_document_generation(
+            schema,
+            &manifest_key,
+            &manifest,
+            |value| schema.manifest_from_value(value).as_ref() == Some(&manifest),
+            sink,
+        )?;
+        Ok(Some(manifest))
+    }
+
+    fn stream_document_generation<E>(
+        &self,
+        schema: &impl DocumentReadSchema<K, V>,
+        binding_key: &EncodedKey<K>,
+        manifest: &DocumentManifest,
+        matches_generation: impl Fn(V) -> bool,
+        mut sink: impl FnMut(&[u8]) -> Result<(), E>,
+    ) -> Result<(), DocumentReadError<E>> {
         if (manifest.byte_len == 0) != (manifest.chunk_count == 0)
             || u64::from(manifest.chunk_count) > manifest.byte_len
         {
@@ -92,15 +111,12 @@ impl<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> Data<K, V> {
         let mut remaining = manifest.byte_len;
         for index in 0..manifest.chunk_count {
             let chunk_key = encode_key(&schema.chunk_key(&manifest.generation, index))?;
-            let mut keys = [&manifest_key, &chunk_key];
+            let mut keys = [binding_key, &chunk_key];
             keys.sort_unstable();
             let target =
                 Target::keys(&keys.map(Into::into)).map_err(|_| DocumentReadError::InvalidKey)?;
             let mut txn = self.begin(&target, Mode::ReadOnly);
-            let current = txn
-                .get((&manifest_key).into())
-                .and_then(|v| schema.manifest_from_value(v));
-            if current.as_ref() != Some(&manifest) {
+            if !txn.get(binding_key.into()).is_some_and(&matches_generation) {
                 return Err(DocumentReadError::ManifestChanged);
             }
             let bytes = txn
@@ -122,7 +138,7 @@ impl<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> Data<K, V> {
         if <[u8; 32]>::from(digest.finalize()) != manifest.sha256 {
             return Err(DocumentReadError::DigestMismatch);
         }
-        Ok(Some(manifest))
+        Ok(())
     }
 }
 

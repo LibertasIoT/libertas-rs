@@ -1,4 +1,4 @@
-use super::{DocumentManifest, DocumentReadSchema};
+use super::{DocumentManifest, DocumentReadError, DocumentReadSchema};
 use crate::data::{Data, EncodedKey, KeyCodec, KeyRef, Mode, Mutation, Target, Transaction, wire};
 use crate::{AvroDecode, AvroEncode, ByteBuffer, libertas_get_random, libertas_get_utc_time};
 use alloc::{string::String, vec::Vec};
@@ -239,6 +239,56 @@ impl<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> Data<K, V> {
         }
         txn.commit();
         Ok(())
+    }
+
+    /// Streams a live sealed upload for App validation before publication.
+    /// A successful read verifies the length and digest. Until it returns,
+    /// any bytes seen by the sink are provisional.
+    pub fn stream_sealed_document<E>(
+        &self,
+        schema: &impl DocumentWriteSchema<K, V>,
+        generation: [u8; 16],
+        sink: impl FnMut(&[u8]) -> Result<(), E>,
+    ) -> Result<DocumentManifest, DocumentReadError<E>> {
+        let manifest_key = super::encode_key(&schema.manifest_key())?;
+        let stage_key = super::encode_key(&schema.stage_key(&generation))?;
+        let target = exact_target([&stage_key]).map_err(|_| DocumentReadError::InvalidKey)?;
+        let decode_live = |value| {
+            let stage = decode_stage(schema, value, &manifest_key).ok()?;
+            require_live(&stage, utc_now().ok()?).ok()?;
+            let DocumentStageStatus::Sealed(sha256) = stage.status else {
+                return None;
+            };
+            if stage.accepted_bytes != stage.byte_len {
+                return None;
+            }
+            Some(DocumentManifest {
+                generation,
+                byte_len: stage.byte_len,
+                sha256,
+                media_type: stage.media_type,
+                chunk_count: stage.chunk_count,
+            })
+        };
+        let manifest = self
+            .get(&target, (&stage_key).into())
+            .and_then(&decode_live)
+            .ok_or(DocumentReadError::StageUnavailable)?;
+        self.stream_document_generation(
+            schema,
+            &stage_key,
+            &manifest,
+            |value| decode_live(value).as_ref() == Some(&manifest),
+            sink,
+        )?;
+        if !self
+            .get(&target, (&stage_key).into())
+            .and_then(decode_live)
+            .is_some_and(|current| current == manifest)
+        {
+            return Err(DocumentReadError::StageUnavailable);
+        }
+        Ok(manifest)
     }
 
     /// Publishes a sealed generation and retires the prior generation atomically.

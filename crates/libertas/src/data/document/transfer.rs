@@ -1,4 +1,6 @@
-use super::{DocumentManifest, DocumentUpload, DocumentWriteError, DocumentWriteSchema};
+use super::{
+    DocumentManifest, DocumentReadError, DocumentUpload, DocumentWriteError, DocumentWriteSchema,
+};
 use crate::data::{Data, KeyCodec, KeyRef, Mutation, wire};
 use crate::{AvroDecode, AvroEncode, LibertasEndpoint, LibertasPeer};
 use alloc::string::String;
@@ -99,6 +101,19 @@ impl DocumentTransfer {
         self.check_owner(owner)?;
         data.seal_document_upload(schema, &self.upload, sha256)?;
         Ok(self.handle())
+    }
+
+    /// Reads the authenticated editor's sealed bytes for validation before Save.
+    pub fn stream_sealed<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static, E>(
+        &self,
+        data: &Data<K, V>,
+        schema: &impl DocumentWriteSchema<K, V>,
+        owner: &DocumentTransferOwner,
+        sink: impl FnMut(&[u8]) -> Result<(), E>,
+    ) -> Result<DocumentManifest, DocumentReadError<E>> {
+        self.check_owner(owner)
+            .map_err(|_| DocumentReadError::StageUnavailable)?;
+        data.stream_sealed_document(schema, self.handle(), sink)
     }
 
     pub fn renew<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static>(
