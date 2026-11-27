@@ -7,10 +7,14 @@ use sha2::{Digest, Sha256};
 
 mod staging;
 mod sweep;
+mod transfer;
 pub use staging::{
     DocumentStage, DocumentStageStatus, DocumentUpload, DocumentWriteError, DocumentWriteSchema,
 };
 pub use sweep::DocumentSweepSchema;
+pub use transfer::{
+    DocumentTransfer, DocumentTransferOwner, DocumentTransferProgress, DocumentTransferStart,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DocumentManifest {

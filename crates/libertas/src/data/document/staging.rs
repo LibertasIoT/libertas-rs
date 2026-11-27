@@ -49,6 +49,10 @@ impl DocumentUpload {
     pub fn generation(&self) -> [u8; 16] {
         self.generation
     }
+
+    pub(super) fn progress(&self) -> (u32, u64) {
+        (self.chunk_count, self.accepted_bytes)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -64,6 +68,7 @@ pub enum DocumentWriteError {
     ValueTooLarge,
     LengthMismatch,
     DigestMismatch,
+    TransferOwnerMismatch,
 }
 
 impl<K: KeyCodec + 'static, V: AvroEncode + AvroDecode + 'static> Data<K, V> {

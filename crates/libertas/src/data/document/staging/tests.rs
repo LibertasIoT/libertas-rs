@@ -1,4 +1,7 @@
-use super::super::DocumentSweepSchema;
+use super::super::{
+    DocumentSweepSchema, DocumentTransfer, DocumentTransferOwner, DocumentTransferProgress,
+    DocumentTransferStart,
+};
 use super::*;
 use crate::{LibertasDevice, LibertasPeer, LibertasTransId, ReadResult};
 use alloc::collections::BTreeMap;
@@ -345,6 +348,65 @@ fn only_publishes_the_complete_generation_and_keeps_retries_idempotent() {
         data.delete_document(&Schema, new_manifest.generation),
         Ok(false)
     );
+
+    let owner = |peer, editor, field: &str| DocumentTransferOwner {
+        peer,
+        endpoint: 467,
+        editor: [editor; 16],
+        field_path: field.into(),
+    };
+    let mut transfer = DocumentTransfer::begin(
+        &data,
+        &Schema,
+        owner(1, 2, "$.attachment"),
+        DocumentTransferStart {
+            byte_len: 2,
+            media_type: "application/pdf".into(),
+            piece_bytes: 2,
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        transfer.piece(&data, &Schema, &owner(9, 2, "$.attachment"), 0, b"ab"),
+        Err(DocumentWriteError::TransferOwnerMismatch)
+    );
+    assert_eq!(
+        transfer.piece(&data, &Schema, &owner(1, 2, "$.attachment"), 0, b"abc"),
+        Err(DocumentWriteError::ValueTooLarge)
+    );
+    assert_eq!(
+        transfer.piece(&data, &Schema, &owner(1, 2, "$.attachment"), 0, b"ab"),
+        Ok(2)
+    );
+    assert_eq!(
+        transfer.progress(&owner(1, 2, "$.attachment")),
+        Ok(DocumentTransferProgress {
+            next_index: 1,
+            accepted_bytes: 2
+        })
+    );
+    let reference = transfer
+        .seal(
+            &data,
+            &Schema,
+            &owner(1, 2, "$.attachment"),
+            Sha256::digest(b"ab").into(),
+        )
+        .unwrap();
+    assert_eq!(reference, transfer.handle());
+    assert_eq!(
+        transfer.publish(&data, &Schema, &owner(1, 3, "$.attachment"), &[]),
+        Err(DocumentWriteError::TransferOwnerMismatch)
+    );
+    assert_eq!(
+        transfer.publish(&data, &Schema, &owner(1, 2, "$.other"), &[]),
+        Err(DocumentWriteError::TransferOwnerMismatch)
+    );
+    assert_eq!(data.read_document(&Schema), Ok(None));
+    transfer
+        .publish(&data, &Schema, &owner(1, 2, "$.attachment"), &[])
+        .unwrap();
+    assert_eq!(data.read_document(&Schema).unwrap().unwrap().bytes, b"ab");
 
     crate::__libertas_release_package();
     unsafe {
