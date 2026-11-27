@@ -1,9 +1,14 @@
-//! Verified reads of documents stored in a task's schema-bound Data context.
+//! Staging and verified reads in a task's schema-bound Data context.
 
 use super::{Data, EncodedKey, KeyCodec, Mode, Target};
 use crate::{AvroDecode, AvroEncode};
 use alloc::{collections::TryReserveError, string::String, vec::Vec};
 use sha2::{Digest, Sha256};
+
+mod staging;
+pub use staging::{
+    DocumentStage, DocumentStageStatus, DocumentUpload, DocumentWriteError, DocumentWriteSchema,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DocumentManifest {
